@@ -81,6 +81,7 @@ model LeadDocument {
   lead      Lead     @relation(fields: [leadId], references: [id])
   type      String   // "cnh" | "rg_cpf" | "cpf" | "image"
   url       String
+  ocrText   String?
   createdAt DateTime @default(now())
 }
 

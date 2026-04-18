@@ -29,9 +29,8 @@ const schema = z.object({
     .transform((v) => v === 'true' || v === '1')
     .default('false'),
 
-  // Azure Computer Vision (OCR) — optional
-  AZURE_VISION_ENDPOINT: z.string().url().optional().or(z.literal('')),
-  AZURE_VISION_KEY: z.string().optional(),
+  // Google Cloud Vision (OCR) — optional
+  GOOGLE_CREDENTIALS_JSON: z.string().optional(),
 });
 
 export const config = schema.parse(process.env);

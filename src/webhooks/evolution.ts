@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import { bufferMedia, bufferMessage } from '@/buffer';
 import { config } from '@/config';
-import { bufferMessage, bufferMedia } from '@/buffer';
 
 export interface InboundMessage {
   chatId: string;

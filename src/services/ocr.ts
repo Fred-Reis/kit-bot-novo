@@ -1,36 +1,64 @@
+import { GoogleAuth } from 'google-auth-library';
 import { config } from '@/config';
 
-export async function extractTextFromImage(imageUrl: string): Promise<string> {
-  if (!config.AZURE_VISION_ENDPOINT || !config.AZURE_VISION_KEY) {
-    return '';
-  }
+let _auth: GoogleAuth | null = null;
 
-  const endpoint = config.AZURE_VISION_ENDPOINT.replace(/\/$/, '');
-  const url = `${endpoint}/computervision/imageanalysis:analyze?api-version=2024-02-01&features=read`;
+function getAuth(): GoogleAuth | null {
+  if (!config.GOOGLE_CREDENTIALS_JSON) return null;
+  if (_auth) return _auth;
 
   try {
-    const response = await fetch(url, {
+    const credentials = JSON.parse(config.GOOGLE_CREDENTIALS_JSON) as object;
+    _auth = new GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/cloud-vision'],
+    });
+    return _auth;
+  } catch {
+    console.warn('[ocr] Failed to parse GOOGLE_CREDENTIALS_JSON');
+    return null;
+  }
+}
+
+export async function extractTextFromImage(imageUrl: string): Promise<string> {
+  const auth = getAuth();
+  if (!auth) return '';
+
+  try {
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    const token = tokenResponse.token;
+    if (!token) return '';
+
+    const response = await fetch('https://vision.googleapis.com/v1/images:annotate', {
       method: 'POST',
       headers: {
-        'Ocp-Apim-Subscription-Key': config.AZURE_VISION_KEY,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ url: imageUrl }),
+      body: JSON.stringify({
+        requests: [
+          {
+            image: { source: { imageUri: imageUrl } },
+            features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
+          },
+        ],
+      }),
     });
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      console.warn(`Azure Vision OCR failed: ${response.status} ${body}`);
+      console.warn(`[ocr] Vision API error: ${response.status} ${body}`);
       return '';
     }
 
     const result = (await response.json()) as {
-      readResult?: { content?: string };
+      responses?: Array<{ fullTextAnnotation?: { text?: string } }>;
     };
 
-    return result.readResult?.content ?? '';
+    return result.responses?.[0]?.fullTextAnnotation?.text ?? '';
   } catch (err) {
-    console.warn('Azure Vision OCR error:', err);
+    console.warn('[ocr] extractTextFromImage error:', err);
     return '';
   }
 }

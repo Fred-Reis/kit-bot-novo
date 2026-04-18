@@ -1,18 +1,25 @@
 // Port of flows/lead_flow.py
+
+import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead';
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
-import { sendText, sendMedia } from '@/services/evolution';
-import { getPropertyByExternalId, findMatchingProperty, listAvailableProperties, summarizeProperty } from '@/services/catalog';
+import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
 import { getSimpleGreetingReply } from '@/flows/lead/intents';
-import { buildLeadSnapshot, renderLeadContext, type LeadContext } from '@/flows/lead/context';
+import {
+  findPropertyMedia,
+  getRequestedMediaType,
+  mediaCaption,
+  shouldSendMediaDeterministically,
+} from '@/flows/lead/media';
 import { resolveTargetAgent } from '@/flows/lead/rules';
 import {
-  getRequestedMediaType,
-  findPropertyMedia,
-  shouldSendMediaDeterministically,
-  mediaCaption,
-} from '@/flows/lead/media';
-import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead';
+  findMatchingProperty,
+  getPropertyByExternalId,
+  listAvailableProperties,
+  summarizeProperty,
+} from '@/services/catalog';
+import { sendMedia, sendText } from '@/services/evolution';
+import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
 
@@ -30,8 +37,8 @@ async function loadChatHistory(
   });
   return events
     .reverse()
-    .filter((e) => e.role === 'user' || e.role === 'assistant')
-    .map((e) => ({ role: e.role as 'user' | 'assistant', content: e.content }));
+    .filter((event) => event.role === 'user' || event.role === 'assistant')
+    .map((event) => ({ role: event.role as 'user' | 'assistant', content: event.content }));
 }
 
 async function loadOrCreateConversation(chatId: string): Promise<LeadContext> {
@@ -85,13 +92,19 @@ async function persistLeadDocuments(
 
   const docType = docsPreference ?? 'image';
 
-  await prisma.leadDocument.createMany({
-    data: docItems.map((m) => ({
-      leadId,
-      type: docType,
-      url: m.url!,
-    })),
-  });
+  await Promise.all(
+    docItems.map(async (m) => {
+      const ocrText = await extractTextFromImage(m.url!);
+      return prisma.leadDocument.create({
+        data: {
+          leadId,
+          type: docType,
+          url: m.url!,
+          ocrText: ocrText || null,
+        },
+      });
+    }),
+  );
 }
 
 export async function handleLeadMessage(

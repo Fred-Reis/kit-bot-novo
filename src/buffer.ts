@@ -1,5 +1,5 @@
-import { redis } from '@/db/redis';
 import { config } from '@/config';
+import { redis } from '@/db/redis';
 import { uploadLeadDocument } from '@/services/storage';
 
 const debounceHandles = new Map<string, NodeJS.Timeout>();

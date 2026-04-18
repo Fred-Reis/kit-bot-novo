@@ -2,11 +2,11 @@
 import { prisma } from '@/db/client';
 import type { PropertyData } from '@/services/catalog';
 import {
+  describeProperty,
+  describePropertyTerms,
   findMatchingProperty,
   getPropertyByExternalId,
   listAvailableProperties,
-  describeProperty,
-  describePropertyTerms,
   summarizeProperty,
 } from '@/services/catalog';
 
@@ -125,8 +125,8 @@ function currentProcessStep(state: string): string {
 async function resolvePropertyInFocus(context: LeadContext): Promise<PropertyData | null> {
   const reference = (context.propertyReference ?? '').trim();
   if (reference) {
-    const p = await getPropertyByExternalId(reference);
-    if (p && p.active) return p;
+    const property = await getPropertyByExternalId(reference);
+    if (property && property.active) return property;
   }
   const interest = (context.propertyInterest ?? '').trim();
   if (interest) {
