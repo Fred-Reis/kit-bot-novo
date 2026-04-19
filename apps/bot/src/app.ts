@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import { config } from '@/config';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
+import adminAuthPlugin from '@/plugins/admin-auth';
+import { adminRoutes } from '@/routes/admin';
 
 const fastify = Fastify({
   logger: {
@@ -8,7 +10,9 @@ const fastify = Fastify({
   },
 });
 
+fastify.register(adminAuthPlugin);
 fastify.register(evolutionWebhookPlugin);
+fastify.register(adminRoutes);
 
 fastify.get('/health', async () => ({ status: 'ok' }));
 
