@@ -1,33 +1,58 @@
 @import "tailwindcss";
 
 @theme {
-  /* Backgrounds — warm gray */
-  --color-surface: oklch(0.97 0.004 60);
-  --color-surface-raised: oklch(0.99 0.002 60);
+  /* Backgrounds */
+  --color-surface: #F5F3F0;
+  --color-surface-raised: #FFFFFF;
 
   /* Brand — orange */
-  --color-primary: oklch(0.65 0.18 45);
-  --color-primary-hover: oklch(0.58 0.18 45);
-  --color-primary-foreground: oklch(1 0 0);
+  --color-primary: #C2410C;
+  --color-primary-hover: #9A3410;
+  --color-primary-foreground: #FFFFFF;
+  --color-accent-soft: #FDEAD9;
+  --color-accent-ink: #7C2D12;
 
   /* Neutrals */
-  --color-secondary: oklch(0.94 0.004 60);
-  --color-muted: oklch(0.91 0.005 60);
-  --color-border: oklch(0.87 0.005 60);
-  --color-input: oklch(0.84 0.005 60);
+  --color-muted: #F0ECE6;
+  --color-border: #E7E2DC;
+  --color-border-subtle: #EFEAE3;
 
   /* Text */
-  --color-foreground: oklch(0.18 0.005 60);
-  --color-foreground-subtle: oklch(0.38 0.005 60);
-  --color-muted-foreground: oklch(0.55 0.005 60);
-  --color-secondary-foreground: oklch(0.25 0.005 60);
+  --color-foreground: #2A2520;
+  --color-foreground-subtle: #4A433C;
+  --color-muted-foreground: #9A928A;
 
-  /* Destructive */
-  --color-destructive: oklch(0.55 0.22 27);
-  --color-destructive-foreground: oklch(1 0 0);
+  /* Semantic */
+  --color-success: #2F7D4F;
+  --color-warning: #B07B15;
+  --color-destructive: #B5391F;
+  --color-destructive-foreground: #FFFFFF;
 
-  /* Focus ring */
-  --color-ring: oklch(0.65 0.18 45);
+  /* Typography */
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* Shadow tokens (not in Tailwind theme — use as var()) */
+:root {
+  --shadow-sm: 0 1px 0 rgba(42,37,32,.04), 0 1px 2px rgba(42,37,32,.03);
+  --shadow-md: 0 1px 0 rgba(42,37,32,.04), 0 4px 12px rgba(42,37,32,.06);
+}
+
+/* Dark mode overrides */
+html[data-dark="true"] {
+  --color-surface: #17140F;
+  --color-surface-raised: #1F1B16;
+  --color-foreground: #F5F1EA;
+  --color-foreground-subtle: #C9C0B4;
+  --color-muted-foreground: #8B8278;
+  --color-border: #2A251F;
+  --color-border-subtle: #231F1A;
+  --color-muted: #2A251F;
+  --color-accent-soft: #4A1F0B;
+  --color-accent-ink: #FFD2B5;
+  --shadow-sm: 0 1px 0 rgba(0,0,0,.2), 0 1px 2px rgba(0,0,0,.15);
+  --shadow-md: 0 1px 0 rgba(0,0,0,.2), 0 4px 12px rgba(0,0,0,.25);
 }
 
 * {
@@ -36,6 +61,8 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
 }

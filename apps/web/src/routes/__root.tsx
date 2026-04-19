@@ -1,6 +1,7 @@
 import { createRootRouteWithContext, Outlet, redirect } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 
@@ -34,5 +35,10 @@ function RootComponent() {
     return () => listener.subscription.unsubscribe();
   }, [setSession]);
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <Toaster position="bottom-right" richColors />
+    </>
+  );
 }
