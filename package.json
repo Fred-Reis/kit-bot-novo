@@ -1,45 +1,27 @@
 {
-  "name": "kit-bot",
-  "version": "1.0.0",
-  "description": "WhatsApp bot for real estate lead management",
-  "main": "dist/app.js",
+  "name": "kit-manager",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "bun --watch src/app.ts",
-    "build": "bun run typecheck && bun build src/app.ts --outdir dist --target node",
-    "start": "bun dist/app.js",
-    "typecheck": "tsc",
-    "lint": "oxlint --config .oxlintrc.json --tsconfig tsconfig.json src/",
-    "format": "biome format --write src/",
-    "check": "bun run typecheck && bun run lint",
-    "db:generate": "bunx prisma generate",
-    "db:migrate": "bunx prisma migrate dev",
-    "db:seed": "bun prisma/seed.ts",
-    "db:studio": "bunx prisma studio"
-  },
-  "dependencies": {
-    "@langchain/core": "^0.3.0",
-    "@langchain/openai": "^0.3.0",
-    "@prisma/adapter-pg": "7",
-    "@prisma/client": "7",
-    "@supabase/supabase-js": "^2.46.0",
-    "dotenv": "^17.4.2",
-    "fastify": "^5.0.0",
-    "google-auth-library": "^10.6.2",
-    "ioredis": "^5.4.1",
-    "langchain": "^0.3.0",
-    "pg": "^8.20.0",
-    "zod": "^3.23.8"
+    "dev:bot": "bun run dev --cwd apps/bot",
+    "dev:web": "bun run dev --cwd apps/web",
+    "typecheck": "bun run typecheck --cwd apps/bot && bun run typecheck --cwd apps/web && bun run typecheck --cwd packages/types",
+    "lint": "oxlint --config .oxlintrc.json apps/bot/src apps/web/src packages",
+    "lint:bot": "oxlint --config .oxlintrc.json apps/bot/src",
+    "lint:web": "oxlint --config .oxlintrc.json apps/web/src packages",
+    "format": "biome format --write apps/bot/src apps/web/src packages",
+    "format:check": "biome format apps/bot/src apps/web/src packages"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.11",
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.20.0",
-    "oxlint": "^0.16.0",
-    "prisma": "7",
-    "typescript": "^6.0.0"
+    "oxlint": "^0.16.0"
   },
-  "engines": {
-    "node": ">=20",
-    "bun": ">=1.1.0"
+  "msw": {
+    "workerDirectory": [
+      "apps/web/public"
+    ]
   }
 }

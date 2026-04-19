@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc"],
+  "plugins": ["typescript", "unicorn", "oxc", "react", "react-hooks"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -16,13 +16,23 @@
     "unicorn/no-useless-spread": "error",
     "oxc/no-optional-chaining": "off"
   },
-  "env": {
-    "builtin": true,
-    "node": true
-  },
+  "overrides": [
+    {
+      "files": ["apps/bot/src/**"],
+      "env": { "builtin": true, "node": true }
+    },
+    {
+      "files": ["apps/web/src/**", "packages/*/src/**"],
+      "env": { "builtin": true, "browser": true },
+      "rules": {
+        "react-hooks/rules-of-hooks": "error",
+        "react-hooks/exhaustive-deps": "warn"
+      }
+    }
+  ],
   "ignorePatterns": [
-    "dist/**",
-    "node_modules/**",
-    "prisma/generated/**"
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/prisma/generated/**"
   ]
 }

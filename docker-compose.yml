@@ -6,7 +6,7 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - .env
+      - apps/bot/.env
     volumes:
       - evolution_instances:/evolution/instances
     depends_on:
@@ -38,12 +38,14 @@ services:
       - 6379:6379
 
   bot:
-    build: .
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
     container_name: bot
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - apps/bot/.env
     environment:
       - NODE_ENV=production
     depends_on:

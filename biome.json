@@ -7,7 +7,16 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**", "!dist/**", "!node_modules/**", "!prisma/generated/**"]
+    "includes": [
+      "apps/bot/src/**",
+      "apps/web/src/**",
+      "packages/*/src/**",
+      "!**/dist/**",
+      "!**/node_modules/**",
+      "!**/prisma/generated/**",
+      "!apps/web/src/routeTree.gen.ts",
+      "!apps/web/src/index.css"
+    ]
   },
   "formatter": {
     "enabled": true,

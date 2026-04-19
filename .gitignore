@@ -1,4 +1,12 @@
 node_modules/
 dist/
 .env
+*.log
+logs/
 prisma/generated/
+apps/bot/prisma/generated/
+apps/web/dist/
+.DS_Store
+apps/bot/media/
+apps/web/.tanstack/
+
