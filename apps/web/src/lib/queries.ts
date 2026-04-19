@@ -5,7 +5,8 @@ export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from('Lead')
     .select('*')
-    .order('updatedAt', { ascending: false });
+    .order('updatedAt', { ascending: false })
+    .limit(100);
   if (error) throw error;
   return (data ?? []) as Lead[];
 }

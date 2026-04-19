@@ -13,21 +13,28 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const lead = await prisma.lead.findUnique({ where: { id } });
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: { phone: true, stage: true },
+      });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
-      if (lead.stage !== 'kyc_pending') {
-        return reply.status(409).send({ error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'` });
-      }
 
-      // Read resident count from Conversation context
       const conv = await prisma.conversation.findUnique({ where: { chatId: lead.phone } });
       const ctx = (conv?.data ?? {}) as LeadContext;
-      const extraResidents = (ctx.residents?.length ?? 0);
-
-      // If no additional residents, skip straight to residents_docs_complete
+      const extraResidents = ctx.residents?.length ?? 0;
       const nextStage = extraResidents > 0 ? 'kyc_approved' : 'residents_docs_complete';
 
-      await prisma.lead.update({ where: { id }, data: { stage: nextStage } });
+      // Atomic update — only succeeds if stage is still 'kyc_pending'
+      const { count } = await prisma.lead.updateMany({
+        where: { id, stage: 'kyc_pending' },
+        data: { stage: nextStage },
+      });
+
+      if (count === 0) {
+        return reply.status(409).send({
+          error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'`,
+        });
+      }
 
       const message =
         nextStage === 'residents_docs_complete'

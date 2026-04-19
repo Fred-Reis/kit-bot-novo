@@ -14,6 +14,18 @@ botApi.interceptors.request.use(async (config) => {
   return config;
 });
 
+// On 401, refresh session and retry once
+botApi.interceptors.response.use(undefined, async (error: unknown) => {
+  if (!axios.isAxiosError(error) || error.response?.status !== 401 || error.config == null) {
+    return Promise.reject(error);
+  }
+  const { data } = await supabase.auth.refreshSession();
+  const token = data.session?.access_token;
+  if (!token) return Promise.reject(error);
+  error.config.headers.Authorization = `Bearer ${token}`;
+  return botApi.request(error.config);
+});
+
 export const adminApi = {
   approveKyc: (leadId: string) => botApi.post(`/admin/leads/${leadId}/approve-kyc`),
   generateContract: (leadId: string, paymentDayOfMonth: number) =>
