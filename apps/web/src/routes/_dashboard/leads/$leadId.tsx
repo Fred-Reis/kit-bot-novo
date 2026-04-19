@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, FileText, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { tv } from 'tailwind-variants';
-import type { Lead, LeadDocument } from '@kit-manager/types';
+import type { LeadDocument } from '@kit-manager/types';
+import { fetchLead } from '@/lib/queries';
+import { adminApi } from '@/lib/api';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -29,24 +31,6 @@ const actionBtn = tv({
   },
   defaultVariants: { variant: 'primary' },
 });
-
-interface LeadWithDocs extends Lead {
-  documents: LeadDocument[];
-}
-
-async function fetchLead(id: string): Promise<LeadWithDocs> {
-  const res = await fetch(`/api/leads/${id}`);
-  return res.json() as Promise<LeadWithDocs>;
-}
-
-async function callAdminAction(leadId: string, action: string, body?: object): Promise<void> {
-  const botUrl = import.meta.env.VITE_BOT_API_URL as string;
-  await fetch(`${botUrl}/admin/leads/${leadId}/${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-}
 
 function StageStepper({ current }: { current: string }) {
   const currentIdx = STAGES.findIndex((s) => s.key === current);
@@ -113,7 +97,7 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
   const [day, setDay] = useState(10);
   const qc = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => callAdminAction(leadId, 'generate-contract', { paymentDayOfMonth: day }),
+    mutationFn: () => adminApi.generateContract(leadId, day),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       onClose();
@@ -164,12 +148,12 @@ function LeadDetailPage() {
   });
 
   const approveKyc = useMutation({
-    mutationFn: () => callAdminAction(leadId, 'approve-kyc'),
+    mutationFn: () => adminApi.approveKyc(leadId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['lead', leadId] }),
   });
 
   const confirmPayment = useMutation({
-    mutationFn: () => callAdminAction(leadId, 'confirm-payment'),
+    mutationFn: () => adminApi.confirmPayment(leadId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['lead', leadId] }),
   });
 

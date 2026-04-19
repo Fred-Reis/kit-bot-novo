@@ -2,7 +2,9 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Image, Video, RefreshCw } from 'lucide-react';
 import { tv } from 'tailwind-variants';
-import type { Property, PropertyMedia } from '@kit-manager/types';
+import type { PropertyMedia } from '@kit-manager/types';
+import { fetchProperty } from '@/lib/queries';
+import { adminApi } from '@/lib/api';
 
 export const Route = createFileRoute('/_dashboard/properties/$propertyId')({
   component: PropertyDetailPage,
@@ -18,16 +20,6 @@ const actionBtn = tv({
   },
   defaultVariants: { variant: 'secondary' },
 });
-
-async function fetchProperty(id: string): Promise<Property> {
-  const res = await fetch(`/api/properties/${id}`);
-  return res.json() as Promise<Property>;
-}
-
-async function invalidateCache(propertyId: string): Promise<void> {
-  const botUrl = import.meta.env.VITE_BOT_API_URL as string;
-  await fetch(`${botUrl}/admin/properties/${propertyId}/invalidate-cache`, { method: 'PUT' });
-}
 
 function MediaIcon({ type }: { type: PropertyMedia['type'] }) {
   if (type === 'video') return <Video className="size-3.5" />;
@@ -84,7 +76,7 @@ function PropertyDetailPage() {
   });
 
   const invalidate = useMutation({
-    mutationFn: () => invalidateCache(propertyId),
+    mutationFn: () => adminApi.invalidatePropertyCache(propertyId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['property', propertyId] }),
   });
 

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Users, FileText, UserCheck } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { tv } from 'tailwind-variants';
-import type { Lead, Tenant } from '@kit-manager/types';
+import { fetchLeads, fetchTenants } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/')({ component: DashboardPage });
 
@@ -18,16 +18,6 @@ const STAGE_LABELS: Record<string, string> = {
   contract_signed: 'Contrato assinado',
   converted: 'Convertido',
 };
-
-async function fetchLeads(): Promise<Lead[]> {
-  const res = await fetch('/api/leads');
-  return res.json() as Promise<Lead[]>;
-}
-
-async function fetchTenants(): Promise<Tenant[]> {
-  const res = await fetch('/api/tenants');
-  return res.json() as Promise<Tenant[]>;
-}
 
 const kpiCard = tv({
   base: 'flex flex-col gap-3 rounded-xl border border-border bg-surface-raised p-5 shadow-sm',

@@ -1,14 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { UserCheck } from 'lucide-react';
-import type { Tenant } from '@kit-manager/types';
+import { fetchTenants } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/tenants/')({ component: TenantsPage });
-
-async function fetchTenants(): Promise<Tenant[]> {
-  const res = await fetch('/api/tenants');
-  return res.json() as Promise<Tenant[]>;
-}
 
 function TenantsPage() {
   const { data: tenants = [], isLoading } = useQuery({

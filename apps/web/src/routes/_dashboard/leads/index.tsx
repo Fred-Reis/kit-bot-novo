@@ -2,7 +2,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
 import { tv } from 'tailwind-variants';
-import type { Lead } from '@kit-manager/types';
+import { fetchLeads } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/')({ component: LeadsPage });
 
@@ -35,11 +35,6 @@ const stageBadge = tv({
   },
   defaultVariants: { stage: 'interest' },
 });
-
-async function fetchLeads(): Promise<Lead[]> {
-  const res = await fetch('/api/leads');
-  return res.json() as Promise<Lead[]>;
-}
 
 function LeadsPage() {
   const { data: leads = [], isLoading } = useQuery({ queryKey: ['leads'], queryFn: fetchLeads });

@@ -1,14 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, ChevronRight, Wifi, Droplets } from 'lucide-react';
+import { fetchProperties } from '@/lib/queries';
 import type { Property } from '@kit-manager/types';
 
 export const Route = createFileRoute('/_dashboard/properties/')({ component: PropertiesPage });
-
-async function fetchProperties(): Promise<Property[]> {
-  const res = await fetch('/api/properties');
-  return res.json() as Promise<Property[]>;
-}
 
 function PropertyCard({ property }: { property: Property }) {
   return (

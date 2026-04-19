@@ -18,6 +18,7 @@
     "@tanstack/react-router": "^1.168.23",
     "@tanstack/router-plugin": "^1.167.22",
     "@tanstack/router-vite-plugin": "^1.166.37",
+    "axios": "^1.15.0",
     "lucide-react": "^1.8.0",
     "msw": "^2.13.4",
     "react": "^19.2.4",
