@@ -1,64 +1,50 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Users, FileText, UserCheck } from 'lucide-react';
-import { twMerge } from 'tailwind-merge';
-import { tv } from 'tailwind-variants';
-import { fetchLeads, fetchTenants } from '@/lib/queries';
+import { ChevronRight } from 'lucide-react';
+import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
+import { KpiCard } from '@/components/kpi-card';
+import { Pill } from '@/components/ui/pill';
+import { STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 
 export const Route = createFileRoute('/_dashboard/')({ component: DashboardPage });
 
-const STAGE_LABELS: Record<string, string> = {
-  interest: 'Interesse',
-  collection: 'Coletando docs',
-  review_submitted: 'Docs enviados',
-  kyc_pending: 'KYC pendente',
-  kyc_approved: 'KYC aprovado',
-  residents_docs_complete: 'Docs completos',
-  contract_pending: 'Contrato pendente',
-  contract_signed: 'Contrato assinado',
-  converted: 'Convertido',
-};
+const STATIC_PAYMENTS = [
+  { id: 1, label: 'Ap. 101 — João S.', due: '05/05/2026', amount: 'R$ 1.800,00' },
+  { id: 2, label: 'Casa Jd. Paulista — Maria L.', due: '08/05/2026', amount: 'R$ 2.400,00' },
+  { id: 3, label: 'Studio Centro — Ana R.', due: '10/05/2026', amount: 'R$ 1.200,00' },
+  { id: 4, label: 'Ap. 304 — Carlos M.', due: '15/05/2026', amount: 'R$ 2.100,00' },
+];
 
-const kpiCard = tv({
-  base: 'flex flex-col gap-3 rounded-xl border border-border bg-surface-raised p-5 shadow-sm',
-});
-
-interface KpiCardProps {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  highlight?: boolean;
-}
-
-function KpiCard({ label, value, icon: Icon, highlight }: KpiCardProps) {
-  return (
-    <div data-slot="kpi-card" className={kpiCard()}>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <div
-          className={twMerge(
-            'flex size-8 items-center justify-center rounded-lg',
-            highlight ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          <Icon className="size-4" />
-        </div>
-      </div>
-      <span className="text-3xl font-semibold text-foreground">{value}</span>
-    </div>
-  );
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'agora';
+  if (m < 60) return `${m}min atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  return `${Math.floor(h / 24)}d atrás`;
 }
 
 function DashboardPage() {
-  const { data: leads = [] } = useQuery({ queryKey: ['leads'], queryFn: fetchLeads });
-  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: fetchTenants });
+  const { data: leads = [] } = useQuery({
+    queryKey: ['leads'],
+    queryFn: fetchLeads,
+    refetchInterval: 5000,
+  });
+  const { data: properties = [] } = useQuery({
+    queryKey: ['properties'],
+    queryFn: fetchProperties,
+  });
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: fetchTenants,
+  });
 
+  const total = properties.length;
+  const occupied = new Set(tenants.map((t) => t.propertyId)).size;
+  const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
   const activeLeads = leads.filter((l) => l.stage !== 'converted').length;
   const pendingKyc = leads.filter((l) => l.stage === 'kyc_pending').length;
-  const pendingContracts = leads.filter(
-    (l) => l.stage === 'residents_docs_complete' || l.stage === 'contract_pending',
-  ).length;
-  const activeTenants = tenants.length;
 
   const recentActivity = [...leads]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -66,53 +52,127 @@ function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* Page title */}
       <div>
         <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">Visão geral do sistema</p>
       </div>
 
+      {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard label="Leads ativos" value={activeLeads} icon={Users} />
+        <KpiCard label="Taxa de ocupação" value={`${occupancyPct}%`} seed={1} up />
+        <KpiCard label="Leads ativos" value={activeLeads} seed={2} up={activeLeads > 0} />
         <KpiCard
           label="KYC pendente"
           value={pendingKyc}
-          icon={FileText}
-          highlight={pendingKyc > 0}
+          seed={3}
+          up={false}
+          className={pendingKyc > 0 ? 'ring-1 ring-warn/40' : undefined}
         />
-        <KpiCard
-          label="Contratos pendentes"
-          value={pendingContracts}
-          icon={FileText}
-          highlight={pendingContracts > 0}
-        />
-        <KpiCard label="Inquilinos ativos" value={activeTenants} icon={UserCheck} />
+        <KpiCard label="Em atraso" value="—" seed={4} up={false} />
       </div>
 
+      {/* Occupancy + Payments row */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Occupancy per property */}
+        <div
+          className="rounded-[10px] bg-surface-raised p-5"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
+          <h2 className="mb-4 text-sm font-medium text-foreground">Ocupação por imóvel</h2>
+          {properties.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum imóvel cadastrado.</p>
+          ) : (
+            <div className="space-y-3">
+              {properties.map((p) => {
+                const isTaken = tenants.some((t) => t.propertyId === p.id);
+                return (
+                  <div key={p.id} className="flex items-center gap-3">
+                    <span className="w-32 truncate text-xs text-muted-foreground">{p.name}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all duration-500"
+                        style={{ width: isTaken ? '100%' : '0%' }}
+                      />
+                    </div>
+                    <Pill tone={isTaken ? 'ok' : 'default'}>{isTaken ? 'Ocupado' : 'Livre'}</Pill>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Upcoming payments (static) */}
+        <div
+          className="rounded-[10px] bg-surface-raised p-5"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-foreground">Próximos pagamentos</h2>
+            <span className="text-[10px] text-muted-foreground/60">dados fictícios</span>
+          </div>
+          <div className="space-y-3">
+            {STATIC_PAYMENTS.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground">{p.label}</p>
+                  <p className="text-[11px] text-muted-foreground">Venc. {p.due}</p>
+                </div>
+                <span className="font-mono text-xs font-medium text-foreground">{p.amount}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Activity feed */}
       <div>
-        <h2 className="mb-3 text-sm font-medium text-foreground">Atividade recente</h2>
-        <div className="overflow-hidden rounded-xl border border-border bg-surface-raised">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-foreground">Atividade recente</h2>
+          <Link
+            to="/leads"
+            className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+          >
+            Ver todos <ChevronRight className="size-3" />
+          </Link>
+        </div>
+        <div
+          className="overflow-hidden rounded-[10px] bg-surface-raised"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           {recentActivity.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">Nenhuma atividade recente.</p>
           ) : (
             <ul className="divide-y divide-border">
               {recentActivity.map((lead) => (
-                <li key={lead.id} className="flex items-center justify-between px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-7 items-center justify-center rounded-full bg-muted">
-                      <Users className="size-3.5 text-muted-foreground" />
+                <li key={lead.id}>
+                  <Link
+                    to="/leads/$leadId"
+                    params={{ leadId: lead.id }}
+                    className="flex items-center justify-between px-5 py-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <span className="text-[10px] font-medium">
+                          {lead.phone.slice(-2)}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-mono text-xs font-medium text-foreground">
+                          {lead.phone}
+                        </p>
+                        <div className="mt-0.5">
+                          <Pill tone={STAGE_TONE[lead.stage] ?? 'default'} dot>
+                            {STAGE_LABELS[lead.stage] ?? lead.stage}
+                          </Pill>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{lead.phone}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {STAGE_LABELS[lead.stage] ?? lead.stage}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
-                      new Date(lead.updatedAt),
-                    )}
-                  </span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {relativeTime(lead.updatedAt)}
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>

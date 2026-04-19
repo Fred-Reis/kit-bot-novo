@@ -1,17 +1,6 @@
 import { twMerge } from 'tailwind-merge';
 import type { Lead } from '@kit-manager/types';
-
-const STAGE_LABELS: Record<string, string> = {
-  interest: 'Interesse',
-  collection: 'Coletando docs',
-  review_submitted: 'Docs enviados',
-  kyc_pending: 'KYC pendente',
-  kyc_approved: 'KYC aprovado',
-  residents_docs_complete: 'Docs completos',
-  contract_pending: 'Contrato pendente',
-  contract_signed: 'Contrato assinado',
-  converted: 'Convertido',
-};
+import { STAGE_LABELS } from '@/lib/leads';
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();

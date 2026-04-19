@@ -14,8 +14,15 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
+import { Route as DashboardTemplatesIndexRouteImport } from './routes/_dashboard/templates/index'
+import { Route as DashboardRulesIndexRouteImport } from './routes/_dashboard/rules/index'
 import { Route as DashboardPropertiesIndexRouteImport } from './routes/_dashboard/properties/index'
 import { Route as DashboardLeadsIndexRouteImport } from './routes/_dashboard/leads/index'
+import { Route as DashboardFinanceIndexRouteImport } from './routes/_dashboard/finance/index'
+import { Route as DashboardContractsIndexRouteImport } from './routes/_dashboard/contracts/index'
+import { Route as DashboardConfigIndexRouteImport } from './routes/_dashboard/config/index'
+import { Route as DashboardTenantsNewRouteImport } from './routes/_dashboard/tenants/new'
+import { Route as DashboardTenantsTenantIdRouteImport } from './routes/_dashboard/tenants/$tenantId'
 import { Route as DashboardPropertiesPropertyIdRouteImport } from './routes/_dashboard/properties/$propertyId'
 import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
 
@@ -42,6 +49,16 @@ const DashboardTenantsIndexRoute = DashboardTenantsIndexRouteImport.update({
   path: '/tenants/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardTemplatesIndexRoute = DashboardTemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRulesIndexRoute = DashboardRulesIndexRouteImport.update({
+  id: '/rules/',
+  path: '/rules/',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardPropertiesIndexRoute =
   DashboardPropertiesIndexRouteImport.update({
     id: '/properties/',
@@ -53,6 +70,32 @@ const DashboardLeadsIndexRoute = DashboardLeadsIndexRouteImport.update({
   path: '/leads/',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardFinanceIndexRoute = DashboardFinanceIndexRouteImport.update({
+  id: '/finance/',
+  path: '/finance/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardContractsIndexRoute = DashboardContractsIndexRouteImport.update({
+  id: '/contracts/',
+  path: '/contracts/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardConfigIndexRoute = DashboardConfigIndexRouteImport.update({
+  id: '/config/',
+  path: '/config/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTenantsNewRoute = DashboardTenantsNewRouteImport.update({
+  id: '/tenants/new',
+  path: '/tenants/new',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTenantsTenantIdRoute =
+  DashboardTenantsTenantIdRouteImport.update({
+    id: '/tenants/$tenantId',
+    path: '/tenants/$tenantId',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardPropertiesPropertyIdRoute =
   DashboardPropertiesPropertyIdRouteImport.update({
     id: '/properties/$propertyId',
@@ -70,8 +113,15 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/$propertyId': typeof DashboardPropertiesPropertyIdRoute
+  '/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
+  '/tenants/new': typeof DashboardTenantsNewRoute
+  '/config/': typeof DashboardConfigIndexRoute
+  '/contracts/': typeof DashboardContractsIndexRoute
+  '/finance/': typeof DashboardFinanceIndexRoute
   '/leads/': typeof DashboardLeadsIndexRoute
   '/properties/': typeof DashboardPropertiesIndexRoute
+  '/rules/': typeof DashboardRulesIndexRoute
+  '/templates/': typeof DashboardTemplatesIndexRoute
   '/tenants/': typeof DashboardTenantsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -79,8 +129,15 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/$propertyId': typeof DashboardPropertiesPropertyIdRoute
+  '/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
+  '/tenants/new': typeof DashboardTenantsNewRoute
+  '/config': typeof DashboardConfigIndexRoute
+  '/contracts': typeof DashboardContractsIndexRoute
+  '/finance': typeof DashboardFinanceIndexRoute
   '/leads': typeof DashboardLeadsIndexRoute
   '/properties': typeof DashboardPropertiesIndexRoute
+  '/rules': typeof DashboardRulesIndexRoute
+  '/templates': typeof DashboardTemplatesIndexRoute
   '/tenants': typeof DashboardTenantsIndexRoute
 }
 export interface FileRoutesById {
@@ -91,8 +148,15 @@ export interface FileRoutesById {
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/_dashboard/properties/$propertyId': typeof DashboardPropertiesPropertyIdRoute
+  '/_dashboard/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
+  '/_dashboard/tenants/new': typeof DashboardTenantsNewRoute
+  '/_dashboard/config/': typeof DashboardConfigIndexRoute
+  '/_dashboard/contracts/': typeof DashboardContractsIndexRoute
+  '/_dashboard/finance/': typeof DashboardFinanceIndexRoute
   '/_dashboard/leads/': typeof DashboardLeadsIndexRoute
   '/_dashboard/properties/': typeof DashboardPropertiesIndexRoute
+  '/_dashboard/rules/': typeof DashboardRulesIndexRoute
+  '/_dashboard/templates/': typeof DashboardTemplatesIndexRoute
   '/_dashboard/tenants/': typeof DashboardTenantsIndexRoute
 }
 export interface FileRouteTypes {
@@ -102,8 +166,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/leads/$leadId'
     | '/properties/$propertyId'
+    | '/tenants/$tenantId'
+    | '/tenants/new'
+    | '/config/'
+    | '/contracts/'
+    | '/finance/'
     | '/leads/'
     | '/properties/'
+    | '/rules/'
+    | '/templates/'
     | '/tenants/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -111,8 +182,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/leads/$leadId'
     | '/properties/$propertyId'
+    | '/tenants/$tenantId'
+    | '/tenants/new'
+    | '/config'
+    | '/contracts'
+    | '/finance'
     | '/leads'
     | '/properties'
+    | '/rules'
+    | '/templates'
     | '/tenants'
   id:
     | '__root__'
@@ -122,8 +200,15 @@ export interface FileRouteTypes {
     | '/_dashboard/'
     | '/_dashboard/leads/$leadId'
     | '/_dashboard/properties/$propertyId'
+    | '/_dashboard/tenants/$tenantId'
+    | '/_dashboard/tenants/new'
+    | '/_dashboard/config/'
+    | '/_dashboard/contracts/'
+    | '/_dashboard/finance/'
     | '/_dashboard/leads/'
     | '/_dashboard/properties/'
+    | '/_dashboard/rules/'
+    | '/_dashboard/templates/'
     | '/_dashboard/tenants/'
   fileRoutesById: FileRoutesById
 }
@@ -169,6 +254,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardTenantsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/templates/': {
+      id: '/_dashboard/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof DashboardTemplatesIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/rules/': {
+      id: '/_dashboard/rules/'
+      path: '/rules'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof DashboardRulesIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/properties/': {
       id: '/_dashboard/properties/'
       path: '/properties'
@@ -181,6 +280,41 @@ declare module '@tanstack/react-router' {
       path: '/leads'
       fullPath: '/leads/'
       preLoaderRoute: typeof DashboardLeadsIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/finance/': {
+      id: '/_dashboard/finance/'
+      path: '/finance'
+      fullPath: '/finance/'
+      preLoaderRoute: typeof DashboardFinanceIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/contracts/': {
+      id: '/_dashboard/contracts/'
+      path: '/contracts'
+      fullPath: '/contracts/'
+      preLoaderRoute: typeof DashboardContractsIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/config/': {
+      id: '/_dashboard/config/'
+      path: '/config'
+      fullPath: '/config/'
+      preLoaderRoute: typeof DashboardConfigIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/tenants/new': {
+      id: '/_dashboard/tenants/new'
+      path: '/tenants/new'
+      fullPath: '/tenants/new'
+      preLoaderRoute: typeof DashboardTenantsNewRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/tenants/$tenantId': {
+      id: '/_dashboard/tenants/$tenantId'
+      path: '/tenants/$tenantId'
+      fullPath: '/tenants/$tenantId'
+      preLoaderRoute: typeof DashboardTenantsTenantIdRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/properties/$propertyId': {
@@ -214,8 +348,15 @@ interface DashboardRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardLeadsLeadIdRoute: typeof DashboardLeadsLeadIdRoute
   DashboardPropertiesPropertyIdRoute: typeof DashboardPropertiesPropertyIdRoute
+  DashboardTenantsTenantIdRoute: typeof DashboardTenantsTenantIdRoute
+  DashboardTenantsNewRoute: typeof DashboardTenantsNewRoute
+  DashboardConfigIndexRoute: typeof DashboardConfigIndexRoute
+  DashboardContractsIndexRoute: typeof DashboardContractsIndexRoute
+  DashboardFinanceIndexRoute: typeof DashboardFinanceIndexRoute
   DashboardLeadsIndexRoute: typeof DashboardLeadsIndexRoute
   DashboardPropertiesIndexRoute: typeof DashboardPropertiesIndexRoute
+  DashboardRulesIndexRoute: typeof DashboardRulesIndexRoute
+  DashboardTemplatesIndexRoute: typeof DashboardTemplatesIndexRoute
   DashboardTenantsIndexRoute: typeof DashboardTenantsIndexRoute
 }
 
@@ -223,8 +364,15 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardLeadsLeadIdRoute: DashboardLeadsLeadIdRoute,
   DashboardPropertiesPropertyIdRoute: DashboardPropertiesPropertyIdRoute,
+  DashboardTenantsTenantIdRoute: DashboardTenantsTenantIdRoute,
+  DashboardTenantsNewRoute: DashboardTenantsNewRoute,
+  DashboardConfigIndexRoute: DashboardConfigIndexRoute,
+  DashboardContractsIndexRoute: DashboardContractsIndexRoute,
+  DashboardFinanceIndexRoute: DashboardFinanceIndexRoute,
   DashboardLeadsIndexRoute: DashboardLeadsIndexRoute,
   DashboardPropertiesIndexRoute: DashboardPropertiesIndexRoute,
+  DashboardRulesIndexRoute: DashboardRulesIndexRoute,
+  DashboardTemplatesIndexRoute: DashboardTemplatesIndexRoute,
   DashboardTenantsIndexRoute: DashboardTenantsIndexRoute,
 }
 

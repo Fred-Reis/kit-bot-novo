@@ -1,105 +1,104 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, ChevronRight, Wifi, Droplets } from 'lucide-react';
+import { useState } from 'react';
+import { Building2, Plus } from 'lucide-react';
 import { fetchProperties } from '@/lib/queries';
-import type { Property } from '@kit-manager/types';
+import { PropertyCard } from '@/components/property-card';
+import { PageHeader } from '@/components/page-header';
+import { Segmented } from '@/components/ui/segmented';
+import { CustomButton } from '@/components/ui/btn';
 
 export const Route = createFileRoute('/_dashboard/properties/')({ component: PropertiesPage });
 
-function PropertyCard({ property }: { property: Property }) {
-  return (
-    <Link
-      to="/properties/$propertyId"
-      params={{ propertyId: property.id }}
-      data-slot="property-card"
-      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface-raised transition-colors hover:border-primary/40"
-    >
-      <div className="flex h-36 items-center justify-center bg-muted">
-        {property.media.find((m) => m.type === 'photo') ? (
-          <img
-            src={property.media.find((m) => m.type === 'photo')!.url}
-            alt={property.name}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <Building2 className="size-10 text-muted-foreground/40" />
-        )}
-      </div>
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-foreground group-hover:text-primary">
-              {property.name}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {property.neighborhood} · {property.externalId}
-            </p>
-          </div>
-          <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground group-hover:text-primary" />
-        </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {property.includesWater && (
-            <span className="flex items-center gap-1">
-              <Droplets className="size-3" /> Água
-            </span>
-          )}
-          {property.individualElectricity && (
-            <span className="flex items-center gap-1">
-              <Wifi className="size-3" /> Luz ind.
-            </span>
-          )}
-          {property.acceptsPets && <span>Pets ✓</span>}
-        </div>
-        <div className="mt-auto flex items-end justify-between">
-          <div>
-            <p className="text-base font-semibold text-foreground">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                property.rent,
-              )}
-              <span className="text-xs font-normal text-muted-foreground">/mês</span>
-            </p>
-          </div>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-medium ${property.active ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}
-          >
-            {property.active ? 'Ativo' : 'Inativo'}
-          </span>
-        </div>
-      </div>
-    </Link>
-  );
-}
+type Filter = 'all' | 'available' | 'inactive';
+type View = 'grid' | 'row';
+
+const FILTER_OPTS = [
+  { label: 'Todos', value: 'all' as Filter },
+  { label: 'Disponível', value: 'available' as Filter },
+  { label: 'Inativo', value: 'inactive' as Filter },
+];
+
+const VIEW_OPTS = [
+  { label: 'Grade', value: 'grid' as View },
+  { label: 'Lista', value: 'row' as View },
+];
 
 function PropertiesPage() {
+  const [filter, setFilter] = useState<Filter>('all');
+  const [view, setView] = useState<View>('grid');
+
   const { data: properties = [], isLoading } = useQuery({
     queryKey: ['properties'],
     queryFn: fetchProperties,
   });
 
+  const filtered = properties.filter((p) => {
+    if (filter === 'available') return p.active;
+    if (filter === 'inactive') return !p.active;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Imóveis</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {properties.length} imóveis cadastrados
-        </p>
+      <PageHeader
+        title="Imóveis"
+        subtitle={`${properties.length} imóveis cadastrados`}
+        actions={
+          <Link to="/properties/new">
+            <CustomButton variant="primary" size="sm">
+              <Plus className="size-4" />
+              Novo imóvel
+            </CustomButton>
+          </Link>
+        }
+      />
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex gap-1">
+          {FILTER_OPTS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setFilter(opt.value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === opt.value
+                  ? 'bg-foreground text-surface'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <Segmented options={VIEW_OPTS} value={view} onChange={setView} />
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={view === 'grid' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'}>
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-64 animate-pulse rounded-xl bg-muted" />
+            <div key={i} className="h-64 animate-pulse rounded-[10px] bg-muted" />
           ))}
         </div>
-      ) : properties.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface-raised py-16 text-center">
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-[10px] border border-border bg-surface-raised py-16 text-center">
           <Building2 className="size-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Nenhum imóvel cadastrado.</p>
+          <p className="text-sm text-muted-foreground">Nenhum imóvel encontrado.</p>
+        </div>
+      ) : view === 'grid' ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((p) => (
+            <Link key={p.id} to="/properties/$propertyId" params={{ propertyId: p.id }}>
+              <PropertyCard property={p} variant="grid" />
+            </Link>
+          ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {properties.map((p) => (
-            <PropertyCard key={p.id} property={p} />
+        <div className="space-y-2">
+          {filtered.map((p) => (
+            <Link key={p.id} to="/properties/$propertyId" params={{ propertyId: p.id }}>
+              <PropertyCard property={p} variant="row" />
+            </Link>
           ))}
         </div>
       )}

@@ -2,35 +2,14 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, FileText, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
-import { tv } from 'tailwind-variants';
+import { toast } from 'sonner';
 import type { LeadDocument } from '@kit-manager/types';
 import { fetchLead } from '@/lib/queries';
 import { adminApi } from '@/lib/api';
+import { STAGES } from '@/lib/leads';
+import { CustomButton } from '@/components/ui/btn';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
-
-const STAGES = [
-  { key: 'interest', label: 'Interesse' },
-  { key: 'collection', label: 'Coletando docs' },
-  { key: 'review_submitted', label: 'Docs enviados' },
-  { key: 'kyc_pending', label: 'KYC pendente' },
-  { key: 'kyc_approved', label: 'KYC aprovado' },
-  { key: 'residents_docs_complete', label: 'Docs completos' },
-  { key: 'contract_pending', label: 'Contrato pendente' },
-  { key: 'contract_signed', label: 'Contrato assinado' },
-  { key: 'converted', label: 'Convertido' },
-];
-
-const actionBtn = tv({
-  base: 'inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
-  variants: {
-    variant: {
-      primary: 'bg-primary text-primary-foreground hover:bg-primary-hover',
-      secondary: 'border border-border bg-secondary text-foreground hover:bg-muted',
-    },
-  },
-  defaultVariants: { variant: 'primary' },
-});
 
 function StageStepper({ current }: { current: string }) {
   const currentIdx = STAGES.findIndex((s) => s.key === current);
@@ -97,11 +76,13 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
   const [day, setDay] = useState(10);
   const qc = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => adminApi.generateContract(leadId, day),
+    mutationFn: () => adminApi.generateContract(leadId, Math.min(28, Math.max(1, day))),
     onSuccess: () => {
+      toast.success('Contrato gerado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       onClose();
     },
+    onError: () => toast.error('Erro ao gerar contrato.'),
   });
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
@@ -120,17 +101,10 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
           className="mt-3 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={actionBtn({ variant: 'secondary' })}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            className={actionBtn({ variant: 'primary' })}
-          >
+          <CustomButton variant="secondary" onClick={onClose}>Cancelar</CustomButton>
+          <CustomButton variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
             {mutation.isPending ? 'Gerando...' : 'Gerar contrato'}
-          </button>
+          </CustomButton>
         </div>
       </div>
     </div>
@@ -149,12 +123,20 @@ function LeadDetailPage() {
 
   const approveKyc = useMutation({
     mutationFn: () => adminApi.approveKyc(leadId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['lead', leadId] }),
+    onSuccess: () => {
+      toast.success('KYC aprovado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: () => toast.error('Erro ao aprovar KYC.'),
   });
 
   const confirmPayment = useMutation({
     mutationFn: () => adminApi.confirmPayment(leadId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['lead', leadId] }),
+    onSuccess: () => {
+      toast.success('Pagamento confirmado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: () => toast.error('Erro ao confirmar pagamento.'),
   });
 
   if (isLoading) return <div className="h-96 animate-pulse rounded-xl bg-muted" />;
@@ -181,40 +163,26 @@ function LeadDetailPage() {
       {/* Action buttons */}
       {lead.stage === 'kyc_pending' && (
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => approveKyc.mutate()}
-            disabled={approveKyc.isPending}
-            className={actionBtn({ variant: 'primary' })}
-          >
+          <CustomButton variant="primary" onClick={() => approveKyc.mutate()} disabled={approveKyc.isPending}>
             <CheckCircle className="size-4" />
             {approveKyc.isPending ? 'Aprovando...' : 'Aprovar KYC'}
-          </button>
+          </CustomButton>
         </div>
       )}
       {lead.stage === 'residents_docs_complete' && (
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setShowContractModal(true)}
-            className={actionBtn({ variant: 'primary' })}
-          >
+          <CustomButton variant="primary" onClick={() => setShowContractModal(true)}>
             <FileText className="size-4" />
             Gerar Contrato
-          </button>
+          </CustomButton>
         </div>
       )}
       {lead.stage === 'contract_signed' && (
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => confirmPayment.mutate()}
-            disabled={confirmPayment.isPending}
-            className={actionBtn({ variant: 'primary' })}
-          >
+          <CustomButton variant="primary" onClick={() => confirmPayment.mutate()} disabled={confirmPayment.isPending}>
             <CheckCircle className="size-4" />
             {confirmPayment.isPending ? 'Confirmando...' : 'Confirmar Pagamento'}
-          </button>
+          </CustomButton>
         </div>
       )}
 
