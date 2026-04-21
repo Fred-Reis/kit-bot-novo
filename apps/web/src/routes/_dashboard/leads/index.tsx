@@ -6,9 +6,10 @@ import { fetchLeads } from '@/lib/queries';
 import type { Lead } from '@kit-manager/types';
 import { LeadKanbanCard } from '@/components/lead-kanban-card';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 import { Pill } from '@/components/ui/pill';
 import { Segmented } from '@/components/ui/segmented';
-import { STAGES, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
+import { STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 
 export const Route = createFileRoute('/_dashboard/leads/')({ component: LeadsPage });
 
@@ -19,25 +20,38 @@ const VIEW_OPTS = [
   { label: 'Tabela', value: 'table' as View },
 ];
 
+const KANBAN_COLUMNS = [
+  { key: 'novo', label: 'Novo', stages: ['interest'] },
+  { key: 'qualificando', label: 'Qualificando', stages: ['collection', 'review_submitted'] },
+  { key: 'proposta', label: 'Proposta', stages: ['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed'] },
+  { key: 'convertido', label: 'Convertido', stages: ['converted'] },
+  { key: 'outros', label: 'Outros', stages: [] as string[] },
+] as const;
+
 function KanbanView({ leads }: { leads: Lead[] }) {
+  const assignedStages = new Set(KANBAN_COLUMNS.flatMap((c) => c.stages));
+  const othersLeads = leads.filter((l) => !assignedStages.has(l.stage));
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4">
-      {STAGES.map((col) => {
-        const cards = leads.filter((l) => l.stage === col.key);
+    <div className="grid grid-cols-2 gap-3 overflow-x-auto pb-4 sm:grid-cols-3 lg:grid-cols-5">
+      {KANBAN_COLUMNS.map((col) => {
+        const cards = col.key === 'outros'
+          ? othersLeads
+          : leads.filter((l) => (col.stages as readonly string[]).includes(l.stage));
         return (
-          <div key={col.key} className="flex w-[220px] shrink-0 flex-col gap-2">
-            <div className="flex items-center justify-between rounded-t-lg bg-muted/50 px-3 py-2">
+          <div key={col.key} className="flex min-w-[180px] flex-col gap-2">
+            <div className="flex items-center justify-between rounded-t-lg border border-border bg-muted/50 px-3 py-2">
               <span className="text-xs font-medium text-muted-foreground">{col.label}</span>
               <span className="font-mono text-xs text-muted-foreground">{cards.length}</span>
             </div>
-            <div className="flex flex-col gap-2 overflow-y-auto rounded-b-lg bg-muted/20 p-2 min-h-[120px]">
+            <div className="flex flex-col gap-2 rounded-b-lg border border-t-0 border-border bg-muted/20 p-2 min-h-[120px]">
               {cards.map((lead) => (
                 <Link key={lead.id} to="/leads/$leadId" params={{ leadId: lead.id }}>
                   <LeadKanbanCard lead={lead} />
                 </Link>
               ))}
               {cards.length === 0 && (
-                <p className="py-4 text-center text-[11px] text-muted-foreground/50">Vazio</p>
+                <p className="py-4 text-center text-[11px] text-muted-foreground/50">—</p>
               )}
             </div>
           </div>
@@ -54,7 +68,7 @@ function TableView({ leads }: { leads: Lead[] }) {
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
       {leads.length === 0 ? (
-        <p className="p-6 text-sm text-muted-foreground">Nenhum lead encontrado.</p>
+        <EmptyState illustration="leads" title="Nenhum lead encontrado" subtitle="Os leads do WhatsApp aparecerão aqui." />
       ) : (
         <table className="w-full text-sm">
           <thead>

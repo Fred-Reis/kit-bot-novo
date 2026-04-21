@@ -3,10 +3,14 @@ export interface Property {
   externalId: string;
   ownerId: string;
   name: string;
+  title: string | null;
   address: string;
   complement: string | null;
   neighborhood: string;
   category: string | null;
+  type: string | null;
+  purpose: string | null;
+  status: 'available' | 'rented' | 'maintenance' | 'reserved';
   description: string | null;
   rent: number;
   deposit: number;
@@ -14,6 +18,9 @@ export interface Property {
   contractMonths: number | null;
   rooms: number;
   bathrooms: number;
+  area: number | null;
+  parkingSpots: number | null;
+  amenities: string[];
   includesWater: boolean;
   includesIptu: boolean;
   individualElectricity: boolean;

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Lead, LeadDocument, Property, PropertyMedia, Tenant } from '@kit-manager/types';
+import type { Lead, LeadDocument, Payment, Property, PropertyMedia, Tenant } from '@kit-manager/types';
 
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
@@ -27,7 +27,7 @@ export async function fetchLead(id: string): Promise<Lead & { documents: LeadDoc
 
 export async function fetchProperties(): Promise<Property[]> {
   const [{ data: props, error: propsErr }, { data: media, error: mediaErr }] = await Promise.all([
-    supabase.from('Property').select('*').order('createdAt', { ascending: true }),
+    supabase.from('Property').select('*').neq('status', 'archived').order('createdAt', { ascending: true }),
     supabase.from('PropertyMedia').select('*').order('order', { ascending: true }),
   ]);
   if (propsErr) throw propsErr;
@@ -65,4 +65,35 @@ export async function fetchTenants(): Promise<Tenant[]> {
     .order('contractStart', { ascending: false });
   if (error) throw error;
   return (data ?? []) as Tenant[];
+}
+
+export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
+  const [{ data: tenant, error: tenantErr }, { data: payments, error: paymentsErr }] =
+    await Promise.all([
+      supabase.from('Tenant').select('*').eq('id', id).single(),
+      supabase.from('Payment').select('*').eq('tenantId', id).order('month', { ascending: false }),
+    ]);
+  if (tenantErr) throw tenantErr;
+  if (paymentsErr) throw paymentsErr;
+  return { ...(tenant as Tenant), payments: (payments as Payment[]) ?? [] };
+}
+
+export async function fetchPayments(tenantId: string): Promise<Payment[]> {
+  const { data, error } = await supabase
+    .from('Payment')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('month', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Payment[];
+}
+
+export async function fetchAllPayments(): Promise<Payment[]> {
+  const { data, error } = await supabase
+    .from('Payment')
+    .select('*')
+    .order('month', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []) as Payment[];
 }

@@ -9,10 +9,22 @@ export interface MediaFile {
   label: string;
 }
 
-export function MediaUploader() {
+interface MediaUploaderProps {
+  onFilesChange?: (files: File[]) => void;
+}
+
+export function MediaUploader({ onFilesChange }: MediaUploaderProps) {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  function updateFiles(updater: (prev: MediaFile[]) => MediaFile[]) {
+    setFiles((prev) => {
+      const next = updater(prev);
+      onFilesChange?.(next.map((f) => f.file));
+      return next;
+    });
+  }
 
   function addFiles(raw: FileList | null) {
     if (!raw) return;
@@ -25,11 +37,11 @@ export function MediaUploader() {
         type: f.type.startsWith('video/') ? 'video' : 'photo',
         label: '',
       }));
-    setFiles((prev) => [...prev, ...next]);
+    updateFiles((prev) => [...prev, ...next]);
   }
 
   function remove(id: string) {
-    setFiles((prev) => {
+    updateFiles((prev) => {
       const removed = prev.find((f) => f.id === id);
       if (removed) URL.revokeObjectURL(removed.preview);
       return prev.filter((f) => f.id !== id);
@@ -37,7 +49,7 @@ export function MediaUploader() {
   }
 
   function updateLabel(id: string, label: string) {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
+    updateFiles((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
   }
 
   const filesRef = useRef(files);

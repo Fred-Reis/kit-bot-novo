@@ -33,4 +33,11 @@ export const adminApi = {
   confirmPayment: (leadId: string) => botApi.post(`/admin/leads/${leadId}/confirm-payment`),
   invalidatePropertyCache: (propertyId: string) =>
     botApi.put(`/admin/properties/${propertyId}/invalidate-cache`),
+  createProperty: (data: Record<string, unknown>) => botApi.post('/admin/properties', data),
+  updateProperty: (id: string, data: Record<string, unknown>) =>
+    botApi.patch(`/admin/properties/${id}`, data),
+  deleteProperty: (id: string) => botApi.delete(`/admin/properties/${id}`),
+  deletePropertyMedia: (propertyId: string, mediaId: string) =>
+    botApi.delete(`/admin/properties/${propertyId}/media/${mediaId}`),
+  createTenant: (data: Record<string, unknown>) => botApi.post('/admin/tenants', data),
 };

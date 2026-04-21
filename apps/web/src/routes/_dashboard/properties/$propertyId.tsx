@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ChevronLeft, Building2, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Building2, RefreshCw, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchProperty } from '@/lib/queries';
 import { adminApi } from '@/lib/api';
@@ -77,6 +77,12 @@ function PropertyDetailPage() {
         <Pill tone={property.active ? 'ok' : 'default'} dot>
           {property.active ? 'Disponível' : 'Inativo'}
         </Pill>
+        <Link to="/properties/$propertyId/edit" params={{ propertyId }}>
+          <CustomButton variant="secondary" size="sm">
+            <Pencil className="size-4" />
+            Editar
+          </CustomButton>
+        </Link>
         <CustomButton
           variant="secondary"
           size="sm"

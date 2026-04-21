@@ -1,19 +1,15 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight } from 'lucide-react';
-import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
+import { fetchLeads, fetchProperties, fetchTenants, fetchAllPayments } from '@/lib/queries';
+import { formatCurrency } from '@/lib/utils';
 import { KpiCard } from '@/components/kpi-card';
 import { Pill } from '@/components/ui/pill';
 import { STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 
 export const Route = createFileRoute('/_dashboard/')({ component: DashboardPage });
 
-const STATIC_PAYMENTS = [
-  { id: 1, label: 'Ap. 101 — João S.', due: '05/05/2026', amount: 'R$ 1.800,00' },
-  { id: 2, label: 'Casa Jd. Paulista — Maria L.', due: '08/05/2026', amount: 'R$ 2.400,00' },
-  { id: 3, label: 'Studio Centro — Ana R.', due: '10/05/2026', amount: 'R$ 1.200,00' },
-  { id: 4, label: 'Ap. 304 — Carlos M.', due: '15/05/2026', amount: 'R$ 2.100,00' },
-];
+const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -39,12 +35,27 @@ function DashboardPage() {
     queryKey: ['tenants'],
     queryFn: fetchTenants,
   });
+  const { data: payments = [] } = useQuery({
+    queryKey: ['payments'],
+    queryFn: fetchAllPayments,
+    staleTime: 30_000,
+  });
 
   const total = properties.length;
   const occupied = new Set(tenants.map((t) => t.propertyId)).size;
   const occupancyPct = total > 0 ? Math.round((occupied / total) * 100) : 0;
   const activeLeads = leads.filter((l) => l.stage !== 'converted').length;
   const pendingKyc = leads.filter((l) => l.stage === 'kyc_pending').length;
+  const overdueCount = payments.filter((p) => p.status === 'overdue').length;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthRevenue = payments
+    .filter((p) => p.status === 'paid' && p.month.startsWith(currentMonth))
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const upcomingPayments = payments
+    .filter((p) => p.status === 'pending')
+    .slice(0, 4);
 
   const recentActivity = [...leads]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -52,13 +63,11 @@ function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Page title */}
       <div>
         <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">Visão geral do sistema</p>
       </div>
 
-      {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Taxa de ocupação" value={`${occupancyPct}%`} seed={1} up />
         <KpiCard label="Leads ativos" value={activeLeads} seed={2} up={activeLeads > 0} />
@@ -69,16 +78,18 @@ function DashboardPage() {
           up={false}
           className={pendingKyc > 0 ? 'ring-1 ring-warn/40' : undefined}
         />
-        <KpiCard label="Em atraso" value="—" seed={4} up={false} />
+        <KpiCard
+          label="Em atraso"
+          value={overdueCount > 0 ? overdueCount : '—'}
+          seed={4}
+          up={false}
+          className={overdueCount > 0 ? 'ring-1 ring-bad/40' : undefined}
+        />
       </div>
 
-      {/* Occupancy + Payments row */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Occupancy per property */}
-        <div
-          className="rounded-[10px] bg-surface-raised p-5"
-          style={{ boxShadow: 'var(--shadow-sm)' }}
-        >
+        <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
           <h2 className="mb-4 text-sm font-medium text-foreground">Ocupação por imóvel</h2>
           {properties.length === 0 ? (
             <p className="text-xs text-muted-foreground">Nenhum imóvel cadastrado.</p>
@@ -103,26 +114,37 @@ function DashboardPage() {
           )}
         </div>
 
-        {/* Upcoming payments (static) */}
-        <div
-          className="rounded-[10px] bg-surface-raised p-5"
-          style={{ boxShadow: 'var(--shadow-sm)' }}
-        >
+        {/* Upcoming / overdue payments */}
+        <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-foreground">Próximos pagamentos</h2>
-            <span className="text-[10px] text-muted-foreground/60">dados fictícios</span>
+            {monthRevenue > 0 && (
+              <span className="font-mono text-xs text-muted-foreground">
+                {formatCurrency(monthRevenue)} recebido este mês
+              </span>
+            )}
           </div>
-          <div className="space-y-3">
-            {STATIC_PAYMENTS.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium text-foreground">{p.label}</p>
-                  <p className="text-[11px] text-muted-foreground">Venc. {p.due}</p>
+          {upcomingPayments.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum pagamento pendente.</p>
+          ) : (
+            <div className="space-y-3">
+              {upcomingPayments.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      {p.tenantId.slice(0, 8)}…
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {dateFmt.format(new Date(p.month))}
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs font-medium text-foreground">
+                    {formatCurrency(p.amount)}
+                  </span>
                 </div>
-                <span className="font-mono text-xs font-medium text-foreground">{p.amount}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -130,17 +152,11 @@ function DashboardPage() {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-medium text-foreground">Atividade recente</h2>
-          <Link
-            to="/leads"
-            className="flex items-center gap-0.5 text-xs text-primary hover:underline"
-          >
+          <Link to="/leads" className="flex items-center gap-0.5 text-xs text-primary hover:underline">
             Ver todos <ChevronRight className="size-3" />
           </Link>
         </div>
-        <div
-          className="overflow-hidden rounded-[10px] bg-surface-raised"
-          style={{ boxShadow: 'var(--shadow-sm)' }}
-        >
+        <div className="overflow-hidden rounded-[10px] bg-surface-raised" style={{ boxShadow: 'var(--shadow-sm)' }}>
           {recentActivity.length === 0 ? (
             <p className="p-6 text-sm text-muted-foreground">Nenhuma atividade recente.</p>
           ) : (
@@ -154,14 +170,10 @@ function DashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                        <span className="text-[10px] font-medium">
-                          {lead.phone.slice(-2)}
-                        </span>
+                        <span className="text-[10px] font-medium">{lead.phone.slice(-2)}</span>
                       </div>
                       <div>
-                        <p className="font-mono text-xs font-medium text-foreground">
-                          {lead.phone}
-                        </p>
+                        <p className="font-mono text-xs font-medium text-foreground">{lead.phone}</p>
                         <div className="mt-0.5">
                           <Pill tone={STAGE_TONE[lead.stage] ?? 'default'} dot>
                             {STAGE_LABELS[lead.stage] ?? lead.stage}

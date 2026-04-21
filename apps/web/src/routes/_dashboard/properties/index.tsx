@@ -1,22 +1,25 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Building2, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { fetchProperties } from '@/lib/queries';
 import { PropertyCard } from '@/components/property-card';
 import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 import { Segmented } from '@/components/ui/segmented';
 import { CustomButton } from '@/components/ui/btn';
 
 export const Route = createFileRoute('/_dashboard/properties/')({ component: PropertiesPage });
 
-type Filter = 'all' | 'available' | 'inactive';
+type Filter = 'all' | 'available' | 'rented' | 'maintenance' | 'reserved';
 type View = 'grid' | 'row';
 
-const FILTER_OPTS = [
-  { label: 'Todos', value: 'all' as Filter },
-  { label: 'Disponível', value: 'available' as Filter },
-  { label: 'Inativo', value: 'inactive' as Filter },
+const FILTER_OPTS: { label: string; value: Filter }[] = [
+  { label: 'Todos', value: 'all' },
+  { label: 'Disponível', value: 'available' },
+  { label: 'Alugado', value: 'rented' },
+  { label: 'Manutenção', value: 'maintenance' },
+  { label: 'Reservado', value: 'reserved' },
 ];
 
 const VIEW_OPTS = [
@@ -25,6 +28,7 @@ const VIEW_OPTS = [
 ];
 
 function PropertiesPage() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('all');
   const [view, setView] = useState<View>('grid');
 
@@ -33,11 +37,9 @@ function PropertiesPage() {
     queryFn: fetchProperties,
   });
 
-  const filtered = properties.filter((p) => {
-    if (filter === 'available') return p.active;
-    if (filter === 'inactive') return !p.active;
-    return true;
-  });
+  const filtered = properties.filter((p) =>
+    filter === 'all' ? true : p.status === filter,
+  );
 
   return (
     <div className="space-y-6">
@@ -55,21 +57,25 @@ function PropertiesPage() {
       />
 
       <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-1">
-          {FILTER_OPTS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setFilter(opt.value)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                filter === opt.value
-                  ? 'bg-foreground text-surface'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-1">
+          {FILTER_OPTS.map((opt) => {
+            const count = opt.value === 'all' ? properties.length : properties.filter((p) => p.status === opt.value).length;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setFilter(opt.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filter === opt.value
+                    ? 'bg-foreground text-surface'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {opt.label}
+                <span className="ml-1.5 font-mono opacity-60">{count}</span>
+              </button>
+            );
+          })}
         </div>
         <Segmented options={VIEW_OPTS} value={view} onChange={setView} />
       </div>
@@ -81,10 +87,12 @@ function PropertiesPage() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-[10px] border border-border bg-surface-raised py-16 text-center">
-          <Building2 className="size-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Nenhum imóvel encontrado.</p>
-        </div>
+        <EmptyState
+          illustration={filter === 'all' ? 'properties' : 'filter'}
+          title={filter === 'all' ? 'Nenhum imóvel cadastrado' : 'Nenhum resultado para este filtro'}
+          subtitle={filter === 'all' ? 'Adicione seu primeiro imóvel para começar.' : 'Tente outro filtro.'}
+          action={filter === 'all' ? { label: 'Novo imóvel', onClick: () => navigate({ to: '/properties/new' }) } : undefined}
+        />
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (

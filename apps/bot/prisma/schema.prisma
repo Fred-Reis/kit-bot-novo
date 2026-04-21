@@ -21,9 +21,14 @@ model Property {
   ownerId                String
   owner                  Owner           @relation(fields: [ownerId], references: [id])
   name                   String
+  title                  String?
   address                String
+  complement             String?
   neighborhood           String
   category               String?
+  type                   String?
+  purpose                String?
+  status                 String          @default("available")
   description            String?
   rent                   Decimal
   deposit                Decimal
@@ -31,6 +36,9 @@ model Property {
   contractMonths         Int?
   rooms                  Int
   bathrooms              Int
+  area                   Float?
+  parkingSpots           Int?
+  amenities              String[]        @default([])
   includesWater          Boolean         @default(false)
   includesIptu           Boolean         @default(false)
   individualElectricity  Boolean         @default(true)
@@ -67,6 +75,8 @@ model Lead {
   propertyId       String?
   property         Property?      @relation(fields: [propertyId], references: [id])
   stage            String         @default("interest")
+  contractUrl      String?
+  autentiqueDocId  String?
   visitedAt        DateTime?
   docsSentAt       DateTime?
   contractSignedAt DateTime?
@@ -86,13 +96,31 @@ model LeadDocument {
 }
 
 model Tenant {
-  id            String   @id @default(uuid())
-  phone         String   @unique
+  id            String    @id @default(uuid())
+  phone         String    @unique
   propertyId    String
-  property      Property @relation(fields: [propertyId], references: [id])
+  property      Property  @relation(fields: [propertyId], references: [id])
+  name          String?
+  cpf           String?
+  email         String?
+  score         Int?
+  dueDay        Int?
+  onTimeRate    Float?
   contractStart DateTime
   contractEnd   DateTime?
-  createdAt     DateTime @default(now())
+  payments      Payment[]
+  createdAt     DateTime  @default(now())
+}
+
+model Payment {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  month     String
+  amount    Decimal
+  status    String
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model Event {

@@ -32,7 +32,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
-import { fetchLeads } from '@/lib/queries';
+import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CustomButton } from '@/components/ui/btn';
@@ -52,6 +52,15 @@ interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
+const QUICK_CREATE: (NavItem | null)[] = [
+  { href: '/properties/new', label: 'Novo imóvel', icon: Building2 },
+  { href: '/tenants/new', label: 'Novo inquilino', icon: UserCheck },
+  null,
+  { href: '/rules', label: 'Nova regra', icon: ListChecks },
+  { href: '/templates', label: 'Novo template', icon: LayoutTemplate },
+  { href: '/contracts', label: 'Novo contrato', icon: FileText },
+];
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -92,19 +101,30 @@ function usePageTitle() {
   return segment.charAt(0).toUpperCase() + segment.slice(1);
 }
 
+interface NavCounts {
+  leads: number;
+  properties: number;
+  tenants: number;
+}
+
 function NavLink({
   item,
   collapsed,
-  leadsCount,
+  counts,
 }: {
   item: NavItem;
   collapsed: boolean;
-  leadsCount: number;
+  counts: NavCounts;
 }) {
   const location = useLocation();
   const isActive = item.exact
     ? location.pathname === item.href
     : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
+
+  const badgeCount =
+    item.href === '/leads' ? counts.leads :
+    item.href === '/properties' ? counts.properties :
+    item.href === '/tenants' ? counts.tenants : 0;
 
   return (
     <Link
@@ -112,9 +132,7 @@ function NavLink({
       title={collapsed ? item.label : undefined}
       className={twMerge(
         'group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted hover:text-foreground',
-        isActive
-          ? 'bg-accent-soft text-accent-ink font-medium'
-          : 'text-muted-foreground',
+        isActive ? 'bg-accent-soft text-accent-ink font-medium' : 'text-muted-foreground',
         collapsed && 'justify-center',
       )}
     >
@@ -125,7 +143,7 @@ function NavLink({
       {!collapsed && (
         <>
           <span className="flex-1 truncate">{item.label}</span>
-          {item.badge && leadsCount > 0 && <Badge count={leadsCount} />}
+          {item.badge && badgeCount > 0 && <Badge count={badgeCount} />}
         </>
       )}
     </Link>
@@ -134,13 +152,13 @@ function NavLink({
 
 interface SidebarContentProps {
   collapsed: boolean;
-  leadsCount: number;
+  counts: NavCounts;
   userName: string;
   userEmail: string | undefined;
   onLogout: () => void;
 }
 
-function SidebarContent({ collapsed, leadsCount, userName, userEmail, onLogout }: SidebarContentProps) {
+function SidebarContent({ collapsed, counts, userName, userEmail, onLogout }: SidebarContentProps) {
   return (
     <>
       {/* Logo block */}
@@ -172,12 +190,7 @@ function SidebarContent({ collapsed, leadsCount, userName, userEmail, onLogout }
             )}
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  collapsed={collapsed}
-                  leadsCount={leadsCount}
-                />
+                <NavLink key={item.href} item={item} collapsed={collapsed} counts={counts} />
               ))}
             </div>
           </div>
@@ -233,7 +246,22 @@ function DashboardLayout() {
     queryFn: fetchLeads,
     refetchInterval: 5000,
   });
-  const leadsCount = leads.filter((l) => l.stage !== 'converted').length;
+  const { data: properties = [] } = useQuery({
+    queryKey: ['properties'],
+    queryFn: fetchProperties,
+    staleTime: 30_000,
+  });
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants'],
+    queryFn: fetchTenants,
+    staleTime: 30_000,
+  });
+
+  const counts: NavCounts = {
+    leads: leads.filter((l) => l.stage !== 'converted').length,
+    properties: properties.length,
+    tenants: tenants.length,
+  };
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
@@ -262,7 +290,7 @@ function DashboardLayout() {
       >
         <SidebarContent
           collapsed={sidebarCollapsed}
-          leadsCount={leadsCount}
+          counts={counts}
           userName={userName}
           userEmail={user?.email}
           onLogout={handleLogout}
@@ -292,12 +320,12 @@ function DashboardLayout() {
           />
           <aside className="fixed inset-y-0 left-0 z-50 flex w-[248px] flex-col border-r border-border bg-surface-raised lg:hidden">
             <SidebarContent
-          collapsed={sidebarCollapsed}
-          leadsCount={leadsCount}
-          userName={userName}
-          userEmail={user?.email}
-          onLogout={handleLogout}
-        />
+              collapsed={sidebarCollapsed}
+              counts={counts}
+              userName={userName}
+              userEmail={user?.email}
+              onLogout={handleLogout}
+            />
           </aside>
         </>
       )}
@@ -362,25 +390,24 @@ function DashboardLayout() {
 
               {quickCreateOpen && (
                 <div
-                  className="absolute right-0 top-full z-50 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-border bg-surface-raised py-1"
+                  className="absolute right-0 top-full z-50 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-border bg-surface-raised py-1"
                   style={{ boxShadow: 'var(--shadow-md)' }}
                 >
-                  <Link
-                    to="/properties/new"
-                    onClick={() => setQuickCreateOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted"
-                  >
-                    <Building2 className="size-4 text-muted-foreground" />
-                    Novo imóvel
-                  </Link>
-                  <Link
-                    to="/tenants/new"
-                    onClick={() => setQuickCreateOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted"
-                  >
-                    <UserCheck className="size-4 text-muted-foreground" />
-                    Novo inquilino
-                  </Link>
+                  {QUICK_CREATE.map((item, i) =>
+                    item === null ? (
+                      <div key={i} className="my-1 border-t border-border" />
+                    ) : (
+                      <Link
+                        key={item.href}
+                        to={item.href as '/'}
+                        onClick={() => setQuickCreateOpen(false)}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted"
+                      >
+                        <item.icon className="size-4 text-muted-foreground" />
+                        {item.label}
+                      </Link>
+                    ),
+                  )}
                 </div>
               )}
             </div>
