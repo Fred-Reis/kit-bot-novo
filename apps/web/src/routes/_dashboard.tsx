@@ -36,6 +36,7 @@ import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CustomButton } from '@/components/ui/btn';
+import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 
 export const Route = createFileRoute('/_dashboard')({ component: DashboardLayout });
@@ -53,13 +54,17 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const QUICK_CREATE: (NavItem | null)[] = [
+type QuickCreateItem = { label: string; icon: ComponentType<{ className?: string }> } & (
+  | { href: string; stub?: false }
+  | { href?: never; stub: true }
+);
+
+const QUICK_CREATE: QuickCreateItem[] = [
   { href: '/properties/new', label: 'Novo imóvel', icon: Building2 },
   { href: '/tenants/new', label: 'Novo inquilino', icon: UserCheck },
-  null,
+  { stub: true, label: 'Registrar lead', icon: MessageSquare },
   { href: '/rules', label: 'Nova regra', icon: ListChecks },
-  { href: '/templates', label: 'Novo template', icon: LayoutTemplate },
-  { href: '/contracts', label: 'Novo contrato', icon: FileText },
+  { href: '/templates', label: 'Novo template de contrato', icon: FileText },
 ];
 
 const NAV_GROUPS: NavGroup[] = [
@@ -393,9 +398,17 @@ function DashboardLayout() {
                   className="absolute right-0 top-full z-50 mt-1 min-w-[200px] overflow-hidden rounded-lg border border-border bg-surface-raised py-1"
                   style={{ boxShadow: 'var(--shadow-md)' }}
                 >
-                  {QUICK_CREATE.map((item, i) =>
-                    item === null ? (
-                      <div key={i} className="my-1 border-t border-border" />
+                  {QUICK_CREATE.map((item) =>
+                    item.stub ? (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => { setQuickCreateOpen(false); toast.info('Em breve'); }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                      >
+                        <item.icon className="size-4" />
+                        {item.label}
+                      </button>
                     ) : (
                       <Link
                         key={item.href}

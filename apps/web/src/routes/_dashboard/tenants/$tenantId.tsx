@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { fetchTenant } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 import { SpecBar } from '@/components/spec-bar';
+import { EmptyState } from '@/components/empty-state';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
 
@@ -73,7 +74,11 @@ function TenantDetailPage() {
         >
           <h2 className="mb-4 text-sm font-medium text-foreground">Histórico de pagamentos</h2>
           {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum pagamento registrado.</p>
+            <EmptyState
+              illustration="payments"
+              title="Nenhum pagamento registrado"
+              subtitle="Os pagamentos aparecerão aqui após o primeiro registro."
+            />
           ) : (
             <div className="space-y-2">
               {payments.map((p) => (

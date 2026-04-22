@@ -23,21 +23,16 @@ const VIEW_OPTS = [
 const KANBAN_COLUMNS = [
   { key: 'novo', label: 'Novo', stages: ['interest'] },
   { key: 'qualificando', label: 'Qualificando', stages: ['collection', 'review_submitted'] },
+  { key: 'visitando', label: 'Visitando', stages: ['visiting'] },
   { key: 'proposta', label: 'Proposta', stages: ['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed'] },
   { key: 'convertido', label: 'Convertido', stages: ['converted'] },
-  { key: 'outros', label: 'Outros', stages: [] as string[] },
 ] as const;
 
 function KanbanView({ leads }: { leads: Lead[] }) {
-  const assignedStages = new Set(KANBAN_COLUMNS.flatMap((c) => c.stages));
-  const othersLeads = leads.filter((l) => !assignedStages.has(l.stage));
-
   return (
     <div className="grid grid-cols-2 gap-3 overflow-x-auto pb-4 sm:grid-cols-3 lg:grid-cols-5">
       {KANBAN_COLUMNS.map((col) => {
-        const cards = col.key === 'outros'
-          ? othersLeads
-          : leads.filter((l) => (col.stages as readonly string[]).includes(l.stage));
+        const cards = leads.filter((l) => (col.stages as readonly string[]).includes(l.stage));
         return (
           <div key={col.key} className="flex min-w-[180px] flex-col gap-2">
             <div className="flex items-center justify-between rounded-t-lg border border-border bg-muted/50 px-3 py-2">
@@ -142,6 +137,12 @@ function LeadsPage() {
             <div key={i} className="h-48 w-[220px] shrink-0 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
+      ) : leads.length === 0 ? (
+        <EmptyState
+          illustration="leads"
+          title="Nenhum lead ainda"
+          subtitle="Os leads chegam automaticamente via WhatsApp."
+        />
       ) : view === 'kanban' ? (
         <KanbanView leads={leads} />
       ) : (

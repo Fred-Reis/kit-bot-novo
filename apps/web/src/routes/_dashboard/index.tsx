@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { fetchLeads, fetchProperties, fetchTenants, fetchAllPayments } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 import { KpiCard } from '@/components/kpi-card';
+import { EmptyState } from '@/components/empty-state';
 import { Pill } from '@/components/ui/pill';
 import { STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 
@@ -158,7 +159,11 @@ function DashboardPage() {
         </div>
         <div className="overflow-hidden rounded-[10px] bg-surface-raised" style={{ boxShadow: 'var(--shadow-sm)' }}>
           {recentActivity.length === 0 ? (
-            <p className="p-6 text-sm text-muted-foreground">Nenhuma atividade recente.</p>
+            <EmptyState
+              illustration="activity"
+              title="Sem atividade recente"
+              subtitle="As atualizações de leads aparecerão aqui."
+            />
           ) : (
             <ul className="divide-y divide-border">
               {recentActivity.map((lead) => (
