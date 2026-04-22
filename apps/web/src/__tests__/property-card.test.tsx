@@ -112,4 +112,36 @@ describe('PropertyCard — row variant', () => {
     const { container } = render(<PropertyCard property={makeProperty()} variant="row" />);
     expect(container.querySelector('[data-variant="row"]')).toBeInTheDocument();
   });
+
+  test('row variant shows externalId', () => {
+    render(<PropertyCard property={makeProperty({ externalId: 'IM-0042' })} variant="row" />);
+    expect(screen.getByText('IM-0042')).toBeInTheDocument();
+  });
+
+  test('row variant shows neighborhood', () => {
+    render(<PropertyCard property={makeProperty({ neighborhood: 'Vila Madalena' })} variant="row" />);
+    expect(screen.getByText(/Vila Madalena/)).toBeInTheDocument();
+  });
+});
+
+describe('PropertyCard — cover photo placeholder', () => {
+  test('shows hatched SVG placeholder when no media', () => {
+    const { container } = render(<PropertyCard property={makeProperty({ media: [] })} />);
+    expect(container.querySelector('[data-slot="placeholder"]')).toBeInTheDocument();
+  });
+
+  test('shows img when media has a photo', () => {
+    const property = makeProperty({
+      media: [{ id: 'm1', propertyId: 'prop-1', url: 'https://example.com/photo.jpg', type: 'photo', label: null, order: 0, createdAt: '2026-01-01T00:00:00Z' }],
+    });
+    render(<PropertyCard property={property} />);
+    expect(screen.getByRole('img')).toBeInTheDocument();
+  });
+});
+
+describe('PropertyCard — address format', () => {
+  test('grid shows address with neighborhood separator', () => {
+    render(<PropertyCard property={makeProperty({ address: 'Rua das Flores, 100', neighborhood: 'Centro' })} />);
+    expect(screen.getByText('Rua das Flores, 100 — Centro')).toBeInTheDocument();
+  });
 });

@@ -1,13 +1,14 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
 import { fetchProperties } from '@/lib/queries';
 import { PropertyCard } from '@/components/property-card';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
-import { Segmented } from '@/components/ui/segmented';
 import { CustomButton } from '@/components/ui/btn';
+import { twMerge } from 'tailwind-merge';
 
 export const Route = createFileRoute('/_dashboard/properties/')({ component: PropertiesPage });
 
@@ -20,11 +21,6 @@ const FILTER_OPTS: { label: string; value: Filter }[] = [
   { label: 'Alugado', value: 'rented' },
   { label: 'Manutenção', value: 'maintenance' },
   { label: 'Reservado', value: 'reserved' },
-];
-
-const VIEW_OPTS = [
-  { label: 'Grade', value: 'grid' as View },
-  { label: 'Lista', value: 'row' as View },
 ];
 
 function PropertiesPage() {
@@ -47,37 +43,79 @@ function PropertiesPage() {
         title="Imóveis"
         subtitle={`${properties.length} imóveis cadastrados`}
         actions={
-          <Link to="/properties/new">
-            <CustomButton variant="primary" size="sm">
-              <Plus className="size-4" />
-              Novo imóvel
+          <div className="flex items-center gap-2">
+            <CustomButton
+              variant="secondary"
+              size="sm"
+              onClick={() => toast.info('Em breve')}
+            >
+              <SlidersHorizontal className="size-4" />
+              Filtros
             </CustomButton>
-          </Link>
+            <Link to="/properties/new">
+              <CustomButton variant="primary" size="sm">
+                <Plus className="size-4" />
+                Novo imóvel
+              </CustomButton>
+            </Link>
+          </div>
         }
       />
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1">
           {FILTER_OPTS.map((opt) => {
-            const count = opt.value === 'all' ? properties.length : properties.filter((p) => p.status === opt.value).length;
+            const count = opt.value === 'all'
+              ? properties.length
+              : properties.filter((p) => p.status === opt.value).length;
+            const active = filter === opt.value;
             return (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => setFilter(opt.value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  filter === opt.value
+                className={twMerge(
+                  'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                  active
                     ? 'bg-foreground text-surface'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground',
+                )}
               >
                 {opt.label}
-                <span className="ml-1.5 font-mono opacity-60">{count}</span>
+                <span className="font-mono opacity-70">{count}</span>
               </button>
             );
           })}
         </div>
-        <Segmented options={VIEW_OPTS} value={view} onChange={setView} />
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setView('grid')}
+            aria-label="Visualização em grade"
+            className={twMerge(
+              'rounded-lg p-1.5 transition-colors',
+              view === 'grid'
+                ? 'bg-foreground text-surface'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <LayoutGrid className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('row')}
+            aria-label="Visualização em lista"
+            className={twMerge(
+              'rounded-lg p-1.5 transition-colors',
+              view === 'row'
+                ? 'bg-foreground text-surface'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <List className="size-4" />
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

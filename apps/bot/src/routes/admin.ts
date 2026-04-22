@@ -17,7 +17,7 @@ const ALLOWED_MEDIA_TYPES = new Set([
 const PROPERTY_PATCH_FIELDS = new Set([
   'name', 'externalId', 'address', 'complement', 'neighborhood',
   'rent', 'deposit', 'depositInstallmentsMax', 'contractMonths',
-  'rooms', 'bathrooms', 'maxAdults',
+  'rooms', 'bathrooms', 'area', 'maxAdults',
   'acceptsPets', 'acceptsChildren', 'includesWater', 'includesIptu',
   'individualElectricity', 'independentEntrance',
   'description', 'rulesText', 'visitSchedule', 'listingUrl', 'active',
@@ -152,14 +152,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     '/admin/properties',
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
-      const { name, externalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ...rest } = request.body;
+      const { name, externalId: rawExternalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ...rest } = request.body;
 
-      if (!name || !externalId || !address || !neighborhood || rent == null || deposit == null || depositInstallmentsMax == null || rooms == null || bathrooms == null) {
+      if (!name || !address || !neighborhood || rent == null || deposit == null || depositInstallmentsMax == null || rooms == null || bathrooms == null) {
         return reply.status(400).send({ error: 'Missing required fields' });
       }
 
       const owner = await prisma.owner.findFirst();
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
+
+      let externalId = rawExternalId;
+      if (!externalId) {
+        const count = await prisma.property.count();
+        externalId = `IM-${String(count + 1).padStart(4, '0')}`;
+      }
 
       const property = await prisma.property.create({
         data: { name, externalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ownerId: rest.ownerId ?? owner.id, ...rest },
