@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import cors from '@fastify/cors';
 import { config } from '@/config';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
 import adminAuthPlugin from '@/plugins/admin-auth';
@@ -10,6 +11,11 @@ const fastify = Fastify({
   },
 });
 
+fastify.register(cors, {
+  origin: process.env.ADMIN_ORIGIN ?? 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+});
 fastify.register(adminAuthPlugin);
 fastify.register(evolutionWebhookPlugin);
 fastify.register(adminRoutes);

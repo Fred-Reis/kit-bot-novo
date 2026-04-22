@@ -40,4 +40,8 @@ export const adminApi = {
   deletePropertyMedia: (propertyId: string, mediaId: string) =>
     botApi.delete(`/admin/properties/${propertyId}/media/${mediaId}`),
   createTenant: (data: Record<string, unknown>) => botApi.post('/admin/tenants', data),
+  getPropertyMediaSignedUrl: (propertyId: string, data: { fileName: string; contentType: string }) =>
+    botApi.post(`/admin/properties/${propertyId}/media/signed-url`, data),
+  createPropertyMedia: (propertyId: string, data: { path: string; type: string; label?: string }) =>
+    botApi.post(`/admin/properties/${propertyId}/media`, data),
 };

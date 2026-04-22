@@ -18,13 +18,14 @@ export function MediaUploader({ onFilesChange }: MediaUploaderProps) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function updateFiles(updater: (prev: MediaFile[]) => MediaFile[]) {
-    setFiles((prev) => {
-      const next = updater(prev);
-      onFilesChange?.(next.map((f) => f.file));
-      return next;
-    });
-  }
+  const mounted = useRef(false);
+  const onFilesChangeRef = useRef(onFilesChange);
+  onFilesChangeRef.current = onFilesChange;
+
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    onFilesChangeRef.current?.(files.map((f) => f.file));
+  }, [files]);
 
   function addFiles(raw: FileList | null) {
     if (!raw) return;
@@ -37,11 +38,11 @@ export function MediaUploader({ onFilesChange }: MediaUploaderProps) {
         type: f.type.startsWith('video/') ? 'video' : 'photo',
         label: '',
       }));
-    updateFiles((prev) => [...prev, ...next]);
+    setFiles((prev) => [...prev, ...next]);
   }
 
   function remove(id: string) {
-    updateFiles((prev) => {
+    setFiles((prev) => {
       const removed = prev.find((f) => f.id === id);
       if (removed) URL.revokeObjectURL(removed.preview);
       return prev.filter((f) => f.id !== id);
@@ -49,7 +50,7 @@ export function MediaUploader({ onFilesChange }: MediaUploaderProps) {
   }
 
   function updateLabel(id: string, label: string) {
-    updateFiles((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, label } : f)));
   }
 
   const filesRef = useRef(files);

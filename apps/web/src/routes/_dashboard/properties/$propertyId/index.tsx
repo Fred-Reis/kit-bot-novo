@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ChevronLeft, Building2, RefreshCw, Pencil } from 'lucide-react';
+import { ChevronLeft, Building2, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchProperty } from '@/lib/queries';
 import { adminApi } from '@/lib/api';
@@ -9,8 +9,9 @@ import { formatCurrency } from '@/lib/utils';
 import { SpecBar } from '@/components/spec-bar';
 import { Pill } from '@/components/ui/pill';
 import { CustomButton } from '@/components/ui/btn';
+import { ConfirmButton } from '@/components/confirm-button';
 
-export const Route = createFileRoute('/_dashboard/properties/$propertyId')({
+export const Route = createFileRoute('/_dashboard/properties/$propertyId/')({
   component: PropertyDetailPage,
 });
 
@@ -36,6 +37,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 function PropertyDetailPage() {
   const { propertyId } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('details');
 
   const { data: property, isLoading } = useQuery({
@@ -50,6 +52,16 @@ function PropertyDetailPage() {
       void qc.invalidateQueries({ queryKey: ['property', propertyId] });
     },
     onError: () => toast.error('Erro ao limpar o cache.'),
+  });
+
+  const destroy = useMutation({
+    mutationFn: () => adminApi.deleteProperty(propertyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['properties'] });
+      toast.success('Imóvel arquivado.');
+      navigate({ to: '/properties' });
+    },
+    onError: () => toast.error('Erro ao arquivar imóvel.'),
   });
 
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
@@ -92,6 +104,14 @@ function PropertyDetailPage() {
           <RefreshCw className={`size-4 ${invalidate.isPending ? 'animate-spin' : ''}`} />
           {invalidate.isPending ? 'Limpando...' : 'Limpar cache'}
         </CustomButton>
+        <ConfirmButton
+          label="Excluir"
+          confirmLabel={destroy.isPending ? 'Arquivando...' : 'Sim'}
+          disabled={destroy.isPending}
+          onConfirm={() => destroy.mutate()}
+        >
+          <Trash2 className="size-4 text-red-500" />
+        </ConfirmButton>
       </div>
 
       {/* Gallery grid */}
@@ -149,10 +169,7 @@ function PropertyDetailPage() {
 
           {/* Tab content */}
           {tab === 'details' && (
-            <div
-              className="rounded-[10px] bg-surface-raised p-5"
-              style={{ boxShadow: 'var(--shadow-sm)' }}
-            >
+            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
               <div className="divide-y divide-border">
                 <InfoRow
                   label="Endereço"
@@ -204,10 +221,7 @@ function PropertyDetailPage() {
           )}
 
           {tab === 'rules' && (
-            <div
-              className="rounded-[10px] bg-surface-raised p-5"
-              style={{ boxShadow: 'var(--shadow-sm)' }}
-            >
+            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
               {property.rulesText ? (
                 <p className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
                   {property.rulesText}
@@ -219,10 +233,7 @@ function PropertyDetailPage() {
           )}
 
           {tab === 'gallery' && (
-            <div
-              className="rounded-[10px] bg-surface-raised p-5"
-              style={{ boxShadow: 'var(--shadow-sm)' }}
-            >
+            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
               {property.media.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma mídia cadastrada.</p>
               ) : (

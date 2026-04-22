@@ -9,6 +9,20 @@ import type { LeadContext } from '@/flows/lead/context';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
+const ALLOWED_MEDIA_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/quicktime', 'video/webm',
+]);
+
+const PROPERTY_PATCH_FIELDS = new Set([
+  'name', 'externalId', 'address', 'complement', 'neighborhood',
+  'rent', 'deposit', 'depositInstallmentsMax', 'contractMonths',
+  'rooms', 'bathrooms', 'maxAdults',
+  'acceptsPets', 'acceptsChildren', 'includesWater', 'includesIptu',
+  'individualElectricity', 'independentEntrance',
+  'description', 'rulesText', 'visitSchedule', 'listingUrl', 'active',
+]);
+
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── approve-kyc ──────────────────────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>(
@@ -162,7 +176,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const property = await prisma.property.update({ where: { id }, data: request.body });
+      const data = Object.fromEntries(
+        Object.entries(request.body).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
+      );
+
+      const property = await prisma.property.update({ where: { id }, data });
       await redis.del(`property:${id}`);
 
       return reply.send(property);
@@ -236,6 +254,63 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       await redis.del(`property:${propertyId}`);
 
       return reply.status(201).send({ success: true, id: tenant.id, tenant });
+    },
+  );
+
+  // ─── signed upload URL for property media ─────────────────────────────────
+  fastify.post<{
+    Params: { id: string };
+    Body: { fileName: string; contentType: string };
+  }>(
+    '/admin/properties/:id/media/signed-url',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { fileName, contentType } = request.body;
+
+      if (!ALLOWED_MEDIA_TYPES.has(contentType)) {
+        return reply.status(400).send({ error: 'Unsupported file type' });
+      }
+
+      const ext = fileName.split('.').pop()?.replace(/[^a-z0-9]/gi, '') ?? 'bin';
+      const path = `${id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { data, error } = await supabase.storage
+        .from('properties')
+        .createSignedUploadUrl(path);
+
+      if (error || !data) {
+        return reply.status(500).send({ error: 'Failed to create signed URL' });
+      }
+
+      return reply.send({ signedUrl: data.signedUrl, path, token: data.token });
+    },
+  );
+
+  // ─── register property media after upload ─────────────────────────────────
+  fastify.post<{
+    Params: { id: string };
+    Body: { path: string; type: 'photo' | 'video'; label?: string };
+  }>(
+    '/admin/properties/:id/media',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { path, type, label } = request.body;
+
+      if (!path.startsWith(`${id}/`)) {
+        return reply.status(400).send({ error: 'Invalid path for this property' });
+      }
+
+      const { data: { publicUrl } } = supabase.storage.from('properties').getPublicUrl(path);
+
+      const media = await prisma.propertyMedia.create({
+        data: { propertyId: id, url: publicUrl, type, label: label ?? null },
+      });
+
+      await redis.del(`property:${id}`);
+
+      return reply.status(201).send({ success: true, media });
     },
   );
 }

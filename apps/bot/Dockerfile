@@ -14,6 +14,8 @@ COPY apps/bot/tsconfig.json ./apps/bot/
 
 RUN bun install
 
+ARG DIRECT_URL=postgresql://placeholder:5432/placeholder
+ARG DATABASE_URL=postgresql://placeholder:5432/placeholder
 RUN cd apps/bot && bunx prisma generate
 
 COPY apps/bot/src ./apps/bot/src/

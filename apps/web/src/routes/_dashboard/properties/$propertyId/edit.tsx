@@ -2,14 +2,16 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, X, Video } from 'lucide-react';
 import { fetchProperty } from '@/lib/queries';
 import { adminApi } from '@/lib/api';
 import { uploadPropertyMedia } from '@/lib/storage';
 import { FormField } from '@/components/form-field';
+import { FormSection } from '@/components/form-section';
 import { Select } from '@/components/ui/select';
 import { CustomButton } from '@/components/ui/btn';
 import { PropertyFormFields, type PropertyFormState } from '@/components/property-form-fields';
+import type { PropertyMedia } from '@kit-manager/types';
 
 export const Route = createFileRoute('/_dashboard/properties/$propertyId/edit')({
   component: EditPropertyPage,
@@ -114,6 +116,16 @@ function EditPropertyPage() {
     onError: () => toast.error('Erro ao salvar'),
   });
 
+  const { mutate: deleteMedia, variables: deletingMedia } = useMutation({
+    mutationFn: (media: PropertyMedia) =>
+      adminApi.deletePropertyMedia(propertyId, media.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
+      toast.success('Foto removida');
+    },
+    onError: () => toast.error('Erro ao remover foto'),
+  });
+
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
   if (!property) return <p className="text-sm text-muted-foreground">Imóvel não encontrado.</p>;
 
@@ -153,13 +165,44 @@ function EditPropertyPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <PropertyFormFields
-          form={form}
-          set={set}
-          onFilesChange={setPendingFiles}
-          photosTitle="Adicionar fotos"
-          photosSubtitle="Novas fotos serão adicionadas à galeria existente."
-        />
+        <div className="space-y-5">
+          {property.media.length > 0 && (
+            <FormSection title="Fotos existentes" subtitle="Clique no × para remover.">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {property.media.map((m) => (
+                  <div key={m.id} className="group relative overflow-hidden rounded-lg border border-border bg-muted">
+                    {m.type === 'photo' ? (
+                      <img src={m.url} alt={m.label ?? 'foto'} className="aspect-[4/3] w-full object-cover" />
+                    ) : (
+                      <div className="flex aspect-[4/3] w-full items-center justify-center bg-muted/80">
+                        <Video className="size-8 text-muted-foreground/60" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      disabled={deletingMedia?.id === m.id}
+                      onClick={() => deleteMedia(m)}
+                      aria-label="Remover"
+                      className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                    {m.label && (
+                      <p className="px-2 py-1 text-[11px] text-muted-foreground truncate">{m.label}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </FormSection>
+          )}
+          <PropertyFormFields
+            form={form}
+            set={set}
+            onFilesChange={setPendingFiles}
+            photosTitle="Adicionar fotos"
+            photosSubtitle="Novas fotos serão adicionadas à galeria existente."
+          />
+        </div>
 
         <div className="space-y-4 self-start lg:sticky lg:top-[76px]">
           <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
