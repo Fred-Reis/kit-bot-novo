@@ -247,9 +247,12 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: 'Missing required fields: phone, propertyId, contractStart' });
       }
 
+      const count = await prisma.tenant.count();
+      const externalId = `IQ-${String(count + 1).padStart(3, '0')}`;
+
       const [tenant] = await prisma.$transaction([
         prisma.tenant.create({
-          data: { phone, propertyId, contractStart: new Date(contractStart), ...rest },
+          data: { phone, propertyId, contractStart: new Date(contractStart), externalId, ...rest },
         }),
         prisma.property.update({
           where: { id: propertyId },

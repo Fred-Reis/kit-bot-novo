@@ -97,6 +97,7 @@ model LeadDocument {
 
 model Tenant {
   id            String    @id @default(uuid())
+  externalId    String?   @unique
   phone         String    @unique
   propertyId    String
   property      Property  @relation(fields: [propertyId], references: [id])

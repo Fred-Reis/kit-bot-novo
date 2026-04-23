@@ -1,5 +1,12 @@
 import { supabase } from './supabase';
 import type { Lead, LeadDocument, Payment, Property, PropertyMedia, Tenant } from '@kit-manager/types';
+import { tenantStatus } from './tenant-utils';
+
+type TenantRow = Omit<Tenant, 'propertyName' | 'status'> & { property: { name: string } | null };
+
+function mapTenantRow(row: TenantRow): Tenant {
+  return { ...row, propertyName: row.property?.name ?? null, status: tenantStatus(row.onTimeRate) };
+}
 
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
@@ -61,21 +68,21 @@ export async function fetchProperty(id: string): Promise<Property> {
 export async function fetchTenants(): Promise<Tenant[]> {
   const { data, error } = await supabase
     .from('Tenant')
-    .select('*')
+    .select('*, property:Property(name)')
     .order('contractStart', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Tenant[];
+  return ((data ?? []) as TenantRow[]).map(mapTenantRow);
 }
 
 export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
   const [{ data: tenant, error: tenantErr }, { data: payments, error: paymentsErr }] =
     await Promise.all([
-      supabase.from('Tenant').select('*').eq('id', id).single(),
+      supabase.from('Tenant').select('*, property:Property(name)').eq('id', id).single(),
       supabase.from('Payment').select('*').eq('tenantId', id).order('month', { ascending: false }),
     ]);
   if (tenantErr) throw tenantErr;
   if (paymentsErr) throw paymentsErr;
-  return { ...(tenant as Tenant), payments: (payments as Payment[]) ?? [] };
+  return { ...mapTenantRow(tenant as TenantRow), payments: (payments as Payment[]) ?? [] };
 }
 
 export async function fetchPayments(tenantId: string): Promise<Payment[]> {
