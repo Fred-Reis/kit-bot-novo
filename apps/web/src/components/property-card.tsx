@@ -12,7 +12,7 @@ interface PropertyCardProps {
 
 type Tone = 'ok' | 'warn' | 'bad' | 'accent' | 'default';
 
-const STATUS_CONFIG: Record<string, { tone: Tone; label: string }> = {
+const STATUS_CONFIG: Record<Property['status'], { tone: Tone; label: string }> = {
   available: { tone: 'ok', label: 'Disponível' },
   rented: { tone: 'accent', label: 'Alugado' },
   maintenance: { tone: 'warn', label: 'Manutenção' },
@@ -20,9 +20,7 @@ const STATUS_CONFIG: Record<string, { tone: Tone; label: string }> = {
 };
 
 function statusFor(property: Property) {
-  return STATUS_CONFIG[property.status] ?? (property.active
-    ? STATUS_CONFIG.available
-    : STATUS_CONFIG.maintenance);
+  return STATUS_CONFIG[property.status];
 }
 
 function HatchedPlaceholder() {
@@ -51,9 +49,6 @@ function CoverPhoto({ property }: { property: Property }) {
   return <HatchedPlaceholder />;
 }
 
-function formatAddress(address: string, neighborhood: string) {
-  return `${address} — ${neighborhood}`;
-}
 
 export function PropertyCard({ property, variant = 'grid', className }: PropertyCardProps) {
   const { tone, label } = statusFor(property);
@@ -117,7 +112,7 @@ export function PropertyCard({ property, variant = 'grid', className }: Property
       <div className="p-4">
         <p className="font-mono text-[10px] text-muted-foreground">{property.externalId}</p>
         <p className="mt-0.5 line-clamp-1 text-sm font-semibold text-foreground">{property.name}</p>
-        <p className="mb-2 truncate text-xs text-muted-foreground">{formatAddress(property.address, property.neighborhood)}</p>
+        <p className="mb-2 truncate text-xs text-muted-foreground">{`${property.address} — ${property.neighborhood}`}</p>
         <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <BedDouble className="size-3" />{property.rooms}
