@@ -1,6 +1,6 @@
 import { twMerge } from 'tailwind-merge';
 import type { Lead } from '@kit-manager/types';
-import { STAGE_LABELS } from '@/lib/leads';
+import { SOURCE_LABELS, formatPhone } from '@/lib/leads';
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -17,6 +17,9 @@ interface LeadKanbanCardProps {
 }
 
 export function LeadKanbanCard({ lead, className }: LeadKanbanCardProps) {
+  const cleanPhone = formatPhone(lead.phone);
+  const displayName = lead.name ?? cleanPhone;
+
   return (
     <div
       data-slot="lead-kanban-card"
@@ -26,11 +29,29 @@ export function LeadKanbanCard({ lead, className }: LeadKanbanCardProps) {
       )}
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
-      <p className="font-mono text-sm font-medium text-foreground">{lead.phone}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
-        {STAGE_LABELS[lead.stage] ?? lead.stage}
-      </p>
-      <p className="mt-2 text-[10px] text-muted-foreground/70">{relativeTime(lead.updatedAt)}</p>
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-sm font-medium text-foreground leading-tight">{displayName}</p>
+        <span className="shrink-0 font-mono text-[10px] text-muted-foreground/70 pt-px">
+          {relativeTime(lead.updatedAt)}
+        </span>
+      </div>
+
+      {cleanPhone !== displayName && (
+        <p className="font-mono text-[11px] text-muted-foreground">{cleanPhone}</p>
+      )}
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        {lead.source && (
+          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {SOURCE_LABELS[lead.source]}
+          </span>
+        )}
+        {lead.propertyExternalId && (
+          <span className="rounded-full bg-accent-soft px-2 py-0.5 font-mono text-[10px] font-medium text-accent-ink">
+            {lead.propertyExternalId}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

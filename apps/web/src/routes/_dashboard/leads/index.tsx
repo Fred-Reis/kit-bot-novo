@@ -1,31 +1,30 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Plus, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
+import { twMerge } from 'tailwind-merge';
 import { fetchLeads } from '@/lib/queries';
 import type { Lead } from '@kit-manager/types';
 import { LeadKanbanCard } from '@/components/lead-kanban-card';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { Pill } from '@/components/ui/pill';
-import { Segmented } from '@/components/ui/segmented';
-import { STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
+import { CustomButton } from '@/components/ui/btn';
+import { STAGE_LABELS, STAGE_TONE, SOURCE_LABELS, formatPhone } from '@/lib/leads';
 
 export const Route = createFileRoute('/_dashboard/leads/')({ component: LeadsPage });
 
 type View = 'kanban' | 'table';
 
-const VIEW_OPTS = [
-  { label: 'Kanban', value: 'kanban' as View },
-  { label: 'Tabela', value: 'table' as View },
-];
+const dateFormatted = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
 const KANBAN_COLUMNS = [
   { key: 'novo', label: 'Novo', stages: ['interest'] },
-  { key: 'qualificando', label: 'Qualificando', stages: ['collection', 'review_submitted'] },
-  { key: 'visitando', label: 'Visitando', stages: ['visiting'] },
+  { key: 'qualificacao', label: 'Qualificação', stages: ['collection', 'review_submitted'] },
+  { key: 'visita', label: 'Visita agendada', stages: ['visiting'] },
   { key: 'proposta', label: 'Proposta', stages: ['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed'] },
-  { key: 'convertido', label: 'Convertido', stages: ['converted'] },
+  { key: 'ganho', label: 'Ganho', stages: ['converted'] },
 ] as const;
 
 function KanbanView({ leads }: { leads: Lead[] }) {
@@ -68,15 +67,11 @@ function TableView({ leads }: { leads: Lead[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">
-                Telefone
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">
-                Etapa
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
-                Atualizado
-              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">Nome</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Origem</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Imóvel</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">Etapa</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Atualizado</th>
               <th className="w-8 px-5 py-3" />
             </tr>
           </thead>
@@ -87,10 +82,23 @@ function TableView({ leads }: { leads: Lead[] }) {
                   <Link
                     to="/leads/$leadId"
                     params={{ leadId: lead.id }}
-                    className="font-mono text-sm font-medium text-foreground hover:text-primary"
+                    className="hover:text-primary"
                   >
-                    {lead.phone}
+                    <p className="text-sm font-medium text-foreground">{lead.name ?? formatPhone(lead.phone)}</p>
+                    {lead.name && (
+                      <p className="font-mono text-[11px] text-muted-foreground">{formatPhone(lead.phone)}</p>
+                    )}
                   </Link>
+                </td>
+                <td className="px-5 py-3.5 hidden sm:table-cell">
+                  {lead.source
+                    ? <span className="text-xs text-muted-foreground">{SOURCE_LABELS[lead.source]}</span>
+                    : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-5 py-3.5 hidden md:table-cell">
+                  {lead.propertyExternalId
+                    ? <span className="font-mono text-xs text-foreground">{lead.propertyExternalId}</span>
+                    : <span className="text-muted-foreground">—</span>}
                 </td>
                 <td className="px-5 py-3.5">
                   <Pill tone={STAGE_TONE[lead.stage] ?? 'default'} dot>
@@ -98,9 +106,7 @@ function TableView({ leads }: { leads: Lead[] }) {
                   </Pill>
                 </td>
                 <td className="px-5 py-3.5 text-muted-foreground hidden sm:table-cell">
-                  {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(
-                    new Date(lead.updatedAt),
-                  )}
+                  {dateFormatted.format(new Date(lead.updatedAt))}
                 </td>
                 <td className="px-5 py-3.5">
                   <Link to="/leads/$leadId" params={{ leadId: lead.id }}>
@@ -126,9 +132,52 @@ function LeadsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <PageHeader title="Leads" subtitle={`${leads.length} leads registrados`} />
-        <Segmented options={VIEW_OPTS} value={view} onChange={setView} />
+      <PageHeader
+        title="Leads"
+        subtitle={`${leads.length} leads registrados`}
+        actions={
+          <div className="flex items-center gap-2">
+            <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
+              <SlidersHorizontal className="size-4" />
+              Filtros
+            </CustomButton>
+            <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>
+              <Plus className="size-4" />
+              Novo lead
+            </CustomButton>
+          </div>
+        }
+      />
+
+      <div className="flex justify-end">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setView('kanban')}
+            aria-label="Visualização kanban"
+            className={twMerge(
+              'rounded-lg p-1.5 transition-colors',
+              view === 'kanban'
+                ? 'bg-foreground text-surface'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <LayoutGrid className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView('table')}
+            aria-label="Visualização em tabela"
+            className={twMerge(
+              'rounded-lg p-1.5 transition-colors',
+              view === 'table'
+                ? 'bg-foreground text-surface'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <List className="size-4" />
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

@@ -2,6 +2,7 @@ export type LeadStage =
   | 'interest'
   | 'collection'
   | 'review_submitted'
+  | 'visiting'
   | 'kyc_pending'
   | 'kyc_approved'
   | 'residents_docs_complete'
@@ -9,10 +10,15 @@ export type LeadStage =
   | 'contract_signed'
   | 'converted';
 
+export type LeadSource = 'whatsapp' | 'zap' | 'site' | 'instagram' | 'indicacao' | 'other';
+
 export interface Lead {
   id: string;
   phone: string;
+  name: string | null;
+  source: LeadSource | null;
   propertyId: string | null;
+  propertyExternalId: string | null;
   stage: LeadStage;
   contractUrl: string | null;
   autentiqueDocId: string | null;

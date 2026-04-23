@@ -12,7 +12,7 @@ export async function routeMessage(
   await prisma.lead.upsert({
     where: { phone: chatId },
     update: {},
-    create: { phone: chatId, stage: 'interest' },
+    create: { phone: chatId, stage: 'interest', source: 'whatsapp' },
   });
 
   // Check if this phone has an active Tenant record

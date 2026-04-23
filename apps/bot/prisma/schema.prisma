@@ -72,6 +72,8 @@ model PropertyMedia {
 model Lead {
   id               String         @id @default(uuid())
   phone            String         @unique
+  name             String?
+  source           String?
   propertyId       String?
   property         Property?      @relation(fields: [propertyId], references: [id])
   stage            String         @default("interest")

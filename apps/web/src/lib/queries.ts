@@ -8,28 +8,30 @@ function mapTenantRow(row: TenantRow): Tenant {
   return { ...row, propertyName: row.property?.name ?? null, status: tenantStatus(row.onTimeRate) };
 }
 
+type LeadRow = Omit<Lead, 'propertyExternalId'> & { property: { externalId: string } | null };
+
+function mapLeadRow(row: LeadRow): Lead {
+  return { ...row, propertyExternalId: row.property?.externalId ?? null };
+}
+
 export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from('Lead')
-    .select('*')
+    .select('*, property:Property(externalId)')
     .order('updatedAt', { ascending: false })
     .limit(100);
   if (error) throw error;
-  return (data ?? []) as Lead[];
+  return ((data ?? []) as LeadRow[]).map(mapLeadRow);
 }
 
 export async function fetchLead(id: string): Promise<Lead & { documents: LeadDocument[] }> {
   const [{ data: lead, error: leadErr }, { data: docs, error: docsErr }] = await Promise.all([
-    supabase.from('Lead').select('*').eq('id', id).single(),
-    supabase
-      .from('LeadDocument')
-      .select('*')
-      .eq('leadId', id)
-      .order('createdAt', { ascending: true }),
+    supabase.from('Lead').select('*, property:Property(externalId)').eq('id', id).single(),
+    supabase.from('LeadDocument').select('*').eq('leadId', id).order('createdAt', { ascending: true }),
   ]);
   if (leadErr) throw leadErr;
   if (docsErr) throw docsErr;
-  return { ...(lead as Lead), documents: (docs as LeadDocument[]) ?? [] };
+  return { ...mapLeadRow(lead as LeadRow), documents: (docs as LeadDocument[]) ?? [] };
 }
 
 export async function fetchProperties(): Promise<Property[]> {

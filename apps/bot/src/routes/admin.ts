@@ -24,6 +24,33 @@ const PROPERTY_PATCH_FIELDS = new Set([
 ]);
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  // ─── update lead ──────────────────────────────────────────────────────────
+  const VALID_LEAD_SOURCES = new Set(['whatsapp', 'zap', 'site', 'instagram', 'indicacao', 'other']);
+
+  fastify.patch<{ Params: { id: string }; Body: { name?: string; source?: string; propertyId?: string } }>(
+    '/admin/leads/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { name, source, propertyId } = request.body;
+
+      if (source !== undefined && !VALID_LEAD_SOURCES.has(source)) {
+        return reply.status(400).send({ error: `Invalid source. Must be one of: ${[...VALID_LEAD_SOURCES].join(', ')}` });
+      }
+
+      const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Lead not found' });
+
+      const data: Record<string, unknown> = {};
+      if (name !== undefined) data.name = name;
+      if (source !== undefined) data.source = source;
+      if (propertyId !== undefined) data.propertyId = propertyId;
+
+      const lead = await prisma.lead.update({ where: { id }, data });
+      return reply.send(lead);
+    },
+  );
+
   // ─── approve-kyc ──────────────────────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>(
     '/admin/leads/:id/approve-kyc',

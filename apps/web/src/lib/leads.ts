@@ -1,9 +1,26 @@
+import type { LeadSource } from '@kit-manager/types';
+
 export type StageTone = 'ok' | 'warn' | 'bad' | 'accent' | 'default';
+
+/** Strip Evolution API suffixes like @s.whatsapp.net from phone strings. */
+export function formatPhone(phone: string): string {
+  return phone.replace(/@.*$/, '');
+}
+
+export const SOURCE_LABELS: Record<LeadSource, string> = {
+  whatsapp: 'ZAP',
+  zap: 'ZAP',
+  site: 'Site',
+  instagram: 'Instagram',
+  indicacao: 'Indicação',
+  other: 'Outro',
+};
 
 export const STAGES = [
   { key: 'interest', label: 'Interesse' },
   { key: 'collection', label: 'Coletando docs' },
   { key: 'review_submitted', label: 'Docs enviados' },
+  { key: 'visiting', label: 'Visita agendada' },
   { key: 'kyc_pending', label: 'KYC pendente' },
   { key: 'kyc_approved', label: 'KYC aprovado' },
   { key: 'residents_docs_complete', label: 'Docs completos' },
