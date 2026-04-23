@@ -140,7 +140,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── create property ──────────────────────────────────────────────────────
   fastify.post<{
     Body: {
-      name: string; externalId: string; address: string; neighborhood: string;
+      name: string; externalId?: string; address: string; neighborhood: string;
       rent: number; deposit: number; depositInstallmentsMax: number; rooms: number; bathrooms: number;
       title?: string; complement?: string; area?: number; parkingSpots?: number; amenities?: string[];
       type?: string; purpose?: string; status?: string; description?: string; rulesText?: string;
