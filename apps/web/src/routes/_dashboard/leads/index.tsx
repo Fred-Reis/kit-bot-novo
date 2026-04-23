@@ -76,7 +76,9 @@ function TableView({ leads }: { leads: Lead[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {leads.map((lead) => (
+            {leads.map((lead) => {
+              const cleanPhone = formatPhone(lead.phone);
+              return (
               <tr key={lead.id} className="transition-colors hover:bg-muted/50">
                 <td className="px-5 py-3.5">
                   <Link
@@ -84,9 +86,9 @@ function TableView({ leads }: { leads: Lead[] }) {
                     params={{ leadId: lead.id }}
                     className="hover:text-primary"
                   >
-                    <p className="text-sm font-medium text-foreground">{lead.name ?? formatPhone(lead.phone)}</p>
+                    <p className="text-sm font-medium text-foreground">{lead.name ?? cleanPhone}</p>
                     {lead.name && (
-                      <p className="font-mono text-[11px] text-muted-foreground">{formatPhone(lead.phone)}</p>
+                      <p className="font-mono text-[11px] text-muted-foreground">{cleanPhone}</p>
                     )}
                   </Link>
                 </td>
@@ -114,7 +116,8 @@ function TableView({ leads }: { leads: Lead[] }) {
                   </Link>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
