@@ -116,14 +116,26 @@ model Tenant {
 }
 
 model Payment {
-  id        String    @id @default(uuid())
-  tenantId  String
-  tenant    Tenant    @relation(fields: [tenantId], references: [id])
-  month     String
-  amount    Decimal
-  status    String
-  paidAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(uuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  month       String
+  amount      Decimal
+  status      String
+  description String?
+  type        String    @default("income")
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  actor       String?
+  action      String
+  subject     String?
+  subjectId   String?
+  subjectType String?
+  createdAt   DateTime @default(now())
 }
 
 model Event {

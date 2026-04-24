@@ -7,12 +7,13 @@ interface KpiCardProps {
   label: string;
   value: ReactNode;
   delta?: number;
+  subtext?: string;
   seed: number;
   up?: boolean;
   className?: string;
 }
 
-export function KpiCard({ label, value, delta, seed, up = true, className }: KpiCardProps) {
+export function KpiCard({ label, value, delta, subtext, seed, up = true, className }: KpiCardProps) {
   return (
     <div
       data-slot="kpi-card"
@@ -40,6 +41,9 @@ export function KpiCard({ label, value, delta, seed, up = true, className }: Kpi
                 {delta}%
               </span>
             </div>
+          )}
+          {subtext && (
+            <span className="text-[11px] text-muted-foreground">{subtext}</span>
           )}
         </div>
         <Spark seed={seed} up={up} className="mt-1 opacity-80" />

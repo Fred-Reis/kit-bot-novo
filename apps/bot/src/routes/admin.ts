@@ -23,6 +23,18 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'description', 'rulesText', 'visitSchedule', 'listingUrl', 'active',
 ]);
 
+function logActivity(
+  actor: string | null,
+  action: string,
+  subject: string,
+  subjectId: string,
+  subjectType: string,
+  warn: (data: unknown, msg: string) => void,
+): void {
+  prisma.activityLog.create({ data: { actor, action, subject, subjectId, subjectType } })
+    .catch((err: unknown) => warn({ err }, 'Failed to write activity log'));
+}
+
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update lead ──────────────────────────────────────────────────────────
   const VALID_LEAD_SOURCES = new Set(['whatsapp', 'zap', 'site', 'instagram', 'indicacao', 'other']);
@@ -60,7 +72,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const lead = await prisma.lead.findUnique({
         where: { id },
-        select: { phone: true, stage: true },
+        select: { phone: true, name: true, stage: true },
       });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
@@ -90,6 +102,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err }, 'Failed to notify lead after KYC approval');
       });
 
+      logActivity(request.adminUserId, 'aprovou KYC', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+
       return reply.send({ success: true, stage: nextStage });
     },
   );
@@ -116,7 +130,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const { paymentDayOfMonth } = request.body;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, stage: true } });
+      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true } });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -135,6 +149,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         `✅ Contrato em preparação! O vencimento será todo dia ${paymentDayOfMonth}. Entraremos em contato em breve.`,
       ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract generation'));
 
+      logActivity(request.adminUserId, 'gerou contrato', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+
       return reply.send({ success: true, stage: 'contract_pending' });
     },
   );
@@ -146,7 +162,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { stage: true } });
+      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true } });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -159,6 +175,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           error: `Lead is in stage '${lead.stage}', expected 'contract_signed'`,
         });
       }
+
+      logActivity(request.adminUserId, 'confirmou pagamento', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: 'converted' });
     },
@@ -197,6 +215,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const property = await prisma.property.create({
         data: { name, externalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ownerId: rest.ownerId ?? owner.id, ...rest },
       });
+
+      logActivity(request.adminUserId, 'publicou imóvel', property.name, property.id, 'property', fastify.log.warn.bind(fastify.log));
 
       return reply.status(201).send({ success: true, id: property.id, property });
     },
