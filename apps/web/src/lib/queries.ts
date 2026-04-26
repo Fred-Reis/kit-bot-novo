@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Lead, LeadDocument, Payment, Property, PropertyMedia, Tenant } from '@kit-manager/types';
+import type { Lead, LeadDocument, Payment, Property, PropertyMedia, RuleSetDetail, RuleSetSummary, Tenant } from '@kit-manager/types';
 import { tenantStatus } from './tenant-utils';
 
 type TenantRow = Omit<Tenant, 'propertyName' | 'status'> & { property: { name: string } | null };
@@ -124,4 +124,41 @@ export async function fetchActivityLog(limit = 10): Promise<ActivityLogEntry[]> 
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as ActivityLogEntry[];
+}
+
+export async function fetchRuleSets(): Promise<RuleSetSummary[]> {
+  const { data, error } = await supabase
+    .from('RuleSet')
+    .select('*, policies:RuleSetPolicy(count), properties:PropertyRuleSet(count)')
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+  type RawRow = RuleSetSummary & { policies: { count: number }[]; properties: { count: number }[] };
+  return ((data ?? []) as RawRow[]).map((r) => ({
+    ...r,
+    _count: {
+      policies: r.policies[0]?.count ?? 0,
+      properties: r.properties[0]?.count ?? 0,
+    },
+  }));
+}
+
+export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
+  const [{ data: rs, error: rsErr }, { data: policies, error: polErr }, { data: links, error: linkErr }] =
+    await Promise.all([
+      supabase.from('RuleSet').select('*').eq('id', id).single(),
+      supabase.from('RuleSetPolicy').select('*').eq('ruleSetId', id).order('name'),
+      supabase.from('PropertyRuleSet').select('propertyId, property:Property(externalId)').eq('ruleSetId', id),
+    ]);
+  if (rsErr) throw rsErr;
+  if (polErr) throw polErr;
+  if (linkErr) throw linkErr;
+  type LinkRow = { propertyId: string; property: { externalId: string }[] };
+  return {
+    ...(rs as RuleSetDetail),
+    policies: (policies ?? []) as RuleSetDetail['policies'],
+    linkedPropertyIds: (links ?? []).map((l) => {
+      const row = l as unknown as LinkRow;
+      return row.property[0]?.externalId ?? row.propertyId;
+    }),
+  };
 }

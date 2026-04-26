@@ -44,4 +44,16 @@ export const adminApi = {
     botApi.post(`/admin/properties/${propertyId}/media/signed-url`, data),
   createPropertyMedia: (propertyId: string, data: { path: string; type: string; label?: string }) =>
     botApi.post(`/admin/properties/${propertyId}/media`, data),
+  createRuleSet: (data: { name: string; description?: string }) =>
+    botApi.post('/admin/rule-sets', data),
+  updateRuleSet: (id: string, data: Record<string, unknown>) =>
+    botApi.patch(`/admin/rule-sets/${id}`, data),
+  deleteRuleSet: (id: string) =>
+    botApi.delete(`/admin/rule-sets/${id}`),
+  createPolicy: (ruleSetId: string, data: { name: string; description?: string; value?: string; appliesToProperty?: boolean }) =>
+    botApi.post(`/admin/rule-sets/${ruleSetId}/policies`, data),
+  updatePolicy: (ruleSetId: string, policyId: string, data: { value?: string; appliesToProperty?: boolean }) =>
+    botApi.patch(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`, data),
+  deletePolicy: (ruleSetId: string, policyId: string) =>
+    botApi.delete(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`),
 };

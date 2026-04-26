@@ -14,6 +14,8 @@ const ALLOWED_MEDIA_TYPES = new Set([
   'video/mp4', 'video/quicktime', 'video/webm',
 ]);
 
+const VALID_POLICY_VALUES = new Set(['yes', 'no', 'conditional']);
+
 const PROPERTY_PATCH_FIELDS = new Set([
   'name', 'externalId', 'address', 'complement', 'neighborhood',
   'rent', 'deposit', 'depositInstallmentsMax', 'contractMonths',
@@ -367,6 +369,144 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       await redis.del(`property:${id}`);
 
       return reply.status(201).send({ success: true, media });
+    },
+  );
+
+  // ─── list rule sets ───────────────────────────────────────────────────────
+  fastify.get(
+    '/admin/rule-sets',
+    { preHandler: verifyAdminJwt },
+    async (_request, reply) => {
+      const ruleSets = await prisma.ruleSet.findMany({
+        include: { _count: { select: { policies: true, properties: true } } },
+        orderBy: { createdAt: 'asc' },
+      });
+      return reply.send(ruleSets);
+    },
+  );
+
+  // ─── create rule set ──────────────────────────────────────────────────────
+  fastify.post<{ Body: { name: string; description?: string } }>(
+    '/admin/rule-sets',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { name, description } = request.body;
+      if (!name) return reply.status(400).send({ error: 'name is required' });
+      const ruleSet = await prisma.ruleSet.create({ data: { name, description } });
+      return reply.status(201).send(ruleSet);
+    },
+  );
+
+  // ─── update rule set ──────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { id: string };
+    Body: { name?: string; description?: string; propagatePolicies?: boolean; propagateClauses?: boolean; propagateFields?: boolean };
+  }>(
+    '/admin/rule-sets/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { name, description, propagatePolicies, propagateClauses, propagateFields } = request.body;
+      const data: Record<string, unknown> = {};
+      if (name !== undefined) data.name = name;
+      if (description !== undefined) data.description = description;
+      if (propagatePolicies !== undefined) data.propagatePolicies = propagatePolicies;
+      if (propagateClauses !== undefined) data.propagateClauses = propagateClauses;
+      if (propagateFields !== undefined) data.propagateFields = propagateFields;
+      const ruleSet = await prisma.ruleSet.update({ where: { id }, data });
+      return reply.send(ruleSet);
+    },
+  );
+
+  // ─── delete rule set ──────────────────────────────────────────────────────
+  fastify.delete<{ Params: { id: string } }>(
+    '/admin/rule-sets/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const linked = await prisma.propertyRuleSet.count({ where: { ruleSetId: id } });
+      if (linked > 0) {
+        return reply.status(409).send({ error: 'Rule set is linked to properties — unlink first' });
+      }
+      await prisma.ruleSet.delete({ where: { id } });
+      return reply.send({ success: true });
+    },
+  );
+
+  // ─── add policy ───────────────────────────────────────────────────────────
+  fastify.post<{
+    Params: { id: string };
+    Body: { name: string; description?: string; value?: string; appliesToProperty?: boolean };
+  }>(
+    '/admin/rule-sets/:id/policies',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { name, description, value = 'no', appliesToProperty = true } = request.body;
+      if (!name) return reply.status(400).send({ error: 'name is required' });
+      if (!VALID_POLICY_VALUES.has(value)) {
+        return reply.status(400).send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
+      }
+      const policy = await prisma.ruleSetPolicy.create({
+        data: { ruleSetId: id, name, description, value, appliesToProperty },
+      });
+      return reply.status(201).send(policy);
+    },
+  );
+
+  // ─── update policy ────────────────────────────────────────────────────────
+  fastify.patch<{
+    Params: { id: string; policyId: string };
+    Body: { value?: string; appliesToProperty?: boolean };
+  }>(
+    '/admin/rule-sets/:id/policies/:policyId',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { policyId } = request.params;
+      const { value, appliesToProperty } = request.body;
+      if (value !== undefined && !VALID_POLICY_VALUES.has(value)) {
+        return reply.status(400).send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
+      }
+      const data: Record<string, unknown> = {};
+      if (value !== undefined) data.value = value;
+      if (appliesToProperty !== undefined) data.appliesToProperty = appliesToProperty;
+      const policy = await prisma.ruleSetPolicy.update({ where: { id: policyId }, data });
+      return reply.send(policy);
+    },
+  );
+
+  // ─── delete policy ────────────────────────────────────────────────────────
+  fastify.delete<{ Params: { id: string; policyId: string } }>(
+    '/admin/rule-sets/:id/policies/:policyId',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { policyId } = request.params;
+      await prisma.ruleSetPolicy.delete({ where: { id: policyId } });
+      return reply.send({ success: true });
+    },
+  );
+
+  // ─── link property to rule set ────────────────────────────────────────────
+  fastify.post<{ Params: { id: string }; Body: { propertyId: string } }>(
+    '/admin/rule-sets/:id/properties',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { propertyId } = request.body;
+      if (!propertyId) return reply.status(400).send({ error: 'propertyId is required' });
+      await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      return reply.status(201).send({ success: true });
+    },
+  );
+
+  // ─── unlink property from rule set ───────────────────────────────────────
+  fastify.delete<{ Params: { id: string; propertyId: string } }>(
+    '/admin/rule-sets/:id/properties/:propertyId',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id, propertyId } = request.params;
+      await prisma.propertyRuleSet.delete({ where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } } });
+      return reply.send({ success: true });
     },
   );
 }

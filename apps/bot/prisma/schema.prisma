@@ -54,6 +54,7 @@ model Property {
   media                  PropertyMedia[]
   leads                  Lead[]
   tenants                Tenant[]
+  ruleSets               PropertyRuleSet[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 }
@@ -152,4 +153,35 @@ model Conversation {
   chatId    String   @id
   data      Json
   updatedAt DateTime @updatedAt
+}
+
+model RuleSet {
+  id                 String          @id @default(uuid())
+  name               String
+  description        String?
+  propagatePolicies  Boolean         @default(true)
+  propagateClauses   Boolean         @default(true)
+  propagateFields    Boolean         @default(false)
+  policies           RuleSetPolicy[]
+  properties         PropertyRuleSet[]
+  createdAt          DateTime        @default(now())
+}
+
+model RuleSetPolicy {
+  id                String  @id @default(uuid())
+  ruleSetId         String
+  ruleSet           RuleSet @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  value             String  @default("no")
+  appliesToProperty Boolean @default(true)
+}
+
+model PropertyRuleSet {
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ruleSetId  String
+  ruleSet    RuleSet  @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, ruleSetId])
 }
