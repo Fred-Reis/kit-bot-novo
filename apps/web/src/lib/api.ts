@@ -56,4 +56,10 @@ export const adminApi = {
     botApi.patch(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`, data),
   deletePolicy: (ruleSetId: string, policyId: string) =>
     botApi.delete(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`),
+  createContractTemplate: (name: string) =>
+    botApi.post('/admin/contract-templates', { name }),
+  updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string }) =>
+    botApi.patch(`/admin/contract-templates/${id}`, data),
+  deleteContractTemplate: (id: string) =>
+    botApi.delete(`/admin/contract-templates/${id}`),
 };

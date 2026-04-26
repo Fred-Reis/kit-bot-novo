@@ -144,6 +144,86 @@ async function main() {
       'and add a PropertyMedia record with type="video" and the public URL.',
   )
 
+  // Upsert contract templates
+  const templates = [
+    {
+      code: 'CT-01',
+      name: 'Contrato de Locação Residencial',
+      status: 'published',
+      body: `CONTRATO DE LOCAÇÃO RESIDENCIAL
+
+Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Locação Residencial, que se regerá pelas cláusulas e condições seguintes:
+
+LOCADOR: {{nome_locador}}, CPF {{cpf_locador}}, residente à {{endereco_locador}}.
+
+LOCATÁRIO: {{nome_locatario}}, CPF {{cpf_locatario}}, RG {{rg_locatario}}, residente à {{endereco_locatario}}.
+
+IMÓVEL: {{endereco_imovel}}, {{complemento_imovel}}, {{bairro_imovel}} — doravante denominado "imóvel".
+
+CLÁUSULA 1 — DO PRAZO
+O prazo de locação é de {{prazo_meses}} meses, com início em {{data_inicio}} e término em {{data_termino}}, renovando-se automaticamente por igual período caso nenhuma das partes manifeste intenção contrária com 30 dias de antecedência.
+
+CLÁUSULA 2 — DO ALUGUEL
+O valor do aluguel mensal é de R$ {{valor_aluguel}}, a ser pago até o dia {{dia_vencimento}} de cada mês mediante transferência bancária ou PIX para os dados informados pelo LOCADOR.
+
+CLÁUSULA 3 — DA CAUÇÃO
+O LOCATÁRIO deposita, neste ato, caução equivalente a R$ {{valor_caucao}}, a ser devolvida ao término da locação, descontadas eventuais despesas de reparos por danos causados pelo LOCATÁRIO.
+
+CLÁUSULA 4 — DAS DESPESAS
+Ficam a cargo do LOCATÁRIO as despesas de energia elétrica, gás e demais consumos individuais. Água e IPTU {{agua_iptu}}.
+
+CLÁUSULA 5 — DAS OBRIGAÇÕES DO LOCATÁRIO
+O LOCATÁRIO se compromete a: (a) usar o imóvel exclusivamente para fins residenciais; (b) conservar o imóvel em bom estado; (c) não sublocar, ceder ou emprestar o imóvel sem autorização expressa do LOCADOR; (d) respeitar o regulamento interno do condomínio, se houver.
+
+CLÁUSULA 6 — DA RESCISÃO
+Em caso de rescisão antecipada pelo LOCATÁRIO, fica estabelecida multa equivalente a {{multa_proporcional}} proporcional ao período restante do contrato.
+
+{{cidade}}, {{data_assinatura}}.
+
+___________________________________
+LOCADOR: {{nome_locador}}
+
+___________________________________
+LOCATÁRIO: {{nome_locatario}}`,
+    },
+    {
+      code: 'CT-02',
+      name: 'Aditivo de Reajuste de Aluguel',
+      status: 'draft',
+      body: `ADITIVO CONTRATUAL — REAJUSTE DE ALUGUEL
+
+Pelo presente Aditivo ao Contrato de Locação firmado em {{data_contrato_original}}, as partes:
+
+LOCADOR: {{nome_locador}}
+LOCATÁRIO: {{nome_locatario}}
+
+acordam o seguinte:
+
+CLÁUSULA 1 — DO REAJUSTE
+A partir de {{data_vigencia}}, o valor mensal do aluguel do imóvel situado à {{endereco_imovel}} passará de R$ {{valor_anterior}} para R$ {{valor_novo}}, representando reajuste de {{percentual_reajuste}}% conforme índice {{indice_reajuste}} acumulado no período.
+
+CLÁUSULA 2 — DAS DEMAIS CLÁUSULAS
+Permanecem inalteradas todas as demais cláusulas e condições do contrato original.
+
+{{cidade}}, {{data_assinatura}}.
+
+___________________________________
+LOCADOR: {{nome_locador}}
+
+___________________________________
+LOCATÁRIO: {{nome_locatario}}`,
+    },
+  ]
+
+  for (const tpl of templates) {
+    await prisma.contractTemplate.upsert({
+      where: { code: tpl.code },
+      update: { name: tpl.name, body: tpl.body, status: tpl.status },
+      create: tpl,
+    })
+    console.log(`ContractTemplate upserted: ${tpl.code} — ${tpl.name}`)
+  }
+
   console.log('Seed complete.')
 }
 

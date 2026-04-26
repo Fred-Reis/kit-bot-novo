@@ -509,4 +509,79 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.send({ success: true });
     },
   );
+
+  // ─── list contract templates ──────────────────────────────────────────────
+  fastify.get(
+    '/admin/contract-templates',
+    { preHandler: verifyAdminJwt },
+    async (_request, reply) => {
+      const templates = await prisma.contractTemplate.findMany({
+        select: { id: true, code: true, name: true, status: true, usageCount: true, updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      });
+      return reply.send(templates);
+    },
+  );
+
+  // ─── get contract template ────────────────────────────────────────────────
+  fastify.get<{ Params: { id: string } }>(
+    '/admin/contract-templates/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const template = await prisma.contractTemplate.findUnique({ where: { id } });
+      if (!template) return reply.status(404).send({ error: 'Template not found' });
+      return reply.send(template);
+    },
+  );
+
+  // ─── create contract template ─────────────────────────────────────────────
+  fastify.post<{ Body: { name: string } }>(
+    '/admin/contract-templates',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { name } = request.body;
+      if (!name) return reply.status(400).send({ error: 'name is required' });
+      const count = await prisma.contractTemplate.count();
+      const code = `CT-AA-${String(count + 1).padStart(2, '0')}`;
+      const template = await prisma.contractTemplate.create({ data: { name, code } });
+      return reply.status(201).send(template);
+    },
+  );
+
+  // ─── update contract template ─────────────────────────────────────────────
+  fastify.patch<{
+    Params: { id: string };
+    Body: { name?: string; body?: string; status?: string };
+  }>(
+    '/admin/contract-templates/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { name, body, status } = request.body;
+      if (status !== undefined && !['draft', 'published'].includes(status)) {
+        return reply.status(400).send({ error: 'status must be draft or published' });
+      }
+      const data: Record<string, unknown> = {};
+      if (name !== undefined) data.name = name;
+      if (body !== undefined) data.body = body;
+      if (status !== undefined) data.status = status;
+      const template = await prisma.contractTemplate.update({ where: { id }, data });
+      return reply.send(template);
+    },
+  );
+
+  // ─── delete contract template ─────────────────────────────────────────────
+  fastify.delete<{ Params: { id: string } }>(
+    '/admin/contract-templates/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const template = await prisma.contractTemplate.findUnique({ where: { id }, select: { usageCount: true } });
+      if (!template) return reply.status(404).send({ error: 'Template not found' });
+      if (template.usageCount > 0) return reply.status(409).send({ error: 'Template is in use' });
+      await prisma.contractTemplate.delete({ where: { id } });
+      return reply.status(204).send();
+    },
+  );
 }

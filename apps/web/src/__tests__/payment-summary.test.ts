@@ -12,6 +12,8 @@ function makePayment(overrides: Partial<Payment>): Payment {
     month: currentMonth,
     amount: 1000,
     status: 'pending',
+    description: null,
+    type: 'income',
     paidAt: null,
     createdAt: new Date().toISOString(),
     ...overrides,

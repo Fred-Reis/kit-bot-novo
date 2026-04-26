@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Lead, LeadDocument, Payment, Property, PropertyMedia, RuleSetDetail, RuleSetSummary, Tenant } from '@kit-manager/types';
+import type { ContractTemplate, ContractTemplateSummary, Lead, LeadDocument, Payment, Property, PropertyMedia, RuleSetDetail, RuleSetSummary, Tenant } from '@kit-manager/types';
 import { tenantStatus } from './tenant-utils';
 
 type TenantRow = Omit<Tenant, 'propertyName' | 'status'> & { property: { name: string } | null };
@@ -161,4 +161,23 @@ export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
       return row.property[0]?.externalId ?? row.propertyId;
     }),
   };
+}
+
+export async function fetchContractTemplates(): Promise<ContractTemplateSummary[]> {
+  const { data, error } = await supabase
+    .from('ContractTemplate')
+    .select('id, code, name, status, usageCount, updatedAt')
+    .order('updatedAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ContractTemplateSummary[];
+}
+
+export async function fetchContractTemplate(id: string): Promise<ContractTemplate> {
+  const { data, error } = await supabase
+    .from('ContractTemplate')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return data as ContractTemplate;
 }
