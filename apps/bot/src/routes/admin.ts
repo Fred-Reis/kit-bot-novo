@@ -584,4 +584,109 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(204).send();
     },
   );
+
+  // ─── create contract ─────────────────────────────────────────────────────
+  fastify.post<{
+    Body: { templateId: string; tenantId: string; propertyId: string; startDate: string; endDate?: string; monthlyRent: number }
+  }>(
+    '/admin/contracts',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
+
+      const [template, tenant, property] = await Promise.all([
+        prisma.contractTemplate.findUnique({ where: { id: templateId } }),
+        prisma.tenant.findUnique({ where: { id: tenantId } }),
+        prisma.property.findUnique({ where: { id: propertyId } }),
+      ]);
+      if (!template) return reply.status(404).send({ error: 'Template not found' });
+      if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+      if (!property) return reply.status(404).send({ error: 'Property not found' });
+
+      if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
+
+      const year = new Date().getFullYear();
+
+      const contract = await prisma.$transaction(async (tx) => {
+        const count = await tx.contract.count();
+        const code = `CT-${year}-${String(count + 1).padStart(4, '0')}`;
+        const created = await tx.contract.create({
+          data: {
+            code,
+            templateId,
+            tenantId,
+            propertyId,
+            body: template.body,
+            status: 'active',
+            startDate: new Date(startDate),
+            endDate: endDate ? new Date(endDate) : null,
+            monthlyRent,
+          },
+        });
+        await tx.contractTemplate.update({ where: { id: templateId }, data: { usageCount: { increment: 1 } } });
+        return created;
+      });
+
+      return reply.status(201).send(contract);
+    },
+  );
+
+  // ─── list contracts ───────────────────────────────────────────────────────
+  fastify.get(
+    '/admin/contracts',
+    { preHandler: verifyAdminJwt },
+    async (_request, reply) => {
+      const contracts = await prisma.contract.findMany({
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          monthlyRent: true,
+          tenant: { select: { name: true } },
+          property: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      return reply.send(contracts);
+    },
+  );
+
+  // ─── get contract ─────────────────────────────────────────────────────────
+  fastify.get<{ Params: { id: string } }>(
+    '/admin/contracts/:id',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const contract = await prisma.contract.findUnique({
+        where: { id: request.params.id },
+        include: { tenant: true, property: true, template: true },
+      });
+      if (!contract) return reply.status(404).send({ error: 'Contract not found' });
+      return reply.send(contract);
+    },
+  );
+
+  // ─── update contract status ───────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { status: string } }>(
+    '/admin/contracts/:id/status',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { status } = request.body;
+      const valid = ['active', 'terminated', 'renewal'];
+      if (!valid.includes(status)) return reply.status(400).send({ error: 'Invalid status' });
+      const contract = await prisma.contract.update({
+        where: { id: request.params.id },
+        data: { status },
+      });
+      return reply.send(contract);
+    },
+  );
+
+  // ─── get contract pdf (stub) ──────────────────────────────────────────────
+  fastify.get<{ Params: { id: string } }>(
+    '/admin/contracts/:id/pdf',
+    { preHandler: verifyAdminJwt },
+    async (_request, reply) => reply.status(501).send({ error: 'PDF generation not implemented' }),
+  );
 }

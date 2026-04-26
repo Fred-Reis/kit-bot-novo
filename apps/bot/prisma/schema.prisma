@@ -55,6 +55,7 @@ model Property {
   leads                  Lead[]
   tenants                Tenant[]
   ruleSets               PropertyRuleSet[]
+  contracts              Contract[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 }
@@ -113,6 +114,7 @@ model Tenant {
   contractStart DateTime
   contractEnd   DateTime?
   payments      Payment[]
+  contracts     Contract[]
   createdAt     DateTime  @default(now())
 }
 
@@ -187,12 +189,31 @@ model PropertyRuleSet {
 }
 
 model ContractTemplate {
-  id         String   @id @default(uuid())
-  code       String   @unique
+  id         String     @id @default(uuid())
+  code       String     @unique
   name       String
-  body       String   @default("")
-  status     String   @default("draft")
-  usageCount Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  body       String     @default("")
+  status     String     @default("draft")
+  usageCount Int        @default(0)
+  contracts  Contract[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Contract {
+  id         String           @id @default(uuid())
+  code       String           @unique
+  templateId String
+  template   ContractTemplate @relation(fields: [templateId], references: [id])
+  tenantId   String
+  tenant     Tenant           @relation(fields: [tenantId], references: [id])
+  propertyId String
+  property   Property         @relation(fields: [propertyId], references: [id])
+  body       String
+  status     String           @default("active")
+  startDate  DateTime
+  endDate    DateTime?
+  monthlyRent Decimal
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 }
