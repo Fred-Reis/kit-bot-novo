@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { fetchLeads, fetchProperties, fetchTenants, fetchAllPayments, fetchActivityLog } from '@/lib/queries';
 import type { ActivityLogEntry } from '@/lib/queries';
 import { computePaymentsSummary } from '@/lib/payments';
+import { computeMonthlyTotals } from '@/lib/finance';
 import { formatCurrency } from '@/lib/utils';
 import { KpiCard } from '@/components/kpi-card';
 import { EmptyState } from '@/components/empty-state';
@@ -89,6 +90,16 @@ function DashboardPage() {
 
   const activeLeads = leads.filter((l) => l.stage !== 'converted').length;
   const summary = computePaymentsSummary(payments);
+  const monthlyData = computeMonthlyTotals(payments, 6);
+  const revenueSpark = monthlyData.map((d) => d.revenue);
+  const overdueSpark = monthlyData.map((d) => d.overdue);
+
+  const now = new Date();
+  const leadsSpark = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return leads.filter((l) => l.createdAt.slice(0, 7) === ym).length;
+  });
   const receivedPct = summary.monthRevenue > 0
     ? `${Math.round(summary.monthRevenue / (summary.monthRevenue + summary.overdueAmount) * 100)}% do previsto`
     : undefined;
@@ -129,7 +140,7 @@ function DashboardPage() {
           value={formatCurrency(summary.overdueAmount + summary.pendingAmount)}
           delta={summary.delta}
           subtext={`${summary.pendingCount} boletos`}
-          seed={1}
+          sparkData={revenueSpark}
           up={summary.delta >= 0}
         />
         <KpiCard
@@ -137,21 +148,21 @@ function DashboardPage() {
           value={formatCurrency(summary.monthRevenue)}
           delta={summary.delta}
           subtext={receivedPct}
-          seed={2}
+          sparkData={revenueSpark}
           up={summary.delta >= 0}
         />
         <KpiCard
           label="EM ATRASO"
           value={summary.overdueAmount > 0 ? formatCurrency(summary.overdueAmount) : '—'}
           subtext={summary.overdueCount > 0 ? `${summary.overdueCount} inquilino${summary.overdueCount !== 1 ? 's' : ''}` : undefined}
-          seed={3}
+          sparkData={overdueSpark}
           up={false}
-          className={summary.overdueAmount > 0 ? 'ring-1 ring-bad/40' : undefined}
+          className={summary.overdueAmount > 0 ? 'ring-1 ring-destructive/40' : undefined}
         />
         <KpiCard
           label="LEADS ATIVOS"
           value={activeLeads}
-          seed={4}
+          sparkData={leadsSpark}
           up={activeLeads > 0}
         />
       </div>

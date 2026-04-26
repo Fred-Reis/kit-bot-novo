@@ -1,19 +1,35 @@
 import type { ReactNode } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { Spark } from './spark';
+import { LineChart, Line } from 'recharts';
 
 interface KpiCardProps {
   label: string;
   value: ReactNode;
   delta?: number;
   subtext?: string;
-  seed: number;
+  sparkData?: number[];
   up?: boolean;
   className?: string;
 }
 
-export function KpiCard({ label, value, delta, subtext, seed, up = true, className }: KpiCardProps) {
+function MiniSpark({ data, up }: { data: number[]; up: boolean }) {
+  const chartData = data.map((v) => ({ v }));
+  return (
+    <LineChart data={chartData} width={80} height={32}>
+      <Line
+        type="monotone"
+        dataKey="v"
+        stroke={up ? 'var(--color-success)' : 'var(--color-destructive)'}
+        strokeWidth={1.5}
+        dot={false}
+        isAnimationActive={false}
+      />
+    </LineChart>
+  );
+}
+
+export function KpiCard({ label, value, delta, subtext, sparkData, up = true, className }: KpiCardProps) {
   return (
     <div
       data-slot="kpi-card"
@@ -34,11 +50,8 @@ export function KpiCard({ label, value, delta, subtext, seed, up = true, classNa
               ) : (
                 <TrendingDown className="size-3 text-destructive" />
               )}
-              <span
-                className={`font-mono text-xs font-medium ${delta >= 0 ? 'text-success' : 'text-destructive'}`}
-              >
-                {delta >= 0 ? '+' : ''}
-                {delta}%
+              <span className={`font-mono text-xs font-medium ${delta >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {delta >= 0 ? '+' : ''}{delta}%
               </span>
             </div>
           )}
@@ -46,7 +59,11 @@ export function KpiCard({ label, value, delta, subtext, seed, up = true, classNa
             <span className="text-[11px] text-muted-foreground">{subtext}</span>
           )}
         </div>
-        <Spark seed={seed} up={up} className="mt-1 opacity-80" />
+        {sparkData && sparkData.length > 1 && (
+          <div className="mt-1 opacity-80">
+            <MiniSpark data={sparkData} up={up} />
+          </div>
+        )}
       </div>
     </div>
   );

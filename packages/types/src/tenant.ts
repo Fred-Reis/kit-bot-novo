@@ -22,6 +22,8 @@ export interface Payment {
   month: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
+  description: string | null;
+  type: 'income' | 'expense';
   paidAt: string | null;
   createdAt: string;
 }
