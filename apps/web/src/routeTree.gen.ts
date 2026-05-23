@@ -25,6 +25,7 @@ import { Route as DashboardTenantsNewRouteImport } from './routes/_dashboard/ten
 import { Route as DashboardTenantsTenantIdRouteImport } from './routes/_dashboard/tenants/$tenantId'
 import { Route as DashboardPropertiesNewRouteImport } from './routes/_dashboard/properties/new'
 import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
+import { Route as DashboardContractsContractIdRouteImport } from './routes/_dashboard/contracts/$contractId'
 import { Route as DashboardPropertiesPropertyIdIndexRouteImport } from './routes/_dashboard/properties/$propertyId/index'
 import { Route as DashboardPropertiesPropertyIdEditRouteImport } from './routes/_dashboard/properties/$propertyId/edit'
 
@@ -108,6 +109,12 @@ const DashboardLeadsLeadIdRoute = DashboardLeadsLeadIdRouteImport.update({
   path: '/leads/$leadId',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardContractsContractIdRoute =
+  DashboardContractsContractIdRouteImport.update({
+    id: '/contracts/$contractId',
+    path: '/contracts/$contractId',
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardPropertiesPropertyIdIndexRoute =
   DashboardPropertiesPropertyIdIndexRouteImport.update({
     id: '/properties/$propertyId/',
@@ -124,6 +131,7 @@ const DashboardPropertiesPropertyIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/login': typeof AuthLoginRoute
+  '/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/new': typeof DashboardPropertiesNewRoute
   '/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
@@ -142,6 +150,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof DashboardIndexRoute
   '/login': typeof AuthLoginRoute
+  '/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/new': typeof DashboardPropertiesNewRoute
   '/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
@@ -163,6 +172,7 @@ export interface FileRoutesById {
   '/_dashboard': typeof DashboardRouteWithChildren
   '/_auth/login': typeof AuthLoginRoute
   '/_dashboard/': typeof DashboardIndexRoute
+  '/_dashboard/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/_dashboard/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/_dashboard/properties/new': typeof DashboardPropertiesNewRoute
   '/_dashboard/tenants/$tenantId': typeof DashboardTenantsTenantIdRoute
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/contracts/$contractId'
     | '/leads/$leadId'
     | '/properties/new'
     | '/tenants/$tenantId'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/contracts/$contractId'
     | '/leads/$leadId'
     | '/properties/new'
     | '/tenants/$tenantId'
@@ -221,6 +233,7 @@ export interface FileRouteTypes {
     | '/_dashboard'
     | '/_auth/login'
     | '/_dashboard/'
+    | '/_dashboard/contracts/$contractId'
     | '/_dashboard/leads/$leadId'
     | '/_dashboard/properties/new'
     | '/_dashboard/tenants/$tenantId'
@@ -356,6 +369,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardLeadsLeadIdRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/contracts/$contractId': {
+      id: '/_dashboard/contracts/$contractId'
+      path: '/contracts/$contractId'
+      fullPath: '/contracts/$contractId'
+      preLoaderRoute: typeof DashboardContractsContractIdRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/properties/$propertyId/': {
       id: '/_dashboard/properties/$propertyId/'
       path: '/properties/$propertyId'
@@ -385,6 +405,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface DashboardRouteChildren {
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardContractsContractIdRoute: typeof DashboardContractsContractIdRoute
   DashboardLeadsLeadIdRoute: typeof DashboardLeadsLeadIdRoute
   DashboardPropertiesNewRoute: typeof DashboardPropertiesNewRoute
   DashboardTenantsTenantIdRoute: typeof DashboardTenantsTenantIdRoute
@@ -403,6 +424,7 @@ interface DashboardRouteChildren {
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardContractsContractIdRoute: DashboardContractsContractIdRoute,
   DashboardLeadsLeadIdRoute: DashboardLeadsLeadIdRoute,
   DashboardPropertiesNewRoute: DashboardPropertiesNewRoute,
   DashboardTenantsTenantIdRoute: DashboardTenantsTenantIdRoute,

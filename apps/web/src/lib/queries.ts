@@ -1,5 +1,18 @@
+import type {
+  ContractDetail,
+  ContractSummary,
+  ContractTemplate,
+  ContractTemplateSummary,
+  Lead,
+  LeadDocument,
+  Payment,
+  Property,
+  PropertyMedia,
+  RuleSetDetail,
+  RuleSetSummary,
+  Tenant,
+} from '@kit-manager/types';
 import { supabase } from './supabase';
-import type { Contract, ContractSummary, ContractTemplate, ContractTemplateSummary, Lead, LeadDocument, Payment, Property, PropertyMedia, RuleSetDetail, RuleSetSummary, Tenant } from '@kit-manager/types';
 import { tenantStatus } from './tenant-utils';
 
 type TenantRow = Omit<Tenant, 'propertyName' | 'status'> & { property: { name: string } | null };
@@ -27,7 +40,11 @@ export async function fetchLeads(): Promise<Lead[]> {
 export async function fetchLead(id: string): Promise<Lead & { documents: LeadDocument[] }> {
   const [{ data: lead, error: leadErr }, { data: docs, error: docsErr }] = await Promise.all([
     supabase.from('Lead').select('*, property:Property(externalId)').eq('id', id).single(),
-    supabase.from('LeadDocument').select('*').eq('leadId', id).order('createdAt', { ascending: true }),
+    supabase
+      .from('LeadDocument')
+      .select('*')
+      .eq('leadId', id)
+      .order('createdAt', { ascending: true }),
   ]);
   if (leadErr) throw leadErr;
   if (docsErr) throw docsErr;
@@ -36,7 +53,11 @@ export async function fetchLead(id: string): Promise<Lead & { documents: LeadDoc
 
 export async function fetchProperties(): Promise<Property[]> {
   const [{ data: props, error: propsErr }, { data: media, error: mediaErr }] = await Promise.all([
-    supabase.from('Property').select('*').neq('status', 'archived').order('createdAt', { ascending: true }),
+    supabase
+      .from('Property')
+      .select('*')
+      .neq('status', 'archived')
+      .order('createdAt', { ascending: true }),
     supabase.from('PropertyMedia').select('*').order('order', { ascending: true }),
   ]);
   if (propsErr) throw propsErr;
@@ -143,12 +164,18 @@ export async function fetchRuleSets(): Promise<RuleSetSummary[]> {
 }
 
 export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
-  const [{ data: rs, error: rsErr }, { data: policies, error: polErr }, { data: links, error: linkErr }] =
-    await Promise.all([
-      supabase.from('RuleSet').select('*').eq('id', id).single(),
-      supabase.from('RuleSetPolicy').select('*').eq('ruleSetId', id).order('name'),
-      supabase.from('PropertyRuleSet').select('propertyId, property:Property(externalId)').eq('ruleSetId', id),
-    ]);
+  const [
+    { data: rs, error: rsErr },
+    { data: policies, error: polErr },
+    { data: links, error: linkErr },
+  ] = await Promise.all([
+    supabase.from('RuleSet').select('*').eq('id', id).single(),
+    supabase.from('RuleSetPolicy').select('*').eq('ruleSetId', id).order('name'),
+    supabase
+      .from('PropertyRuleSet')
+      .select('propertyId, property:Property(externalId)')
+      .eq('ruleSetId', id),
+  ]);
   if (rsErr) throw rsErr;
   if (polErr) throw polErr;
   if (linkErr) throw linkErr;
@@ -173,11 +200,7 @@ export async function fetchContractTemplates(): Promise<ContractTemplateSummary[
 }
 
 export async function fetchContractTemplate(id: string): Promise<ContractTemplate> {
-  const { data, error } = await supabase
-    .from('ContractTemplate')
-    .select('*')
-    .eq('id', id)
-    .single();
+  const { data, error } = await supabase.from('ContractTemplate').select('*').eq('id', id).single();
   if (error) throw error;
   return data as ContractTemplate;
 }
@@ -190,7 +213,9 @@ type ContractRow = Omit<ContractSummary, 'tenant' | 'property'> & {
 export async function fetchContracts(): Promise<ContractSummary[]> {
   const { data, error } = await supabase
     .from('Contract')
-    .select('id, code, status, startDate, endDate, monthlyRent, tenant:Tenant(name), property:Property(name)')
+    .select(
+      'id, code, status, startDate, endDate, monthlyRent, tenant:Tenant(name), property:Property(name)',
+    )
     .order('createdAt', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as ContractRow[]).map((r) => ({
@@ -200,12 +225,22 @@ export async function fetchContracts(): Promise<ContractSummary[]> {
   }));
 }
 
-export async function fetchContract(id: string): Promise<Contract> {
+type ContractDetailRow = Omit<ContractDetail, 'tenant' | 'property'> & {
+  tenant: { name: string | null; phone: string }[];
+  property: { name: string }[];
+};
+
+export async function fetchContract(id: string): Promise<ContractDetail> {
   const { data, error } = await supabase
     .from('Contract')
-    .select('*')
+    .select('*, tenant:Tenant(name, phone), property:Property(name)')
     .eq('id', id)
     .single();
   if (error) throw error;
-  return data as Contract;
+  const r = data as unknown as ContractDetailRow;
+  return {
+    ...r,
+    tenant: { name: r.tenant[0]?.name ?? null, phone: r.tenant[0]?.phone ?? '' },
+    property: { name: r.property[0]?.name ?? '' },
+  };
 }

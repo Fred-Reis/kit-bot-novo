@@ -13,6 +13,11 @@ export interface Contract {
   updatedAt: string;
 }
 
+export interface ContractDetail extends Contract {
+  tenant: { name: string | null; phone: string };
+  property: { name: string };
+}
+
 export interface ContractSummary {
   id: string;
   code: string;

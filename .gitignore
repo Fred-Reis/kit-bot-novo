@@ -9,4 +9,7 @@ apps/web/dist/
 .DS_Store
 apps/bot/media/
 apps/web/.tanstack/
-
+codeflow.md
+specs/
+tasks/
+*.lock
