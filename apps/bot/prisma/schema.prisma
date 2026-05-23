@@ -7,12 +7,25 @@ datasource db {
 }
 
 model Owner {
-  id         String     @id @default(uuid())
-  name       String
-  phone      String     @unique
-  email      String?    @unique
-  properties Property[]
-  createdAt  DateTime   @default(now())
+  id                String             @id @default(uuid())
+  name              String
+  phone             String             @unique
+  email             String?            @unique
+  notificationPhone String?
+  notificationEmail String?
+  properties        Property[]
+  tenants           Tenant[]
+  leads             Lead[]
+  payments          Payment[]
+  contracts         Contract[]
+  ruleSets          RuleSet[]
+  contractTemplates ContractTemplate[]
+  propertyMedias    PropertyMedia[]
+  leadDocuments     LeadDocument[]
+  activityLogs      ActivityLog[]
+  conversations     Conversation[]
+  events            Event[]
+  createdAt         DateTime           @default(now())
 }
 
 model Property {
@@ -58,10 +71,14 @@ model Property {
   contracts              Contract[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
+
+  @@index([ownerId])
 }
 
 model PropertyMedia {
   id         String   @id @default(uuid())
+  ownerId    String
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id])
   type       String   // "photo" | "video" | "listing"
@@ -69,10 +86,15 @@ model PropertyMedia {
   label      String?
   order      Int      @default(0)
   createdAt  DateTime @default(now())
+
+  @@index([ownerId])
 }
 
 model Lead {
   id               String         @id @default(uuid())
+  ownerId          String
+  owner            Owner          @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  externalId       String?        @unique
   phone            String         @unique
   name             String?
   source           String?
@@ -87,24 +109,32 @@ model Lead {
   documents        LeadDocument[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+
+  @@index([ownerId])
 }
 
 model LeadDocument {
   id        String   @id @default(uuid())
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   leadId    String
   lead      Lead     @relation(fields: [leadId], references: [id])
   type      String   // "cnh" | "rg_cpf" | "cpf" | "image"
   url       String
   ocrText   String?
   createdAt DateTime @default(now())
+
+  @@index([ownerId])
 }
 
 model Tenant {
-  id            String    @id @default(uuid())
-  externalId    String?   @unique
-  phone         String    @unique
+  id            String     @id @default(uuid())
+  ownerId       String
+  owner         Owner      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  externalId    String?    @unique
+  phone         String     @unique
   propertyId    String
-  property      Property  @relation(fields: [propertyId], references: [id])
+  property      Property   @relation(fields: [propertyId], references: [id])
   name          String?
   cpf           String?
   email         String?
@@ -115,11 +145,15 @@ model Tenant {
   contractEnd   DateTime?
   payments      Payment[]
   contracts     Contract[]
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime   @default(now())
+
+  @@index([ownerId])
 }
 
 model Payment {
   id          String    @id @default(uuid())
+  ownerId     String
+  owner       Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id])
   month       String
@@ -129,44 +163,65 @@ model Payment {
   type        String    @default("income")
   paidAt      DateTime?
   createdAt   DateTime  @default(now())
+
+  @@index([ownerId])
 }
 
 model ActivityLog {
   id          String   @id @default(uuid())
-  actor       String?
+  ownerId     String
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  actorType   String   // 'system' | 'bot' | 'user'
+  actorId     String?
+  actorLabel  String
   action      String
+  subjectType String
+  subjectId   String
   subject     String?
-  subjectId   String?
-  subjectType String?
+  metadata    Json     @default("{}")
   createdAt   DateTime @default(now())
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([subjectType, subjectId])
 }
 
 model Event {
   id        String   @id @default(uuid())
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   chatId    String
   role      String   // "user" | "assistant"
   content   String
   createdAt DateTime @default(now())
 
   @@index([chatId])
+  @@index([ownerId])
 }
 
 model Conversation {
   chatId    String   @id
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   data      Json
   updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
 }
 
 model RuleSet {
-  id                 String          @id @default(uuid())
+  id                 String            @id @default(uuid())
+  ownerId            String
+  owner              Owner             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   name               String
   description        String?
-  propagatePolicies  Boolean         @default(true)
-  propagateClauses   Boolean         @default(true)
-  propagateFields    Boolean         @default(false)
+  propagatePolicies  Boolean           @default(true)
+  propagateClauses   Boolean           @default(true)
+  propagateFields    Boolean           @default(false)
   policies           RuleSetPolicy[]
   properties         PropertyRuleSet[]
-  createdAt          DateTime        @default(now())
+  createdAt          DateTime          @default(now())
+
+  @@index([ownerId])
 }
 
 model RuleSetPolicy {
@@ -190,6 +245,8 @@ model PropertyRuleSet {
 
 model ContractTemplate {
   id         String     @id @default(uuid())
+  ownerId    String
+  owner      Owner      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   code       String     @unique
   name       String
   body       String     @default("")
@@ -198,22 +255,28 @@ model ContractTemplate {
   contracts  Contract[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
+
+  @@index([ownerId])
 }
 
 model Contract {
-  id         String           @id @default(uuid())
-  code       String           @unique
-  templateId String
-  template   ContractTemplate @relation(fields: [templateId], references: [id])
-  tenantId   String
-  tenant     Tenant           @relation(fields: [tenantId], references: [id])
-  propertyId String
-  property   Property         @relation(fields: [propertyId], references: [id])
-  body       String
-  status     String           @default("active")
-  startDate  DateTime
-  endDate    DateTime?
+  id          String           @id @default(uuid())
+  ownerId     String
+  owner       Owner            @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  code        String           @unique
+  templateId  String
+  template    ContractTemplate @relation(fields: [templateId], references: [id])
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  propertyId  String
+  property    Property         @relation(fields: [propertyId], references: [id])
+  body        String
+  status      String           @default("active")
+  startDate   DateTime
+  endDate     DateTime?
   monthlyRent Decimal
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([ownerId])
 }

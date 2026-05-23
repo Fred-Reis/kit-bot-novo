@@ -14,6 +14,8 @@ export type LeadSource = 'whatsapp' | 'zap' | 'site' | 'instagram' | 'indicacao'
 
 export interface Lead {
   id: string;
+  ownerId: string;
+  externalId: string | null;
   phone: string;
   name: string | null;
   source: LeadSource | null;
@@ -31,6 +33,7 @@ export interface Lead {
 
 export interface LeadDocument {
   id: string;
+  ownerId: string;
   leadId: string;
   type: string;
   url: string;

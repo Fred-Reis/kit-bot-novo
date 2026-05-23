@@ -1,5 +1,6 @@
 export interface Tenant {
   id: string;
+  ownerId: string;
   externalId: string | null;
   phone: string;
   propertyId: string;
@@ -18,6 +19,7 @@ export interface Tenant {
 
 export interface Payment {
   id: string;
+  ownerId: string;
   tenantId: string;
   month: string;
   amount: number;

@@ -1,5 +1,6 @@
 export interface Contract {
   id: string;
+  ownerId: string;
   code: string;
   templateId: string;
   tenantId: string;

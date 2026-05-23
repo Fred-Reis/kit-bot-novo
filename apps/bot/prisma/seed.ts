@@ -127,6 +127,7 @@ async function main() {
     await prisma.propertyMedia.create({
       data: {
         propertyId: property.id,
+        ownerId: property.ownerId,
         type: 'listing',
         url: 'https://rj.olx.com.br/serra-angra-dos-reis-e-regiao/imoveis/alugo-kitnet-no-retiro-1487572817',
         label: 'Anúncio OLX com fotos e informações',
@@ -219,7 +220,7 @@ LOCATÁRIO: {{nome_locatario}}`,
     await prisma.contractTemplate.upsert({
       where: { code: tpl.code },
       update: { name: tpl.name, body: tpl.body, status: tpl.status },
-      create: tpl,
+      create: { ...tpl, ownerId: owner.id },
     })
     console.log(`ContractTemplate upserted: ${tpl.code} — ${tpl.name}`)
   }

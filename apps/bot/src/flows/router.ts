@@ -8,11 +8,17 @@ export async function routeMessage(
   text: string | null,
   mediaItems: MediaItem[],
 ): Promise<void> {
+  const owner = await prisma.owner.findFirst();
+  if (!owner) {
+    console.error('[router] No owner record found — cannot route message');
+    return;
+  }
+
   // Find or create the lead record
   await prisma.lead.upsert({
     where: { phone: chatId },
     update: {},
-    create: { phone: chatId, stage: 'interest', source: 'whatsapp' },
+    create: { phone: chatId, stage: 'interest', source: 'whatsapp', ownerId: owner.id },
   });
 
   // Check if this phone has an active Tenant record
@@ -21,6 +27,6 @@ export async function routeMessage(
   if (tenant) {
     await handleTenantMessage(chatId, text);
   } else {
-    await handleLeadMessage(chatId, text, mediaItems);
+    await handleLeadMessage(chatId, text, mediaItems, owner.id);
   }
 }

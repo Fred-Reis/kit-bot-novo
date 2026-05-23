@@ -10,6 +10,4 @@ apps/web/dist/
 apps/bot/media/
 apps/web/.tanstack/
 codeflow.md
-specs/
-tasks/
 *.lock

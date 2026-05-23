@@ -40,6 +40,7 @@ export interface Property {
 
 export interface PropertyMedia {
   id: string;
+  ownerId: string;
   propertyId: string;
   type: 'photo' | 'video' | 'listing';
   url: string;
@@ -53,5 +54,7 @@ export interface Owner {
   name: string;
   phone: string;
   email: string | null;
+  notificationPhone: string | null;
+  notificationEmail: string | null;
   createdAt: string;
 }

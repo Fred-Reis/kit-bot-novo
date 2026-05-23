@@ -1,5 +1,6 @@
 export interface ContractTemplate {
   id: string;
+  ownerId: string;
   code: string;
   name: string;
   body: string;

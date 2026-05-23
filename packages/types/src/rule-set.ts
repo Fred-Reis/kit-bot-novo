@@ -9,6 +9,7 @@ export interface RuleSetPolicy {
 
 export interface RuleSet {
   id: string;
+  ownerId: string;
   name: string;
   description: string | null;
   propagatePolicies: boolean;

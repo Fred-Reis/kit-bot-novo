@@ -2,10 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
-import { sendText } from '@/services/evolution';
-import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { config } from '@/config';
 import type { LeadContext } from '@/flows/lead/context';
+import { verifyAdminJwt } from '@/plugins/admin-auth';
+import { nextExternalId } from '@/services/external-id';
+import { sendText } from '@/services/evolution';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
@@ -26,14 +27,18 @@ const PROPERTY_PATCH_FIELDS = new Set([
 ]);
 
 function logActivity(
-  actor: string | null,
+  actorLabel: string,
+  ownerId: string,
   action: string,
   subject: string,
   subjectId: string,
   subjectType: string,
   warn: (data: unknown, msg: string) => void,
 ): void {
-  prisma.activityLog.create({ data: { actor, action, subject, subjectId, subjectType } })
+  prisma.activityLog
+    .create({
+      data: { actorType: 'user', actorId: null, actorLabel, ownerId, action, subject, subjectId, subjectType, metadata: {} },
+    })
     .catch((err: unknown) => warn({ err }, 'Failed to write activity log'));
 }
 
@@ -74,7 +79,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const lead = await prisma.lead.findUnique({
         where: { id },
-        select: { phone: true, name: true, stage: true },
+        select: { phone: true, name: true, stage: true, ownerId: true },
       });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
@@ -104,7 +109,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err }, 'Failed to notify lead after KYC approval');
       });
 
-      logActivity(request.adminUserId, 'aprovou KYC', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'aprovou KYC', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: nextStage });
     },
@@ -132,7 +137,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const { paymentDayOfMonth } = request.body;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true } });
+      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true, ownerId: true } });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -151,7 +156,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         `✅ Contrato em preparação! O vencimento será todo dia ${paymentDayOfMonth}. Entraremos em contato em breve.`,
       ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract generation'));
 
-      logActivity(request.adminUserId, 'gerou contrato', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'gerou contrato', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: 'contract_pending' });
     },
@@ -164,7 +169,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true } });
+      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true, ownerId: true } });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -178,7 +183,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      logActivity(request.adminUserId, 'confirmou pagamento', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'confirmou pagamento', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: 'converted' });
     },
@@ -210,15 +215,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       let externalId = rawExternalId;
       if (!externalId) {
-        const count = await prisma.property.count();
-        externalId = `IM-${String(count + 1).padStart(4, '0')}`;
+        externalId = await nextExternalId('property');
       }
 
       const property = await prisma.property.create({
         data: { name, externalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ownerId: rest.ownerId ?? owner.id, ...rest },
       });
 
-      logActivity(request.adminUserId, 'publicou imóvel', property.name, property.id, 'property', fastify.log.warn.bind(fastify.log));
+      logActivity(request.adminUserId ?? 'admin', owner.id, 'publicou imóvel', property.name, property.id, 'property', fastify.log.warn.bind(fastify.log));
 
       return reply.status(201).send({ success: true, id: property.id, property });
     },
@@ -296,12 +300,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: 'Missing required fields: phone, propertyId, contractStart' });
       }
 
-      const count = await prisma.tenant.count();
-      const externalId = `IQ-${String(count + 1).padStart(3, '0')}`;
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+
+      const externalId = await nextExternalId('tenant');
 
       const [tenant] = await prisma.$transaction([
         prisma.tenant.create({
-          data: { phone, propertyId, contractStart: new Date(contractStart), externalId, ...rest },
+          data: { phone, propertyId, contractStart: new Date(contractStart), externalId, ownerId: owner.id, ...rest },
         }),
         prisma.property.update({
           where: { id: propertyId },
@@ -362,8 +368,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { data: { publicUrl } } = supabase.storage.from('properties').getPublicUrl(path);
 
+      const property = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
+      if (!property) return reply.status(404).send({ error: 'Property not found' });
+
       const media = await prisma.propertyMedia.create({
-        data: { propertyId: id, url: publicUrl, type, label: label ?? null },
+        data: { propertyId: id, ownerId: property.ownerId, url: publicUrl, type, label: label ?? null },
       });
 
       await redis.del(`property:${id}`);
@@ -392,7 +401,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { name, description } = request.body;
       if (!name) return reply.status(400).send({ error: 'name is required' });
-      const ruleSet = await prisma.ruleSet.create({ data: { name, description } });
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+      const ruleSet = await prisma.ruleSet.create({ data: { name, description, ownerId: owner.id } });
       return reply.status(201).send(ruleSet);
     },
   );
@@ -542,9 +553,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { name } = request.body;
       if (!name) return reply.status(400).send({ error: 'name is required' });
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(400).send({ error: 'No owner found' });
       const count = await prisma.contractTemplate.count();
       const code = `CT-AA-${String(count + 1).padStart(2, '0')}`;
-      const template = await prisma.contractTemplate.create({ data: { name, code } });
+      const template = await prisma.contractTemplate.create({ data: { name, code, ownerId: owner.id } });
       return reply.status(201).send(template);
     },
   );
@@ -605,14 +618,13 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
 
-      const year = new Date().getFullYear();
+      const code = await nextExternalId('contract');
 
       const contract = await prisma.$transaction(async (tx) => {
-        const count = await tx.contract.count();
-        const code = `CT-${year}-${String(count + 1).padStart(4, '0')}`;
         const created = await tx.contract.create({
           data: {
             code,
+            ownerId: property.ownerId,
             templateId,
             tenantId,
             propertyId,

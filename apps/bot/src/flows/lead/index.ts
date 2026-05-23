@@ -54,20 +54,21 @@ async function persistConversation(
   context: LeadContext,
   userMessage: string | null,
   assistantReply: string | null,
+  ownerId: string,
 ): Promise<void> {
   const ops: Array<ReturnType<typeof prisma.event.create>> = [];
 
   if (userMessage) {
     ops.push(
       prisma.event.create({
-        data: { chatId, role: 'user', content: userMessage },
+        data: { chatId, role: 'user', content: userMessage, ownerId },
       }),
     );
   }
   if (assistantReply) {
     ops.push(
       prisma.event.create({
-        data: { chatId, role: 'assistant', content: assistantReply },
+        data: { chatId, role: 'assistant', content: assistantReply, ownerId },
       }),
     );
   }
@@ -76,7 +77,7 @@ async function persistConversation(
     prisma.conversation.upsert({
       where: { chatId },
       update: { data: context as object },
-      create: { chatId, data: context as object },
+      create: { chatId, data: context as object, ownerId },
     }),
     ...ops,
   ]);
@@ -86,6 +87,7 @@ async function persistLeadDocuments(
   leadId: string,
   mediaItems: MediaItem[],
   docsPreference: 'cnh' | 'rg_cpf' | null,
+  ownerId: string,
 ): Promise<void> {
   const docItems = mediaItems.filter((m) => !isAudioMedia(m) && m.url);
   if (docItems.length === 0) return;
@@ -101,6 +103,7 @@ async function persistLeadDocuments(
           type: docType,
           url: m.url!,
           ocrText: ocrText || null,
+          ownerId,
         },
       });
     }),
@@ -111,6 +114,7 @@ export async function handleLeadMessage(
   chatId: string,
   text: string | null,
   mediaItems: MediaItem[],
+  ownerId: string,
 ): Promise<void> {
   console.info(`[lead.flow] Message received for ${chatId}`);
 
@@ -148,7 +152,7 @@ export async function handleLeadMessage(
     if (greetingReply) {
       context.lastUserMessage = messageText;
       context.lastRoutedAgent = 'deterministic_greeting';
-      await persistConversation(chatId, context, messageText, greetingReply);
+      await persistConversation(chatId, context, messageText, greetingReply, ownerId);
       await sendText(chatId, greetingReply);
       return;
     }
@@ -166,7 +170,7 @@ export async function handleLeadMessage(
     context.audioReceived = audioReceived;
 
     // 7. Persist document images
-    await persistLeadDocuments(lead.id, mediaItems, context.docsPreference ?? null);
+    await persistLeadDocuments(lead.id, mediaItems, context.docsPreference ?? null, ownerId);
 
     // 8. Resolve property in focus
     const propertyReference = (context.propertyReference ?? '').trim();
@@ -254,7 +258,7 @@ export async function handleLeadMessage(
     context.lastRoutedAgent = targetAgent;
     context.state = snapshot.state;
 
-    await persistConversation(chatId, context, messageText || null, replyText);
+    await persistConversation(chatId, context, messageText || null, replyText, ownerId);
 
     // 15. Send outbound media or listing link
     if (outboundMedia && bypassAgentReply) {
