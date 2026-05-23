@@ -317,6 +317,31 @@ foundation: criar ActivityLog table + helpers
 
 ---
 
+## Quick resume (nova sessão / após /clear)
+
+Cole exatamente isso ao iniciar uma sessão nova:
+
+```text
+Lê: workflow.md, ROADMAP.md, CLAUDE.md, OVERVIEW.md
+
+Retomando o pipeline. Oriente-se:
+1. No ROADMAP.md: veja o que está [x] e o que está [ ] — identifique a slice atual ou próxima
+2. No workflow.md: pipeline é /spec → /plan → /build → /simplify → /review → COMMIT
+3. Se existir specs/<slice>.md: verifique se tem TODAS as seções obrigatórias (Objetivo, Escopo in/out, Schema changes, Tipos, Bot changes, Web changes, Activity log keys, Notificações, Critérios de aceite, Riscos). Se faltar qualquer seção → spec incompleto → próximo step é /spec, não /plan
+4. Se spec completo e tasks/<slice>-plan.md não existe → próximo step é /plan
+5. Se tasks/<slice>-plan.md existe → próximo step é /build
+6. Se código foi escrito mas sem /simplify ou /review → execute na ordem
+
+Regras invioláveis (sempre):
+- NUNCA siga adiante sem minha estrita autorização
+- NUNCA rode git commit, git push ou qualquer comando git destrutivo
+- Uma task por vez, aprovação manual antes de cada
+
+Me diga em qual step estamos e o que vem a seguir. Aguarde minha confirmação antes de agir.
+```
+
+---
+
 ## Quick start
 
 Pra começar uma slice:

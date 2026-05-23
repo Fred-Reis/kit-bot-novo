@@ -44,9 +44,9 @@
 - [x] **B14** Pausar bot por chat: dentro do Slice 1 (Leads)
 
 ### F0.2 — Activity log infra
-- [ ] Migration: criar `ActivityLog` table (id, ownerId, actor, action, subject, subjectId, subjectType, metadata, createdAt)
-- [ ] Tipo compartilhado `ActivityLog` em `packages/types`
-- [ ] Helper `apps/bot/src/services/activity.ts` — `logActivity({actor, action, subject, ...})`
+- [x] Migration: refatorar `ActivityLog` table — actorType, actorId, actorLabel, ownerId, metadata jsonb (migration 20260522000003)
+- [x] Tipo compartilhado `ActivityLog` em `packages/types`
+- [ ] Helper `apps/bot/src/services/activity.ts` — `logActivity({actorType, actorLabel, ownerId, action, ...})`
 - [ ] Helper `apps/web/src/lib/activity.ts` — variante client-side
 - [ ] Convenção de chaves `action` documentada (`docs/activity-actions.md` ou na própria interface TS)
 - [ ] **Por quê:** destrava Dashboard activity feed, auditoria, in-app notif.
@@ -58,7 +58,7 @@
 - [ ] **Por quê:** dever-de-casa antes de subir produção real.
 
 ### F0.4 — Notif infra
-- [ ] Schema: `Owner.notificationPhone` (number pessoal pra WhatsApp notif) e `Owner.notificationEmail`
+- [x] Schema: `Owner.notificationPhone` e `Owner.notificationEmail` (migration 20260522000001)
 - [ ] Helper `apps/bot/src/services/notify.ts`
 - [ ] `notifyOwner(eventType, payload)` — multiplexa WhatsApp, email, in-app
 - [ ] Email: integrar Resend (env `RESEND_API_KEY`)
@@ -67,19 +67,19 @@
 - [ ] **Por quê:** todas as slices que disparam evento crítico usam isso.
 
 ### F0.5 — ownerId migration (transversal)
-- [ ] Migration: adicionar `ownerId uuid NOT NULL` em: Property, Tenant, Lead, Payment, Contract, RuleSet, ContractTemplate, PropertyMedia, LeadDocument, ActivityLog, Conversation, Event
-- [ ] FK → Owner.id, ON DELETE RESTRICT
-- [ ] Backfill: setar `ownerId` = id do único Owner existente
-- [ ] Atualizar tipos compartilhados em `packages/types`
-- [ ] Bot: todos os inserts populam `ownerId` (default vem do Owner único hoje; do auth.user no futuro)
+- [x] Migration: adicionar `ownerId uuid NOT NULL` em: Property, Tenant, Lead, Payment, Contract, RuleSet, ContractTemplate, PropertyMedia, LeadDocument, ActivityLog, Conversation, Event (migrations 20260522000002–20260522000003)
+- [x] FK → Owner.id, ON DELETE RESTRICT
+- [x] Backfill: setar `ownerId` = id do único Owner existente
+- [x] Atualizar tipos compartilhados em `packages/types`
+- [x] Bot: todos os inserts populam `ownerId`
 - [ ] Web: queries não filtram por `ownerId` ainda (single-owner); preparado pra adicionar `.eq('ownerId', currentOwner.id)` no futuro
 - [ ] **Por quê:** destrava multi-tenancy futuro sem refator grande. Faz uma vez, dói uma vez.
 
 ### F0.6 — ExternalId sequences
-- [ ] Migration: `CREATE SEQUENCE` pra Property, Tenant, Lead, Contract
-- [ ] Bot: utilitário `nextExternalId(entity)` chama `nextval()`
-- [ ] Backfill: rows existentes recebem externalId conforme ordem `createdAt`
-- [ ] **Por quê:** referências legíveis em UI, contrato, bot. Padroniza tudo de uma vez.
+- [x] Migration: `CREATE SEQUENCE` pra Property, Tenant, Lead, Contract (migration 20260522000004)
+- [x] Bot: utilitário `nextExternalId(entity)` chama `nextval()` (`services/external-id.ts`)
+- [x] Backfill: rows existentes recebem externalId conforme ordem `createdAt`
+- [x] **Por quê:** referências legíveis em UI, contrato, bot. Padroniza tudo de uma vez.
 
 ---
 
@@ -352,7 +352,7 @@
 
 | Fase | Slices completas | % MVP |
 |---|---|---|
-| F0 — Foundation | 0/4 | 0% |
+| F0 — Foundation | 2/5 (F0.5 ✓, F0.6 ✓) | 40% |
 | F1 — Vertical slices | 0/9 | 0% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
