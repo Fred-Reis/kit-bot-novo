@@ -328,16 +328,16 @@ Documentadas em `docs/activity-actions.md` (criado nessa slice) e tipadas via `A
 
 ## 9. Critérios de aceite
 
-- [ ] `apps/bot/src/services/activity.ts` criado e exporta `logActivity()`
-- [ ] `apps/web/src/lib/activity.ts` criado e exporta `logActivity(supabase, params)`
-- [ ] `apps/bot/src/services/notify.ts` criado e exporta `notifyOwner(ownerId, eventType, payload)`
-- [ ] `notifyOwner` tipado: TS recusa event types não definidos em `NotifyOwnerEventType`
-- [ ] `ActivityLogAction` union type adicionado em `packages/types/src/activity-log.ts`
-- [ ] `ActivityLog.action` usa `ActivityLogAction` (não `string`)
-- [ ] `packages/types/src/owner.ts` criado e exportado em `index.ts`
-- [ ] `docs/activity-actions.md` criado com tabela completa de chaves
-- [ ] `bunx tsc --noEmit` verde em `packages/types`, `apps/bot`, `apps/web`
-- [ ] `bunx oxlint` sem warnings novos em `apps/bot` e `apps/web`
+- [x] `apps/bot/src/services/activity.ts` criado e exporta `logActivity()`
+- [x] `apps/web/src/lib/activity.ts` criado e exporta `logActivity(supabase, params)`
+- [x] `apps/bot/src/services/notify.ts` criado e exporta `notifyOwner(ownerId, eventType, payload)`
+- [x] `notifyOwner` tipado: TS recusa event types não definidos em `NotifyOwnerEventType`
+- [x] `ActivityLogAction` union type adicionado em `packages/types/src/activity-log.ts`
+- [x] `ActivityLog.action` usa `ActivityLogAction` (não `string`)
+- [x] `packages/types/src/owner.ts` criado e exportado em `index.ts` (Owner em `property.ts`, re-exportado via `index.ts`)
+- [x] `docs/activity-actions.md` criado com tabela completa de chaves
+- [x] `bunx tsc --noEmit` verde em `packages/types`, `apps/bot`, `apps/web`
+- [x] `bunx oxlint` sem warnings novos em `apps/bot` e `apps/web`
 - [ ] Bot inicia sem erros (`bun run dev`)
 - [ ] Web inicia sem erros (`bun run dev`)
 

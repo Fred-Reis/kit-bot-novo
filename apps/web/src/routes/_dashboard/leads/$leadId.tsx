@@ -1,13 +1,15 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import type { LeadDocument } from '@kit-manager/types';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, FileText, CheckCircle } from 'lucide-react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { AlertCircle, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import type { LeadDocument } from '@kit-manager/types';
-import { fetchLead } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
-import { STAGES } from '@/lib/leads';
 import { CustomButton } from '@/components/ui/btn';
+import { logActivity } from '@/lib/activity';
+import { adminApi } from '@/lib/api';
+import { SOURCE_LABELS, STAGES } from '@/lib/leads';
+import { fetchLead } from '@/lib/queries';
+import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -101,8 +103,14 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
           className="mt-3 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <div className="mt-4 flex justify-end gap-2">
-          <CustomButton variant="secondary" onClick={onClose}>Cancelar</CustomButton>
-          <CustomButton variant="primary" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <CustomButton variant="secondary" onClick={onClose}>
+            Cancelar
+          </CustomButton>
+          <CustomButton
+            variant="primary"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
             {mutation.isPending ? 'Gerando...' : 'Gerar contrato'}
           </CustomButton>
         </div>
@@ -119,6 +127,41 @@ function LeadDetailPage() {
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', leadId],
     queryFn: () => fetchLead(leadId),
+  });
+
+  const togglePause = useMutation({
+    mutationFn: () => {
+      const next = !lead?.botPaused;
+      return adminApi.pauseLead(leadId, next).then(() => next);
+    },
+    onSuccess: (next) => {
+      toast.success(next ? 'Bot pausado.' : 'Bot retomado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: () => toast.error('Erro ao alternar bot.'),
+  });
+
+  const updateSource = useMutation({
+    mutationFn: async (source: string) => {
+      await adminApi.updateLeadSource(leadId, source);
+      if (lead) {
+        logActivity(supabase, {
+          ownerId: lead.ownerId,
+          actorType: 'user',
+          actorLabel: 'Admin',
+          action: 'lead_source_corrected',
+          subjectType: 'lead',
+          subjectId: leadId,
+          subject: lead.phone,
+          metadata: { source },
+        }).catch(console.error);
+      }
+    },
+    onSuccess: () => {
+      toast.success('Origem atualizada.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: () => toast.error('Erro ao atualizar origem.'),
   });
 
   const approveKyc = useMutation({
@@ -155,6 +198,46 @@ function LeadDetailPage() {
         </div>
       </div>
 
+      {/* Bot paused badge */}
+      {lead.botPaused && (
+        <div
+          data-slot="bot-paused-badge"
+          className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm font-medium text-warning-foreground"
+        >
+          <AlertCircle className="size-4 shrink-0" />
+          Bot pausado — você assume
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="rounded-xl border border-border bg-surface-raised p-5 space-y-4">
+        <h2 className="text-sm font-medium text-foreground">Controles</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={lead.source ?? ''}
+            disabled={updateSource.isPending}
+            onChange={(e) => {
+              if (e.target.value) updateSource.mutate(e.target.value);
+            }}
+            className="rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">— origem —</option>
+            {(Object.entries(SOURCE_LABELS) as [string, string][]).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <CustomButton
+            variant="secondary"
+            onClick={() => togglePause.mutate()}
+            disabled={togglePause.isPending}
+          >
+            {lead.botPaused ? 'Retomar bot' : 'Pausar bot'}
+          </CustomButton>
+        </div>
+      </div>
+
       {/* Stage timeline */}
       <div className="rounded-xl border border-border bg-surface-raised p-5">
         <StageStepper current={lead.stage} />
@@ -163,7 +246,11 @@ function LeadDetailPage() {
       {/* Action buttons */}
       {lead.stage === 'kyc_pending' && (
         <div className="flex gap-2">
-          <CustomButton variant="primary" onClick={() => approveKyc.mutate()} disabled={approveKyc.isPending}>
+          <CustomButton
+            variant="primary"
+            onClick={() => approveKyc.mutate()}
+            disabled={approveKyc.isPending}
+          >
             <CheckCircle className="size-4" />
             {approveKyc.isPending ? 'Aprovando...' : 'Aprovar KYC'}
           </CustomButton>
@@ -179,7 +266,11 @@ function LeadDetailPage() {
       )}
       {lead.stage === 'contract_signed' && (
         <div className="flex gap-2">
-          <CustomButton variant="primary" onClick={() => confirmPayment.mutate()} disabled={confirmPayment.isPending}>
+          <CustomButton
+            variant="primary"
+            onClick={() => confirmPayment.mutate()}
+            disabled={confirmPayment.isPending}
+          >
             <CheckCircle className="size-4" />
             {confirmPayment.isPending ? 'Confirmando...' : 'Confirmar Pagamento'}
           </CustomButton>

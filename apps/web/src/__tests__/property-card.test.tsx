@@ -1,7 +1,7 @@
-import { describe, test, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { PropertyCard } from '@/components/property-card';
 import type { Property } from '@kit-manager/types';
+import { render, screen } from '@testing-library/react';
+import { describe, expect, test } from 'vitest';
+import { PropertyCard } from '@/components/property-card';
 
 function makeProperty(overrides: Partial<Property> = {}): Property {
   return {
@@ -119,7 +119,9 @@ describe('PropertyCard — row variant', () => {
   });
 
   test('row variant shows neighborhood', () => {
-    render(<PropertyCard property={makeProperty({ neighborhood: 'Vila Madalena' })} variant="row" />);
+    render(
+      <PropertyCard property={makeProperty({ neighborhood: 'Vila Madalena' })} variant="row" />,
+    );
     expect(screen.getByText(/Vila Madalena/)).toBeInTheDocument();
   });
 });
@@ -132,7 +134,18 @@ describe('PropertyCard — cover photo placeholder', () => {
 
   test('shows img when media has a photo', () => {
     const property = makeProperty({
-      media: [{ id: 'm1', propertyId: 'prop-1', url: 'https://example.com/photo.jpg', type: 'photo', label: null, order: 0, createdAt: '2026-01-01T00:00:00Z' }],
+      media: [
+        {
+          id: 'm1',
+          ownerId: 'owner-1',
+          propertyId: 'prop-1',
+          url: 'https://example.com/photo.jpg',
+          type: 'photo',
+          label: null,
+          order: 0,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
     });
     render(<PropertyCard property={property} />);
     expect(screen.getByRole('img')).toBeInTheDocument();
@@ -141,7 +154,11 @@ describe('PropertyCard — cover photo placeholder', () => {
 
 describe('PropertyCard — address format', () => {
   test('grid shows address with neighborhood separator', () => {
-    render(<PropertyCard property={makeProperty({ address: 'Rua das Flores, 100', neighborhood: 'Centro' })} />);
+    render(
+      <PropertyCard
+        property={makeProperty({ address: 'Rua das Flores, 100', neighborhood: 'Centro' })}
+      />,
+    );
     expect(screen.getByText('Rua das Flores, 100 — Centro')).toBeInTheDocument();
   });
 });

@@ -19,9 +19,11 @@ import {
   summarizeProperty,
 } from '@/services/catalog';
 import { sendMedia, sendText } from '@/services/evolution';
+import { notifyOwner } from '@/services/notify';
 import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
+const TERMINAL_STAGES = new Set(['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed', 'converted']);
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
@@ -161,8 +163,17 @@ export async function handleLeadMessage(
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
-      const updates = await extractLeadUpdate(messageText, context, availableSummary);
+      const { extractedSource, ...updates } = await extractLeadUpdate(
+        messageText,
+        context,
+        availableSummary,
+      );
       Object.assign(context, updates);
+
+      // Don't overwrite manual source corrections made in the admin panel
+      if (extractedSource && (!lead.source || lead.source === 'whatsapp')) {
+        await prisma.lead.update({ where: { phone: chatId }, data: { source: extractedSource } });
+      }
     }
 
     // 6. Handle audio flag
@@ -214,6 +225,21 @@ export async function handleLeadMessage(
     }
 
     context.docsReceivedCount = snapshot.docsReceivedCount;
+
+    if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
+      await prisma.lead.update({
+        where: { phone: chatId },
+        data: { propertyId: snapshot.propertyInFocus.id },
+      });
+    }
+
+    if (snapshot.docsStage === 'complete' && !TERMINAL_STAGES.has(lead.stage)) {
+      await prisma.lead.update({ where: { phone: chatId }, data: { stage: 'kyc_pending' } });
+      notifyOwner(lead.ownerId, 'kyc_pending', {
+        leadName: lead.name ?? chatId,
+        leadPhone: chatId,
+      }).catch((err) => console.error('[lead.flow] notifyOwner kyc_pending failed:', err));
+    }
 
     // 11. Check for deterministic media send
     const propertyInFocus = snapshot.propertyInFocus;

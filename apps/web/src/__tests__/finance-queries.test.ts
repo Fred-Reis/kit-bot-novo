@@ -5,6 +5,7 @@ import type { Payment } from '@kit-manager/types';
 function makePayment(overrides: Partial<Payment>): Payment {
   return {
     id: crypto.randomUUID(),
+    ownerId: 'owner-1',
     tenantId: 'tenant-1',
     month: '2026-04',
     amount: 1000,

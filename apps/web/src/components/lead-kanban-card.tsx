@@ -1,15 +1,7 @@
-import { twMerge } from 'tailwind-merge';
 import type { Lead } from '@kit-manager/types';
-import { SOURCE_LABELS, formatPhone } from '@/lib/leads';
-
-function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m atrás`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h atrás`;
-  return `${Math.floor(hrs / 24)}d atrás`;
-}
+import { twMerge } from 'tailwind-merge';
+import { formatPhone, SOURCE_LABELS } from '@/lib/leads';
+import { relativeTime } from '@/lib/utils';
 
 interface LeadKanbanCardProps {
   lead: Lead;
@@ -38,6 +30,10 @@ export function LeadKanbanCard({ lead, className }: LeadKanbanCardProps) {
 
       {cleanPhone !== displayName && (
         <p className="font-mono text-[11px] text-muted-foreground">{cleanPhone}</p>
+      )}
+
+      {lead.externalId && (
+        <p className="font-mono text-[10px] text-muted-foreground/60">{lead.externalId}</p>
       )}
 
       <div className="mt-2 flex flex-wrap gap-1">

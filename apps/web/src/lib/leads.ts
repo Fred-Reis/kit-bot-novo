@@ -9,10 +9,13 @@ export function formatPhone(phone: string): string {
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
   whatsapp: 'ZAP',
+  olx: 'OLX',
   zap: 'ZAP',
   site: 'Site',
   instagram: 'Instagram',
   indicacao: 'Indicação',
+  outro: 'Outro',
+  desconhecido: '?',
   other: 'Outro',
 };
 

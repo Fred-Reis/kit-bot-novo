@@ -123,7 +123,7 @@ const ResidentSchema = z.object({
   age: z.number().int(),
 });
 
-const LeadExtractionSchema = z.object({
+export const LeadExtractionSchema = z.object({
   intent: z
     .enum([
       'availability',
@@ -153,6 +153,11 @@ const LeadExtractionSchema = z.object({
   residents_complete: z.boolean().nullable().default(null),
   wants_pause: z.boolean().default(false),
   wants_human: z.boolean().default(false),
+  // 'whatsapp' excluded — leads arriving via WhatsApp get that default at creation, LLM detects referral source only
+  source: z
+    .enum(['olx', 'zap', 'site', 'instagram', 'indicacao', 'outro', 'desconhecido'])
+    .nullable()
+    .default(null),
 });
 
 const RouterSchema = z.object({
@@ -201,7 +206,7 @@ export async function extractLeadUpdate(
   message: string,
   context: LeadContext,
   availablePropertiesSummary?: string,
-): Promise<Partial<LeadContext>> {
+): Promise<Partial<LeadContext> & { extractedSource: string | null }> {
   const extractor = makeLLM(400).withStructuredOutput(LeadExtractionSchema);
 
   const prompt = ChatPromptTemplate.fromMessages([
@@ -223,7 +228,7 @@ export async function extractLeadUpdate(
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
     console.error('[lead.agent] extractLeadUpdate failed:', err);
-    return {};
+    return { extractedSource: null };
   }
 
   const updates: Partial<LeadContext> = { currentIntent: raw.intent };
@@ -261,7 +266,7 @@ export async function extractLeadUpdate(
   const deterministic = getDeterministicLeadUpdates(message);
   Object.assign(updates, deterministic);
 
-  return updates;
+  return { ...updates, extractedSource: raw.source };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

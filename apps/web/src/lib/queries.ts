@@ -3,6 +3,7 @@ import type {
   ContractSummary,
   ContractTemplate,
   ContractTemplateSummary,
+  Conversation,
   Lead,
   LeadDocument,
   Payment,
@@ -37,18 +38,33 @@ export async function fetchLeads(): Promise<Lead[]> {
   return ((data ?? []) as LeadRow[]).map(mapLeadRow);
 }
 
-export async function fetchLead(id: string): Promise<Lead & { documents: LeadDocument[] }> {
-  const [{ data: lead, error: leadErr }, { data: docs, error: docsErr }] = await Promise.all([
-    supabase.from('Lead').select('*, property:Property(externalId)').eq('id', id).single(),
+export async function fetchLead(
+  id: string,
+): Promise<Lead & { botPaused: boolean; documents: LeadDocument[] }> {
+  const { data: lead, error: leadErr } = await supabase
+    .from('Lead')
+    .select('*, property:Property(externalId)')
+    .eq('id', id)
+    .single();
+  if (leadErr) throw leadErr;
+
+  const mappedLead = mapLeadRow(lead as LeadRow);
+
+  const [{ data: docs, error: docsErr }, { data: conv }] = await Promise.all([
     supabase
       .from('LeadDocument')
       .select('*')
       .eq('leadId', id)
       .order('createdAt', { ascending: true }),
+    supabase.from('Conversation').select('botPaused').eq('chatId', mappedLead.phone).maybeSingle(),
   ]);
-  if (leadErr) throw leadErr;
   if (docsErr) throw docsErr;
-  return { ...mapLeadRow(lead as LeadRow), documents: (docs as LeadDocument[]) ?? [] };
+
+  return {
+    ...mappedLead,
+    botPaused: (conv as Pick<Conversation, 'botPaused'> | null)?.botPaused ?? false,
+    documents: (docs as LeadDocument[]) ?? [],
+  };
 }
 
 export async function fetchProperties(): Promise<Property[]> {

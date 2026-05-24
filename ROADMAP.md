@@ -46,9 +46,9 @@
 ### F0.2 — Activity log infra
 - [x] Migration: refatorar `ActivityLog` table — actorType, actorId, actorLabel, ownerId, metadata jsonb (migration 20260522000003)
 - [x] Tipo compartilhado `ActivityLog` em `packages/types`
-- [ ] Helper `apps/bot/src/services/activity.ts` — `logActivity({actorType, actorLabel, ownerId, action, ...})`
-- [ ] Helper `apps/web/src/lib/activity.ts` — variante client-side
-- [ ] Convenção de chaves `action` documentada (`docs/activity-actions.md` ou na própria interface TS)
+- [x] Helper `apps/bot/src/services/activity.ts` — `logActivity({actorType, actorLabel, ownerId, action, ...})`
+- [x] Helper `apps/web/src/lib/activity.ts` — variante client-side
+- [x] Convenção de chaves `action` documentada (`docs/activity-actions.md` ou na própria interface TS)
 - [ ] **Por quê:** destrava Dashboard activity feed, auditoria, in-app notif.
 
 ### F0.3 — RLS readiness
@@ -59,10 +59,10 @@
 
 ### F0.4 — Notif infra
 - [x] Schema: `Owner.notificationPhone` e `Owner.notificationEmail` (migration 20260522000001)
-- [ ] Helper `apps/bot/src/services/notify.ts`
-- [ ] `notifyOwner(eventType, payload)` — multiplexa WhatsApp, email, in-app
+- [x] Helper `apps/bot/src/services/notify.ts`
+- [x] `notifyOwner(eventType, payload)` — multiplexa WhatsApp, email, in-app
 - [ ] Email: integrar Resend (env `RESEND_API_KEY`)
-- [ ] WhatsApp: `evolution.sendText(ownerPhone, message)` mesma instância do bot
+- [x] WhatsApp: `evolution.sendText(ownerPhone, message)` mesma instância do bot
 - [ ] In-app: subscribe em `ActivityLog` via Supabase Realtime no web; badge no sidebar
 - [ ] **Por quê:** todas as slices que disparam evento crítico usam isso.
 
@@ -352,7 +352,7 @@
 
 | Fase | Slices completas | % MVP |
 |---|---|---|
-| F0 — Foundation | 2/5 (F0.5 ✓, F0.6 ✓) | 40% |
+| F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
 | F1 — Vertical slices | 0/9 | 0% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |

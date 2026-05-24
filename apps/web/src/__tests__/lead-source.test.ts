@@ -8,4 +8,7 @@ describe('SOURCE_LABELS', () => {
   test('maps instagram to Instagram', () => expect(SOURCE_LABELS.instagram).toBe('Instagram'));
   test('maps indicacao to Indicação', () => expect(SOURCE_LABELS.indicacao).toBe('Indicação'));
   test('maps other to Outro', () => expect(SOURCE_LABELS.other).toBe('Outro'));
+  test('maps olx to OLX', () => expect(SOURCE_LABELS.olx).toBe('OLX'));
+  test('maps outro to Outro', () => expect(SOURCE_LABELS.outro).toBe('Outro'));
+  test('maps desconhecido to ?', () => expect(SOURCE_LABELS.desconhecido).toBe('?'));
 });

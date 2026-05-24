@@ -1,17 +1,23 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchLeads, fetchProperties, fetchTenants, fetchAllPayments, fetchActivityLog } from '@/lib/queries';
-import type { ActivityLogEntry } from '@/lib/queries';
-import { computePaymentsSummary } from '@/lib/payments';
-import { computeMonthlyTotals } from '@/lib/finance';
-import { formatCurrency } from '@/lib/utils';
-import { KpiCard } from '@/components/kpi-card';
 import { EmptyState } from '@/components/empty-state';
-import { Pill } from '@/components/ui/pill';
+import { KpiCard } from '@/components/kpi-card';
 import { CustomButton } from '@/components/ui/btn';
-import { STAGE_LABELS, STAGE_TONE, formatPhone } from '@/lib/leads';
+import { Pill } from '@/components/ui/pill';
+import { computeMonthlyTotals } from '@/lib/finance';
+import { formatPhone, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
+import { computePaymentsSummary } from '@/lib/payments';
+import type { ActivityLogEntry } from '@/lib/queries';
+import {
+  fetchActivityLog,
+  fetchAllPayments,
+  fetchLeads,
+  fetchProperties,
+  fetchTenants,
+} from '@/lib/queries';
+import { formatCurrency, relativeTime } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/')({ component: DashboardPage });
 
@@ -19,16 +25,6 @@ const currentMonthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'short', yea
   .format(new Date())
   .replace('. de ', ' - ')
   .replace('.', '');
-
-function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'agora';
-  if (m < 60) return `${m}min atrás`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h atrás`;
-  return `${Math.floor(h / 24)}d atrás`;
-}
 
 function daysUntil(monthStr: string): number {
   const due = new Date(monthStr + '-01');
@@ -51,9 +47,13 @@ function ActivityRow({ entry }: { entry: ActivityLogEntry }) {
           </span>
         </div>
         <p className="text-xs text-foreground">
-          <span className="font-medium">{entry.actor ?? 'Sistema'}</span>
-          {' '}{entry.action}
-          {entry.subject && <>{' '}<span className="font-medium">{entry.subject}</span></>}
+          <span className="font-medium">{entry.actor ?? 'Sistema'}</span> {entry.action}
+          {entry.subject && (
+            <>
+              {' '}
+              <span className="font-medium">{entry.subject}</span>
+            </>
+          )}
         </p>
       </div>
       <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -100,9 +100,10 @@ function DashboardPage() {
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     return leads.filter((l) => l.createdAt.slice(0, 7) === ym).length;
   });
-  const receivedPct = summary.monthRevenue > 0
-    ? `${Math.round(summary.monthRevenue / (summary.monthRevenue + summary.overdueAmount) * 100)}% do previsto`
-    : undefined;
+  const receivedPct =
+    summary.monthRevenue > 0
+      ? `${Math.round((summary.monthRevenue / (summary.monthRevenue + summary.overdueAmount)) * 100)}% do previsto`
+      : undefined;
 
   const tenantById = new Map(tenants.map((t) => [t.id, t]));
 
@@ -154,7 +155,11 @@ function DashboardPage() {
         <KpiCard
           label="EM ATRASO"
           value={summary.overdueAmount > 0 ? formatCurrency(summary.overdueAmount) : '—'}
-          subtext={summary.overdueCount > 0 ? `${summary.overdueCount} inquilino${summary.overdueCount !== 1 ? 's' : ''}` : undefined}
+          subtext={
+            summary.overdueCount > 0
+              ? `${summary.overdueCount} inquilino${summary.overdueCount !== 1 ? 's' : ''}`
+              : undefined
+          }
           sparkData={overdueSpark}
           up={false}
           className={summary.overdueAmount > 0 ? 'ring-1 ring-destructive/40' : undefined}
@@ -169,7 +174,10 @@ function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Occupancy per property */}
-        <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <div
+          className="rounded-[10px] bg-surface-raised p-5"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-foreground">Ocupação por imóvel</h2>
             <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
@@ -212,7 +220,10 @@ function DashboardPage() {
         </div>
 
         {/* Upcoming / overdue payments */}
-        <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <div
+          className="rounded-[10px] bg-surface-raised p-5"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-medium text-foreground">Próximos vencimentos</h2>
             {summary.monthRevenue > 0 && (
@@ -236,7 +247,9 @@ function DashboardPage() {
                       <p className="text-xs font-medium text-foreground truncate">
                         {tenant?.name ?? formatPhone(tenant?.phone ?? p.tenantId.slice(0, 8))}
                       </p>
-                      <p className="text-[11px] text-muted-foreground">{dueLabel(days, isOverdue)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {dueLabel(days, isOverdue)}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {(isOverdue || isDueSoon) && (
@@ -260,11 +273,17 @@ function DashboardPage() {
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-medium text-foreground">Atividade recente</h2>
-          <Link to="/leads" className="flex items-center gap-0.5 text-xs text-primary hover:underline">
+          <Link
+            to="/leads"
+            className="flex items-center gap-0.5 text-xs text-primary hover:underline"
+          >
             Ver todos <ChevronRight className="size-3" />
           </Link>
         </div>
-        <div className="overflow-hidden rounded-[10px] bg-surface-raised" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <div
+          className="overflow-hidden rounded-[10px] bg-surface-raised"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           {activityLog.length === 0 && recentLeads.length === 0 ? (
             <EmptyState
               illustration="activity"
@@ -273,7 +292,9 @@ function DashboardPage() {
             />
           ) : activityLog.length > 0 ? (
             <ul className="divide-y divide-border">
-              {activityLog.map((entry) => <ActivityRow key={entry.id} entry={entry} />)}
+              {activityLog.map((entry) => (
+                <ActivityRow key={entry.id} entry={entry} />
+              ))}
             </ul>
           ) : (
             <ul className="divide-y divide-border">

@@ -182,11 +182,11 @@ bunx oxlint src/
 
 **Critério de pronto:**
 
-- [ ] `tsc --noEmit` verde em `packages/types`
-- [ ] `tsc --noEmit` verde em `apps/bot`
-- [ ] `tsc --noEmit` verde em `apps/web`
-- [ ] `oxlint` sem warnings novos em `apps/bot`
-- [ ] `oxlint` sem warnings novos em `apps/web`
+- [x] `tsc --noEmit` verde em `packages/types`
+- [x] `tsc --noEmit` verde em `apps/bot`
+- [x] `tsc --noEmit` verde em `apps/web`
+- [x] `oxlint` sem warnings novos em `apps/bot`
+- [x] `oxlint` sem warnings novos em `apps/web`
 
 ---
 

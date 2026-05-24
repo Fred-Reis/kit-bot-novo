@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
-import { computePaymentsSummary } from '@/lib/payments';
 import type { Payment } from '@kit-manager/types';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { computePaymentsSummary } from '@/lib/payments';
 
 const currentMonth = '2026-04';
 const prevMonth = '2026-03';
@@ -8,6 +8,7 @@ const prevMonth = '2026-03';
 function makePayment(overrides: Partial<Payment>): Payment {
   return {
     id: crypto.randomUUID(),
+    ownerId: 'owner-1',
     tenantId: 'tenant-1',
     month: currentMonth,
     amount: 1000,

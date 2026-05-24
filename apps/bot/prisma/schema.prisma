@@ -203,6 +203,7 @@ model Conversation {
   ownerId   String
   owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   data      Json
+  botPaused Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
   @@index([ownerId])

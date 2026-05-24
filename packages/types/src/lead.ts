@@ -10,7 +10,16 @@ export type LeadStage =
   | 'contract_signed'
   | 'converted';
 
-export type LeadSource = 'whatsapp' | 'zap' | 'site' | 'instagram' | 'indicacao' | 'other';
+export type LeadSource =
+  | 'whatsapp' // criação inicial pelo bot
+  | 'olx'
+  | 'zap'
+  | 'site'
+  | 'instagram'
+  | 'indicacao'
+  | 'outro'
+  | 'desconhecido'
+  | 'other'; // legado
 
 export interface Lead {
   id: string;
@@ -28,6 +37,13 @@ export interface Lead {
   docsSentAt: string | null;
   contractSignedAt: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+export interface Conversation {
+  chatId: string;
+  ownerId: string;
+  botPaused: boolean;
   updatedAt: string;
 }
 

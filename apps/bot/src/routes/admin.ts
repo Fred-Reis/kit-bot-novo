@@ -1,29 +1,52 @@
-import type { FastifyInstance } from 'fastify';
 import { createClient } from '@supabase/supabase-js';
+import type { FastifyInstance } from 'fastify';
+import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
-import { config } from '@/config';
 import type { LeadContext } from '@/flows/lead/context';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
-import { nextExternalId } from '@/services/external-id';
 import { sendText } from '@/services/evolution';
+import { nextExternalId } from '@/services/external-id';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
 const ALLOWED_MEDIA_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-  'video/mp4', 'video/quicktime', 'video/webm',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
 ]);
 
 const VALID_POLICY_VALUES = new Set(['yes', 'no', 'conditional']);
 
 const PROPERTY_PATCH_FIELDS = new Set([
-  'name', 'externalId', 'address', 'complement', 'neighborhood',
-  'rent', 'deposit', 'depositInstallmentsMax', 'contractMonths',
-  'rooms', 'bathrooms', 'area', 'maxAdults',
-  'acceptsPets', 'acceptsChildren', 'includesWater', 'includesIptu',
-  'individualElectricity', 'independentEntrance',
-  'description', 'rulesText', 'visitSchedule', 'listingUrl', 'active',
+  'name',
+  'externalId',
+  'address',
+  'complement',
+  'neighborhood',
+  'rent',
+  'deposit',
+  'depositInstallmentsMax',
+  'contractMonths',
+  'rooms',
+  'bathrooms',
+  'area',
+  'maxAdults',
+  'acceptsPets',
+  'acceptsChildren',
+  'includesWater',
+  'includesIptu',
+  'individualElectricity',
+  'independentEntrance',
+  'description',
+  'rulesText',
+  'visitSchedule',
+  'listingUrl',
+  'active',
 ]);
 
 function logActivity(
@@ -37,36 +60,96 @@ function logActivity(
 ): void {
   prisma.activityLog
     .create({
-      data: { actorType: 'user', actorId: null, actorLabel, ownerId, action, subject, subjectId, subjectType, metadata: {} },
+      data: {
+        actorType: 'user',
+        actorId: null,
+        actorLabel,
+        ownerId,
+        action,
+        subject,
+        subjectId,
+        subjectType,
+        metadata: {},
+      },
     })
     .catch((err: unknown) => warn({ err }, 'Failed to write activity log'));
 }
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update lead ──────────────────────────────────────────────────────────
-  const VALID_LEAD_SOURCES = new Set(['whatsapp', 'zap', 'site', 'instagram', 'indicacao', 'other']);
+  const VALID_LEAD_SOURCES = new Set([
+    'whatsapp',
+    'olx',
+    'zap',
+    'site',
+    'instagram',
+    'indicacao',
+    'outro',
+    'desconhecido',
+    'other',
+  ]);
 
-  fastify.patch<{ Params: { id: string }; Body: { name?: string; source?: string; propertyId?: string } }>(
-    '/admin/leads/:id',
+  fastify.patch<{
+    Params: { id: string };
+    Body: { name?: string; source?: string; propertyId?: string };
+  }>('/admin/leads/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { name, source, propertyId } = request.body;
+
+    if (source !== undefined && !VALID_LEAD_SOURCES.has(source)) {
+      return reply
+        .status(400)
+        .send({ error: `Invalid source. Must be one of: ${[...VALID_LEAD_SOURCES].join(', ')}` });
+    }
+
+    const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) return reply.status(404).send({ error: 'Lead not found' });
+
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (source !== undefined) data.source = source;
+    if (propertyId !== undefined) data.propertyId = propertyId;
+
+    const lead = await prisma.lead.update({ where: { id }, data });
+    return reply.send(lead);
+  });
+
+  // ─── pause / resume bot ───────────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { paused: boolean } }>(
+    '/admin/leads/:id/pause-bot',
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
-      const { name, source, propertyId } = request.body;
+      const { paused } = request.body;
 
-      if (source !== undefined && !VALID_LEAD_SOURCES.has(source)) {
-        return reply.status(400).send({ error: `Invalid source. Must be one of: ${[...VALID_LEAD_SOURCES].join(', ')}` });
+      if (typeof paused !== 'boolean') {
+        return reply.status(400).send({ error: 'paused must be a boolean' });
       }
 
-      const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
-      if (!existing) return reply.status(404).send({ error: 'Lead not found' });
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: { phone: true, name: true, ownerId: true },
+      });
+      if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
-      const data: Record<string, unknown> = {};
-      if (name !== undefined) data.name = name;
-      if (source !== undefined) data.source = source;
-      if (propertyId !== undefined) data.propertyId = propertyId;
+      await prisma.conversation.upsert({
+        where: { chatId: lead.phone },
+        update: { botPaused: paused },
+        create: { chatId: lead.phone, data: {}, botPaused: paused, ownerId: lead.ownerId },
+      });
 
-      const lead = await prisma.lead.update({ where: { id }, data });
-      return reply.send(lead);
+      const action = paused ? 'bot_paused' : 'bot_resumed';
+      logActivity(
+        request.adminUserId ?? 'admin',
+        lead.ownerId,
+        action,
+        lead.name ?? lead.phone,
+        id,
+        'lead',
+        fastify.log.warn.bind(fastify.log),
+      );
+
+      return reply.send({ success: true, botPaused: paused });
     },
   );
 
@@ -109,7 +192,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err }, 'Failed to notify lead after KYC approval');
       });
 
-      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'aprovou KYC', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(
+        request.adminUserId ?? 'admin',
+        lead.ownerId,
+        'aprovou KYC',
+        lead.name ?? lead.phone,
+        id,
+        'lead',
+        fastify.log.warn.bind(fastify.log),
+      );
 
       return reply.send({ success: true, stage: nextStage });
     },
@@ -137,7 +228,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const { paymentDayOfMonth } = request.body;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true, ownerId: true } });
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: { phone: true, name: true, stage: true, ownerId: true },
+      });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -154,9 +248,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       await sendText(
         lead.phone,
         `✅ Contrato em preparação! O vencimento será todo dia ${paymentDayOfMonth}. Entraremos em contato em breve.`,
-      ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract generation'));
+      ).catch((err) =>
+        fastify.log.warn({ err }, 'Failed to notify lead after contract generation'),
+      );
 
-      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'gerou contrato', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(
+        request.adminUserId ?? 'admin',
+        lead.ownerId,
+        'gerou contrato',
+        lead.name ?? lead.phone,
+        id,
+        'lead',
+        fastify.log.warn.bind(fastify.log),
+      );
 
       return reply.send({ success: true, stage: 'contract_pending' });
     },
@@ -169,7 +273,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const lead = await prisma.lead.findUnique({ where: { id }, select: { phone: true, name: true, stage: true, ownerId: true } });
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: { phone: true, name: true, stage: true, ownerId: true },
+      });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
 
       const { count } = await prisma.lead.updateMany({
@@ -183,7 +290,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      logActivity(request.adminUserId ?? 'admin', lead.ownerId, 'confirmou pagamento', lead.name ?? lead.phone, id, 'lead', fastify.log.warn.bind(fastify.log));
+      logActivity(
+        request.adminUserId ?? 'admin',
+        lead.ownerId,
+        'confirmou pagamento',
+        lead.name ?? lead.phone,
+        id,
+        'lead',
+        fastify.log.warn.bind(fastify.log),
+      );
 
       return reply.send({ success: true, stage: 'converted' });
     },
@@ -192,41 +307,99 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── create property ──────────────────────────────────────────────────────
   fastify.post<{
     Body: {
-      name: string; externalId?: string; address: string; neighborhood: string;
-      rent: number; deposit: number; depositInstallmentsMax: number; rooms: number; bathrooms: number;
-      title?: string; complement?: string; area?: number; parkingSpots?: number; amenities?: string[];
-      type?: string; purpose?: string; status?: string; description?: string; rulesText?: string;
-      visitSchedule?: string; listingUrl?: string; acceptsPets?: boolean; acceptsChildren?: boolean;
-      maxAdults?: number; includesWater?: boolean; includesIptu?: boolean;
-      individualElectricity?: boolean; contractMonths?: number; ownerId?: string;
+      name: string;
+      externalId?: string;
+      address: string;
+      neighborhood: string;
+      rent: number;
+      deposit: number;
+      depositInstallmentsMax: number;
+      rooms: number;
+      bathrooms: number;
+      title?: string;
+      complement?: string;
+      area?: number;
+      parkingSpots?: number;
+      amenities?: string[];
+      type?: string;
+      purpose?: string;
+      status?: string;
+      description?: string;
+      rulesText?: string;
+      visitSchedule?: string;
+      listingUrl?: string;
+      acceptsPets?: boolean;
+      acceptsChildren?: boolean;
+      maxAdults?: number;
+      includesWater?: boolean;
+      includesIptu?: boolean;
+      individualElectricity?: boolean;
+      contractMonths?: number;
+      ownerId?: string;
     };
-  }>(
-    '/admin/properties',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { name, externalId: rawExternalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ...rest } = request.body;
+  }>('/admin/properties', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const {
+      name,
+      externalId: rawExternalId,
+      address,
+      neighborhood,
+      rent,
+      deposit,
+      depositInstallmentsMax,
+      rooms,
+      bathrooms,
+      ...rest
+    } = request.body;
 
-      if (!name || !address || !neighborhood || rent == null || deposit == null || depositInstallmentsMax == null || rooms == null || bathrooms == null) {
-        return reply.status(400).send({ error: 'Missing required fields' });
-      }
+    if (
+      !name ||
+      !address ||
+      !neighborhood ||
+      rent == null ||
+      deposit == null ||
+      depositInstallmentsMax == null ||
+      rooms == null ||
+      bathrooms == null
+    ) {
+      return reply.status(400).send({ error: 'Missing required fields' });
+    }
 
-      const owner = await prisma.owner.findFirst();
-      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+    const owner = await prisma.owner.findFirst();
+    if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
-      let externalId = rawExternalId;
-      if (!externalId) {
-        externalId = await nextExternalId('property');
-      }
+    let externalId = rawExternalId;
+    if (!externalId) {
+      externalId = await nextExternalId('property');
+    }
 
-      const property = await prisma.property.create({
-        data: { name, externalId, address, neighborhood, rent, deposit, depositInstallmentsMax, rooms, bathrooms, ownerId: rest.ownerId ?? owner.id, ...rest },
-      });
+    const property = await prisma.property.create({
+      data: {
+        name,
+        externalId,
+        address,
+        neighborhood,
+        rent,
+        deposit,
+        depositInstallmentsMax,
+        rooms,
+        bathrooms,
+        ownerId: rest.ownerId ?? owner.id,
+        ...rest,
+      },
+    });
 
-      logActivity(request.adminUserId ?? 'admin', owner.id, 'publicou imóvel', property.name, property.id, 'property', fastify.log.warn.bind(fastify.log));
+    logActivity(
+      request.adminUserId ?? 'admin',
+      owner.id,
+      'publicou imóvel',
+      property.name,
+      property.id,
+      'property',
+      fastify.log.warn.bind(fastify.log),
+    );
 
-      return reply.status(201).send({ success: true, id: property.id, property });
-    },
-  );
+    return reply.status(201).send({ success: true, id: property.id, property });
+  });
 
   // ─── update property ──────────────────────────────────────────────────────
   fastify.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
@@ -286,40 +459,52 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── create tenant ────────────────────────────────────────────────────────
   fastify.post<{
     Body: {
-      phone: string; propertyId: string; contractStart: string;
-      name?: string; cpf?: string; email?: string; score?: number;
-      dueDay?: number; onTimeRate?: number; contractEnd?: string;
+      phone: string;
+      propertyId: string;
+      contractStart: string;
+      name?: string;
+      cpf?: string;
+      email?: string;
+      score?: number;
+      dueDay?: number;
+      onTimeRate?: number;
+      contractEnd?: string;
     };
-  }>(
-    '/admin/tenants',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { phone, propertyId, contractStart, ...rest } = request.body;
+  }>('/admin/tenants', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { phone, propertyId, contractStart, ...rest } = request.body;
 
-      if (!phone || !propertyId || !contractStart) {
-        return reply.status(400).send({ error: 'Missing required fields: phone, propertyId, contractStart' });
-      }
+    if (!phone || !propertyId || !contractStart) {
+      return reply
+        .status(400)
+        .send({ error: 'Missing required fields: phone, propertyId, contractStart' });
+    }
 
-      const owner = await prisma.owner.findFirst();
-      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+    const owner = await prisma.owner.findFirst();
+    if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
-      const externalId = await nextExternalId('tenant');
+    const externalId = await nextExternalId('tenant');
 
-      const [tenant] = await prisma.$transaction([
-        prisma.tenant.create({
-          data: { phone, propertyId, contractStart: new Date(contractStart), externalId, ownerId: owner.id, ...rest },
-        }),
-        prisma.property.update({
-          where: { id: propertyId },
-          data: { status: 'rented', active: false },
-        }),
-      ]);
+    const [tenant] = await prisma.$transaction([
+      prisma.tenant.create({
+        data: {
+          phone,
+          propertyId,
+          contractStart: new Date(contractStart),
+          externalId,
+          ownerId: owner.id,
+          ...rest,
+        },
+      }),
+      prisma.property.update({
+        where: { id: propertyId },
+        data: { status: 'rented', active: false },
+      }),
+    ]);
 
-      await redis.del(`property:${propertyId}`);
+    await redis.del(`property:${propertyId}`);
 
-      return reply.status(201).send({ success: true, id: tenant.id, tenant });
-    },
-  );
+    return reply.status(201).send({ success: true, id: tenant.id, tenant });
+  });
 
   // ─── signed upload URL for property media ─────────────────────────────────
   fastify.post<{
@@ -336,12 +521,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: 'Unsupported file type' });
       }
 
-      const ext = fileName.split('.').pop()?.replace(/[^a-z0-9]/gi, '') ?? 'bin';
+      const ext =
+        fileName
+          .split('.')
+          .pop()
+          ?.replace(/[^a-z0-9]/gi, '') ?? 'bin';
       const path = `${id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-      const { data, error } = await supabase.storage
-        .from('properties')
-        .createSignedUploadUrl(path);
+      const { data, error } = await supabase.storage.from('properties').createSignedUploadUrl(path);
 
       if (error || !data) {
         return reply.status(500).send({ error: 'Failed to create signed URL' });
@@ -355,44 +542,44 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{
     Params: { id: string };
     Body: { path: string; type: 'photo' | 'video'; label?: string };
-  }>(
-    '/admin/properties/:id/media',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { path, type, label } = request.body;
+  }>('/admin/properties/:id/media', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { path, type, label } = request.body;
 
-      if (!path.startsWith(`${id}/`)) {
-        return reply.status(400).send({ error: 'Invalid path for this property' });
-      }
+    if (!path.startsWith(`${id}/`)) {
+      return reply.status(400).send({ error: 'Invalid path for this property' });
+    }
 
-      const { data: { publicUrl } } = supabase.storage.from('properties').getPublicUrl(path);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('properties').getPublicUrl(path);
 
-      const property = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
-      if (!property) return reply.status(404).send({ error: 'Property not found' });
+    const property = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
+    if (!property) return reply.status(404).send({ error: 'Property not found' });
 
-      const media = await prisma.propertyMedia.create({
-        data: { propertyId: id, ownerId: property.ownerId, url: publicUrl, type, label: label ?? null },
-      });
+    const media = await prisma.propertyMedia.create({
+      data: {
+        propertyId: id,
+        ownerId: property.ownerId,
+        url: publicUrl,
+        type,
+        label: label ?? null,
+      },
+    });
 
-      await redis.del(`property:${id}`);
+    await redis.del(`property:${id}`);
 
-      return reply.status(201).send({ success: true, media });
-    },
-  );
+    return reply.status(201).send({ success: true, media });
+  });
 
   // ─── list rule sets ───────────────────────────────────────────────────────
-  fastify.get(
-    '/admin/rule-sets',
-    { preHandler: verifyAdminJwt },
-    async (_request, reply) => {
-      const ruleSets = await prisma.ruleSet.findMany({
-        include: { _count: { select: { policies: true, properties: true } } },
-        orderBy: { createdAt: 'asc' },
-      });
-      return reply.send(ruleSets);
-    },
-  );
+  fastify.get('/admin/rule-sets', { preHandler: verifyAdminJwt }, async (_request, reply) => {
+    const ruleSets = await prisma.ruleSet.findMany({
+      include: { _count: { select: { policies: true, properties: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return reply.send(ruleSets);
+  });
 
   // ─── create rule set ──────────────────────────────────────────────────────
   fastify.post<{ Body: { name: string; description?: string } }>(
@@ -403,7 +590,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (!name) return reply.status(400).send({ error: 'name is required' });
       const owner = await prisma.owner.findFirst();
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
-      const ruleSet = await prisma.ruleSet.create({ data: { name, description, ownerId: owner.id } });
+      const ruleSet = await prisma.ruleSet.create({
+        data: { name, description, ownerId: owner.id },
+      });
       return reply.status(201).send(ruleSet);
     },
   );
@@ -411,23 +600,26 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update rule set ──────────────────────────────────────────────────────
   fastify.patch<{
     Params: { id: string };
-    Body: { name?: string; description?: string; propagatePolicies?: boolean; propagateClauses?: boolean; propagateFields?: boolean };
-  }>(
-    '/admin/rule-sets/:id',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, description, propagatePolicies, propagateClauses, propagateFields } = request.body;
-      const data: Record<string, unknown> = {};
-      if (name !== undefined) data.name = name;
-      if (description !== undefined) data.description = description;
-      if (propagatePolicies !== undefined) data.propagatePolicies = propagatePolicies;
-      if (propagateClauses !== undefined) data.propagateClauses = propagateClauses;
-      if (propagateFields !== undefined) data.propagateFields = propagateFields;
-      const ruleSet = await prisma.ruleSet.update({ where: { id }, data });
-      return reply.send(ruleSet);
-    },
-  );
+    Body: {
+      name?: string;
+      description?: string;
+      propagatePolicies?: boolean;
+      propagateClauses?: boolean;
+      propagateFields?: boolean;
+    };
+  }>('/admin/rule-sets/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { name, description, propagatePolicies, propagateClauses, propagateFields } =
+      request.body;
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (propagatePolicies !== undefined) data.propagatePolicies = propagatePolicies;
+    if (propagateClauses !== undefined) data.propagateClauses = propagateClauses;
+    if (propagateFields !== undefined) data.propagateFields = propagateFields;
+    const ruleSet = await prisma.ruleSet.update({ where: { id }, data });
+    return reply.send(ruleSet);
+  });
 
   // ─── delete rule set ──────────────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>(
@@ -448,22 +640,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{
     Params: { id: string };
     Body: { name: string; description?: string; value?: string; appliesToProperty?: boolean };
-  }>(
-    '/admin/rule-sets/:id/policies',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, description, value = 'no', appliesToProperty = true } = request.body;
-      if (!name) return reply.status(400).send({ error: 'name is required' });
-      if (!VALID_POLICY_VALUES.has(value)) {
-        return reply.status(400).send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
-      }
-      const policy = await prisma.ruleSetPolicy.create({
-        data: { ruleSetId: id, name, description, value, appliesToProperty },
-      });
-      return reply.status(201).send(policy);
-    },
-  );
+  }>('/admin/rule-sets/:id/policies', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { name, description, value = 'no', appliesToProperty = true } = request.body;
+    if (!name) return reply.status(400).send({ error: 'name is required' });
+    if (!VALID_POLICY_VALUES.has(value)) {
+      return reply
+        .status(400)
+        .send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
+    }
+    const policy = await prisma.ruleSetPolicy.create({
+      data: { ruleSetId: id, name, description, value, appliesToProperty },
+    });
+    return reply.status(201).send(policy);
+  });
 
   // ─── update policy ────────────────────────────────────────────────────────
   fastify.patch<{
@@ -476,7 +666,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { policyId } = request.params;
       const { value, appliesToProperty } = request.body;
       if (value !== undefined && !VALID_POLICY_VALUES.has(value)) {
-        return reply.status(400).send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
+        return reply
+          .status(400)
+          .send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
       }
       const data: Record<string, unknown> = {};
       if (value !== undefined) data.value = value;
@@ -516,7 +708,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id, propertyId } = request.params;
-      await prisma.propertyRuleSet.delete({ where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } } });
+      await prisma.propertyRuleSet.delete({
+        where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+      });
       return reply.send({ success: true });
     },
   );
@@ -527,7 +721,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (_request, reply) => {
       const templates = await prisma.contractTemplate.findMany({
-        select: { id: true, code: true, name: true, status: true, usageCount: true, updatedAt: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          status: true,
+          usageCount: true,
+          updatedAt: true,
+        },
         orderBy: { updatedAt: 'desc' },
       });
       return reply.send(templates);
@@ -557,7 +758,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
       const count = await prisma.contractTemplate.count();
       const code = `CT-AA-${String(count + 1).padStart(2, '0')}`;
-      const template = await prisma.contractTemplate.create({ data: { name, code, ownerId: owner.id } });
+      const template = await prisma.contractTemplate.create({
+        data: { name, code, ownerId: owner.id },
+      });
       return reply.status(201).send(template);
     },
   );
@@ -566,23 +769,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.patch<{
     Params: { id: string };
     Body: { name?: string; body?: string; status?: string };
-  }>(
-    '/admin/contract-templates/:id',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { name, body, status } = request.body;
-      if (status !== undefined && !['draft', 'published'].includes(status)) {
-        return reply.status(400).send({ error: 'status must be draft or published' });
-      }
-      const data: Record<string, unknown> = {};
-      if (name !== undefined) data.name = name;
-      if (body !== undefined) data.body = body;
-      if (status !== undefined) data.status = status;
-      const template = await prisma.contractTemplate.update({ where: { id }, data });
-      return reply.send(template);
-    },
-  );
+  }>('/admin/contract-templates/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { name, body, status } = request.body;
+    if (status !== undefined && !['draft', 'published'].includes(status)) {
+      return reply.status(400).send({ error: 'status must be draft or published' });
+    }
+    const data: Record<string, unknown> = {};
+    if (name !== undefined) data.name = name;
+    if (body !== undefined) data.body = body;
+    if (status !== undefined) data.status = status;
+    const template = await prisma.contractTemplate.update({ where: { id }, data });
+    return reply.send(template);
+  });
 
   // ─── delete contract template ─────────────────────────────────────────────
   fastify.delete<{ Params: { id: string } }>(
@@ -590,7 +789,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
-      const template = await prisma.contractTemplate.findUnique({ where: { id }, select: { usageCount: true } });
+      const template = await prisma.contractTemplate.findUnique({
+        where: { id },
+        select: { usageCount: true },
+      });
       if (!template) return reply.status(404).send({ error: 'Template not found' });
       if (template.usageCount > 0) return reply.status(409).send({ error: 'Template is in use' });
       await prisma.contractTemplate.delete({ where: { id } });
@@ -600,70 +802,72 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
   // ─── create contract ─────────────────────────────────────────────────────
   fastify.post<{
-    Body: { templateId: string; tenantId: string; propertyId: string; startDate: string; endDate?: string; monthlyRent: number }
-  }>(
-    '/admin/contracts',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
+    Body: {
+      templateId: string;
+      tenantId: string;
+      propertyId: string;
+      startDate: string;
+      endDate?: string;
+      monthlyRent: number;
+    };
+  }>('/admin/contracts', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
 
-      const [template, tenant, property] = await Promise.all([
-        prisma.contractTemplate.findUnique({ where: { id: templateId } }),
-        prisma.tenant.findUnique({ where: { id: tenantId } }),
-        prisma.property.findUnique({ where: { id: propertyId } }),
-      ]);
-      if (!template) return reply.status(404).send({ error: 'Template not found' });
-      if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
-      if (!property) return reply.status(404).send({ error: 'Property not found' });
+    const [template, tenant, property] = await Promise.all([
+      prisma.contractTemplate.findUnique({ where: { id: templateId } }),
+      prisma.tenant.findUnique({ where: { id: tenantId } }),
+      prisma.property.findUnique({ where: { id: propertyId } }),
+    ]);
+    if (!template) return reply.status(404).send({ error: 'Template not found' });
+    if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+    if (!property) return reply.status(404).send({ error: 'Property not found' });
 
-      if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
+    if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
 
-      const code = await nextExternalId('contract');
+    const code = await nextExternalId('contract');
 
-      const contract = await prisma.$transaction(async (tx) => {
-        const created = await tx.contract.create({
-          data: {
-            code,
-            ownerId: property.ownerId,
-            templateId,
-            tenantId,
-            propertyId,
-            body: template.body,
-            status: 'active',
-            startDate: new Date(startDate),
-            endDate: endDate ? new Date(endDate) : null,
-            monthlyRent,
-          },
-        });
-        await tx.contractTemplate.update({ where: { id: templateId }, data: { usageCount: { increment: 1 } } });
-        return created;
+    const contract = await prisma.$transaction(async (tx) => {
+      const created = await tx.contract.create({
+        data: {
+          code,
+          ownerId: property.ownerId,
+          templateId,
+          tenantId,
+          propertyId,
+          body: template.body,
+          status: 'active',
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : null,
+          monthlyRent,
+        },
       });
+      await tx.contractTemplate.update({
+        where: { id: templateId },
+        data: { usageCount: { increment: 1 } },
+      });
+      return created;
+    });
 
-      return reply.status(201).send(contract);
-    },
-  );
+    return reply.status(201).send(contract);
+  });
 
   // ─── list contracts ───────────────────────────────────────────────────────
-  fastify.get(
-    '/admin/contracts',
-    { preHandler: verifyAdminJwt },
-    async (_request, reply) => {
-      const contracts = await prisma.contract.findMany({
-        select: {
-          id: true,
-          code: true,
-          status: true,
-          startDate: true,
-          endDate: true,
-          monthlyRent: true,
-          tenant: { select: { name: true } },
-          property: { select: { name: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      return reply.send(contracts);
-    },
-  );
+  fastify.get('/admin/contracts', { preHandler: verifyAdminJwt }, async (_request, reply) => {
+    const contracts = await prisma.contract.findMany({
+      select: {
+        id: true,
+        code: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        monthlyRent: true,
+        tenant: { select: { name: true } },
+        property: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return reply.send(contracts);
+  });
 
   // ─── get contract ─────────────────────────────────────────────────────────
   fastify.get<{ Params: { id: string } }>(
