@@ -144,7 +144,7 @@
 - [x] Web: header — botão Filtros (stub) + toggle ícones grid/lista
 - [x] Web: tabs pill-style com counts inline
 - [x] Activity log: `property_created`, `property_archived`
-- [ ] Commit
+- [x] Commit
 
 ### Slice 3 — Tenants (lista + detalhe completos)
 **Por quê:** Lead converte em Tenant. Status do inquilino aparece em vários lugares.

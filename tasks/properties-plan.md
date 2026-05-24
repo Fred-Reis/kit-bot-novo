@@ -41,8 +41,8 @@ status: 'available' | 'rented' | 'maintenance' | 'reserved' | 'archived';
 ```
 
 **Critério de pronto:**
-- [ ] `Property['status']` inclui `'archived'`
-- [ ] `bunx tsc --noEmit` verde em `packages/types`, `apps/bot`, `apps/web`
+- [x] `Property['status']` inclui `'archived'`
+- [x] `bunx tsc --noEmit` verde em `packages/types`, `apps/bot`, `apps/web`
 
 **Verificação:**
 ```bash
@@ -58,8 +58,8 @@ cd apps/web && bunx tsc --noEmit
 
 ## Checkpoint 1 — Após T01
 
-- [ ] `bunx tsc --noEmit` verde nos 3 pacotes
-- [ ] Nenhum erro novo em bot ou web
+- [x] `bunx tsc --noEmit` verde nos 3 pacotes
+- [x] Nenhum erro novo em bot ou web
 
 ---
 
@@ -88,9 +88,9 @@ const STATUS_CONFIG: Record<Property['status'], { tone: Tone; label: string }> =
 > Sem mudança visual: cards arquivados nunca aparecem (filtro `.neq('status','archived')` na query `fetchProperties`).
 
 **Critério de pronto:**
-- [ ] `STATUS_CONFIG` tem entrada para `'archived'`
-- [ ] `bunx tsc --noEmit` verde em `apps/web`
-- [ ] `vitest run` — sem regressões
+- [x] `STATUS_CONFIG` tem entrada para `'archived'`
+- [x] `bunx tsc --noEmit` verde em `apps/web`
+- [x] `vitest run` — sem regressões
 
 **Verificação:**
 ```bash
@@ -105,8 +105,8 @@ cd apps/web && vitest run
 
 ## Checkpoint 2 — Após T02
 
-- [ ] `bunx tsc --noEmit` verde em `apps/web`
-- [ ] `vitest run` — todos passam
+- [x] `bunx tsc --noEmit` verde em `apps/web`
+- [x] `vitest run` — todos passam
 
 ---
 
@@ -195,15 +195,15 @@ return reply.send({ success: true });
 **Antes de implementar:** verificar assinatura atual de `logActivity` em `apps/bot/src/services/activity.ts` para garantir que o objeto passado está correto.
 
 **Critério de pronto:**
-- [ ] Import `logActivityHelper` adicionado (ou já existia do Slice 1 — verificar)
-- [ ] `POST /admin/properties` não usa mais o `logActivity` local com string livre
-- [ ] `logActivityHelper` chamado com `action: 'property_created'` no POST
-- [ ] `findUnique` no DELETE inclui `name` e `ownerId` no select
-- [ ] `logActivityHelper` chamado com `action: 'property_archived'` no DELETE
-- [ ] Ambos os logs são fire-and-forget (`.catch(warn)`)
-- [ ] `bunx tsc --noEmit` verde em `apps/bot`
-- [ ] `bun run lint:bot` — 0 novos errors
-- [ ] `bun test src/__tests__` — todos passam
+- [x] Import `logActivityHelper` adicionado (ou já existia do Slice 1 — verificar)
+- [x] `POST /admin/properties` não usa mais o `logActivity` local com string livre
+- [x] `logActivityHelper` chamado com `action: 'property_created'` no POST
+- [x] `findUnique` no DELETE inclui `name` e `ownerId` no select
+- [x] `logActivityHelper` chamado com `action: 'property_archived'` no DELETE
+- [x] Ambos os logs são fire-and-forget (`.catch(warn)`)
+- [x] `bunx tsc --noEmit` verde em `apps/bot`
+- [x] `bun run lint:bot` — 0 novos errors
+- [x] `bun test src/__tests__` — todos passam
 
 **Verificação:**
 ```bash
@@ -219,9 +219,9 @@ cd apps/bot && bun test src/__tests__
 
 ## Checkpoint 3 — Após T03
 
-- [ ] `bunx tsc --noEmit` verde em `apps/bot`
-- [ ] `bun run lint:bot` — 0 novos errors
-- [ ] `bun test src/__tests__` (bot) — todos passam
+- [x] `bunx tsc --noEmit` verde em `apps/bot`
+- [x] `bun run lint:bot` — 0 novos errors
+- [x] `bun test src/__tests__` (bot) — todos passam
 
 ---
 
@@ -252,9 +252,9 @@ cd apps/bot && bun test src/__tests__
 - `ROADMAP.md`
 
 **Critério de pronto:**
-- [ ] Todos os itens listados acima marcados `[x]` no ROADMAP
-- [ ] Tracking macro atualizado: `F1 — Vertical slices | 1/9` (Slice 1 completa)
-- [ ] Nenhum item incorretamente marcado (verificar apenas o que realmente existe no código)
+- [x] Todos os itens listados acima marcados `[x]` no ROADMAP
+- [x] Tracking macro atualizado: `F1 — Vertical slices | 2/9` (Slice 1 e 2 completas)
+- [x] Nenhum item incorretamente marcado (verificar apenas o que realmente existe no código)
 
 **Verificação:**
 ```bash
@@ -268,12 +268,12 @@ cd apps/bot && bun test src/__tests__
 
 ## Checkpoint Final
 
-- [ ] `bunx tsc --noEmit` verde nos 3 pacotes
-- [ ] `bun run lint:bot` — 0 novos errors
-- [ ] `bun test src/__tests__` (bot) — todos passam
-- [ ] `vitest run` (web) — todos passam
-- [ ] ROADMAP atualizado e consistente com código
-- [ ] Critérios de aceite do spec verificados (seção 9 de `specs/properties.md`)
+- [x] `bunx tsc --noEmit` verde nos 3 pacotes
+- [x] `bun run lint:bot` — 0 novos errors
+- [x] `bun test src/__tests__` (bot) — todos passam
+- [x] `vitest run` (web) — todos passam
+- [x] ROADMAP atualizado e consistente com código
+- [x] Critérios de aceite do spec verificados (seção 9 de `specs/properties.md`)
 
 ---
 
