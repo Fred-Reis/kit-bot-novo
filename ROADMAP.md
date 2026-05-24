@@ -114,9 +114,9 @@
 - [x] Detalhe lead: dropdown manual de source para correção
 - [x] Detalhe lead: toggle "Pausar bot / Retomar bot"
 - [x] Detalhe lead: badge "Bot pausado — você assume" quando `botPaused === true`
-- [ ] Labels corretas das colunas kanban: Novo / Qualificação / Visita agendada / Proposta / Ganho (→ Slice 2 cleanup)
-- [ ] Tabela: colunas nome + source + property + stage + updatedAt (→ Slice 2 cleanup)
-- [ ] Header: botões Filtros (stub) + Novo lead (stub) (→ Slice 2 cleanup)
+- [x] Labels corretas das colunas kanban: Novo / Qualificação / Visita agendada / Proposta / Ganho
+- [x] Tabela: colunas nome + source + property + stage + updatedAt
+- [x] Header: botões Filtros (stub) + Novo lead (stub)
 
 #### Activity log
 - [x] `lead_created` (bot escreve na 1ª criação)
@@ -130,19 +130,20 @@
 
 - [x] Commit
 
-### Slice 2 — Properties (CRUD completo + UI)
+### Slice 2 — Properties (CRUD completo + UI) ✅ DONE
+
 **Por quê:** Lead refere imóvel. Tenant refere imóvel. Tudo amarra aqui.
 
-- [ ] Migration: `Property.area float` (m²)
-- [ ] Migration: confirmar/normalizar `Property.status` enum (`available | rented | maintenance | reserved`)
-- [ ] Atualizar tipo `Property` em `packages/types`
-- [ ] Bot: aceitar `area` em `POST /admin/properties` allowlist
-- [ ] Web: `fetchProperties()` retorna `area`
-- [ ] Web: card grid — externalId mono muted + endereço completo + status pill overlaid + área
-- [ ] Web: card row — externalId, neighborhood, área
-- [ ] Web: header — botão Filtros (stub) + toggle ícones grid/lista
-- [ ] Web: tabs pill-style com counts inline
-- [ ] Activity log: `property_published`, `property_archived`
+- [x] Migration: `Property.area float` (m²) — campo `Float?` já existia no schema
+- [x] Migration: confirmar/normalizar `Property.status` — string no banco, enum no tipo TS (inclui `archived`)
+- [x] Atualizar tipo `Property` em `packages/types` — adicionado `'archived'` ao status union
+- [x] Bot: aceitar `area` em `POST /admin/properties` allowlist — já estava em `PROPERTY_PATCH_FIELDS`
+- [x] Web: `fetchProperties()` retorna `area` — já retornava via tipo `Property`
+- [x] Web: card grid — externalId mono muted + endereço completo + status pill overlaid + área
+- [x] Web: card row — externalId, neighborhood, área
+- [x] Web: header — botão Filtros (stub) + toggle ícones grid/lista
+- [x] Web: tabs pill-style com counts inline
+- [x] Activity log: `property_created`, `property_archived`
 - [ ] Commit
 
 ### Slice 3 — Tenants (lista + detalhe completos)
@@ -356,7 +357,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 0/9 | 0% |
+| F1 — Vertical slices | 2/9 (Slice 1 ✓, Slice 2 ✓) | 22% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 

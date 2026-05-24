@@ -10,7 +10,7 @@ export interface Property {
   category: string | null;
   type: string | null;
   purpose: string | null;
-  status: 'available' | 'rented' | 'maintenance' | 'reserved';
+  status: 'available' | 'rented' | 'maintenance' | 'reserved' | 'archived';
   description: string | null;
   rent: number;
   deposit: number;

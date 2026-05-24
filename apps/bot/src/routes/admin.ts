@@ -5,6 +5,7 @@ import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
 import type { LeadContext } from '@/flows/lead/context';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
+import { logActivity as logActivityHelper } from '@/services/activity';
 import { sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 
@@ -107,7 +108,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     if (!existing) return reply.status(404).send({ error: 'Lead not found' });
 
     if (propertyId !== undefined) {
-      const prop = await prisma.property.findUnique({ where: { id: propertyId }, select: { id: true } });
+      const prop = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true },
+      });
       if (!prop) return reply.status(404).send({ error: 'Property not found' });
     }
 
@@ -408,15 +412,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       },
     });
 
-    logActivity(
-      request.adminUserId ?? 'admin',
-      owner.id,
-      'publicou imóvel',
-      property.name,
-      property.id,
-      'property',
-      fastify.log.warn.bind(fastify.log),
-    );
+    await logActivityHelper({
+      ownerId: property.ownerId,
+      actorType: 'user',
+      actorLabel: request.adminUserId ?? 'Admin',
+      action: 'property_created',
+      subjectType: 'property',
+      subjectId: property.id,
+      subject: property.name,
+    }).catch(fastify.log.warn.bind(fastify.log));
 
     return reply.status(201).send({ success: true, id: property.id, property });
   });
@@ -449,11 +453,24 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const existing = await prisma.property.findUnique({ where: { id }, select: { id: true } });
+      const existing = await prisma.property.findUnique({
+        where: { id },
+        select: { id: true, name: true, ownerId: true },
+      });
       if (!existing) return reply.status(404).send({ error: 'Property not found' });
 
       await prisma.property.update({ where: { id }, data: { status: 'archived', active: false } });
       await redis.del(`property:${id}`);
+
+      await logActivityHelper({
+        ownerId: existing.ownerId,
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'Admin',
+        action: 'property_archived',
+        subjectType: 'property',
+        subjectId: id,
+        subject: existing.name,
+      }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true });
     },
@@ -695,7 +712,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { policyId } = request.params;
       const { value, appliesToProperty } = request.body;
-      const existing = await prisma.ruleSetPolicy.findUnique({ where: { id: policyId }, select: { id: true } });
+      const existing = await prisma.ruleSetPolicy.findUnique({
+        where: { id: policyId },
+        select: { id: true },
+      });
       if (!existing) return reply.status(404).send({ error: 'Policy not found' });
       if (value !== undefined && !VALID_POLICY_VALUES.has(value)) {
         return reply
@@ -716,7 +736,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { policyId } = request.params;
-      const existing = await prisma.ruleSetPolicy.findUnique({ where: { id: policyId }, select: { id: true } });
+      const existing = await prisma.ruleSetPolicy.findUnique({
+        where: { id: policyId },
+        select: { id: true },
+      });
       if (!existing) return reply.status(404).send({ error: 'Policy not found' });
       await prisma.ruleSetPolicy.delete({ where: { id: policyId } });
       return reply.send({ success: true });
@@ -806,7 +829,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/admin/contract-templates/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { id } = request.params;
     const { name, body, status } = request.body;
-    const existing = await prisma.contractTemplate.findUnique({ where: { id }, select: { id: true } });
+    const existing = await prisma.contractTemplate.findUnique({
+      where: { id },
+      select: { id: true },
+    });
     if (!existing) return reply.status(404).send({ error: 'Template not found' });
     if (status !== undefined && !['draft', 'published'].includes(status)) {
       return reply.status(400).send({ error: 'status must be draft or published' });
