@@ -11,6 +11,7 @@ import {
   mediaCaption,
   shouldSendMediaDeterministically,
 } from '@/flows/lead/media';
+import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import { resolveTargetAgent } from '@/flows/lead/rules';
 import {
   findMatchingProperty,
@@ -23,7 +24,6 @@ import { notifyOwner } from '@/services/notify';
 import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
-const TERMINAL_STAGES = new Set(['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed', 'converted']);
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
@@ -79,7 +79,7 @@ async function persistConversation(
     prisma.conversation.upsert({
       where: { chatId },
       update: { data: context as object },
-      create: { chatId, data: context as object, ownerId },
+      create: { chatId, data: context as object, ownerId, botPaused: false },
     }),
     ...ops,
   ]);
@@ -160,6 +160,8 @@ export async function handleLeadMessage(
     }
 
     // 5. LLM extraction → merge into context (pass available properties so extractor can infer)
+    const leadPatch: Record<string, unknown> = {};
+
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
@@ -171,8 +173,8 @@ export async function handleLeadMessage(
       Object.assign(context, updates);
 
       // Don't overwrite manual source corrections made in the admin panel
-      if (extractedSource && (!lead.source || lead.source === 'whatsapp')) {
-        await prisma.lead.update({ where: { phone: chatId }, data: { source: extractedSource } });
+      if (shouldUpdateLeadSource(lead.source, extractedSource)) {
+        leadPatch.source = extractedSource;
       }
     }
 
@@ -227,14 +229,24 @@ export async function handleLeadMessage(
     context.docsReceivedCount = snapshot.docsReceivedCount;
 
     if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
-      await prisma.lead.update({
-        where: { phone: chatId },
-        data: { propertyId: snapshot.propertyInFocus.id },
-      });
+      leadPatch.propertyId = snapshot.propertyInFocus.id;
     }
 
-    if (snapshot.docsStage === 'complete' && !TERMINAL_STAGES.has(lead.stage)) {
-      await prisma.lead.update({ where: { phone: chatId }, data: { stage: 'kyc_pending' } });
+    const kycTransition = shouldTransitionToKyc(
+      snapshot.docsStage,
+      (context.residents ?? []).length,
+      snapshot.residentsComplete,
+      lead.stage,
+    );
+    if (kycTransition) {
+      leadPatch.stage = 'kyc_pending';
+    }
+
+    if (Object.keys(leadPatch).length > 0) {
+      await prisma.lead.update({ where: { phone: chatId }, data: leadPatch });
+    }
+
+    if (kycTransition) {
       notifyOwner(lead.ownerId, 'kyc_pending', {
         leadName: lead.name ?? chatId,
         leadPhone: chatId,

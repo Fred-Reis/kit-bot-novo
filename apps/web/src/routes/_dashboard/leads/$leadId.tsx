@@ -1,15 +1,13 @@
 import type { LeadDocument } from '@kit-manager/types';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { AlertCircle, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { CustomButton } from '@/components/ui/btn';
-import { logActivity } from '@/lib/activity';
 import { adminApi } from '@/lib/api';
 import { SOURCE_LABELS, STAGES } from '@/lib/leads';
 import { fetchLead } from '@/lib/queries';
-import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -130,11 +128,8 @@ function LeadDetailPage() {
   });
 
   const togglePause = useMutation({
-    mutationFn: () => {
-      const next = !lead?.botPaused;
-      return adminApi.pauseLead(leadId, next).then(() => next);
-    },
-    onSuccess: (next) => {
+    mutationFn: (next: boolean) => adminApi.pauseLead(leadId, next),
+    onSuccess: (_data, next) => {
       toast.success(next ? 'Bot pausado.' : 'Bot retomado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
@@ -142,21 +137,7 @@ function LeadDetailPage() {
   });
 
   const updateSource = useMutation({
-    mutationFn: async (source: string) => {
-      await adminApi.updateLeadSource(leadId, source);
-      if (lead) {
-        logActivity(supabase, {
-          ownerId: lead.ownerId,
-          actorType: 'user',
-          actorLabel: 'Admin',
-          action: 'lead_source_corrected',
-          subjectType: 'lead',
-          subjectId: leadId,
-          subject: lead.phone,
-          metadata: { source },
-        }).catch(console.error);
-      }
-    },
+    mutationFn: (source: string) => adminApi.updateLeadSource(leadId, source),
     onSuccess: () => {
       toast.success('Origem atualizada.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
@@ -202,7 +183,7 @@ function LeadDetailPage() {
       {lead.botPaused && (
         <div
           data-slot="bot-paused-badge"
-          className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm font-medium text-warning-foreground"
+          className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm font-medium text-warning"
         >
           <AlertCircle className="size-4 shrink-0" />
           Bot pausado — você assume
@@ -222,15 +203,17 @@ function LeadDetailPage() {
             className="rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="">— origem —</option>
-            {(Object.entries(SOURCE_LABELS) as [string, string][]).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
+            {(Object.entries(SOURCE_LABELS) as [string, string][])
+              .filter(([key]) => !['whatsapp', 'other', 'desconhecido'].includes(key))
+              .map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
           </select>
           <CustomButton
             variant="secondary"
-            onClick={() => togglePause.mutate()}
+            onClick={() => togglePause.mutate(!lead.botPaused)}
             disabled={togglePause.isPending}
           >
             {lead.botPaused ? 'Retomar bot' : 'Pausar bot'}

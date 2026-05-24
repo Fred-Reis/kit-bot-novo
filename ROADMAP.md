@@ -87,45 +87,48 @@
 
 > Ordem sugerida — priorizada por: (a) destravar operação real próxima, (b) usar coisas que já existem, (c) curva de aprendizado crescente.
 
-### Slice 1 — Leads (kanban + detalhe + pausar bot) ✋ [PARCIAL HOJE]
+### Slice 1 — Leads (kanban + detalhe + pausar bot) ✅ DONE
+
 **Por quê primeiro:** core do funil. Bot escreve aqui. Tudo começa aqui.
 
 #### Schema & types
-- [ ] Migration: adicionar `Lead.name text`, `Lead.source text`, `Lead.propertyId uuid FK`
-- [ ] Migration: `Lead.externalId` via `lead_external_seq` (vem da F0.6)
-- [ ] Migration: `Conversation.botPaused boolean default false` (pra B14)
-- [ ] Atualizar tipos `Lead`, `Conversation` em `packages/types`
+- [x] Migration: adicionar `Lead.name text`, `Lead.source text`, `Lead.propertyId uuid FK` (pré-existente)
+- [x] Migration: `Lead.externalId` via `lead_external_seq` (pré-existente, F0.6)
+- [x] Migration: `Conversation.botPaused boolean default false` (migration 20260523000001)
+- [x] Atualizar tipos `Lead`, `Conversation` em `packages/types`
 
 #### Bot
-- [ ] Extrator LLM: adicionar campo `source` no schema Zod (B11) — valores `olx | zap | site | instagram | indicacao | outro | desconhecido`
-- [ ] Bot: persistir `source` extraído em `Lead.source` (1ª detecção; não sobrescrever depois)
-- [ ] Bot: setar `propertyId` quando lead foca em imóvel (em `flows/lead/context.ts`)
-- [ ] Bot: no router de webhook, se `conversation.botPaused === true`, ignora mensagem (loga `Event` pra histórico mas não invoca LLM nem responde)
-- [ ] Bot endpoint: `PATCH /admin/leads/:id/pause-bot` — body `{paused: boolean}` → atualiza `Conversation.botPaused`
-- [ ] Bot: notificação WhatsApp ao owner quando `stage` muda pra `kyc_pending` (via F0.4 `notifyOwner`)
+- [x] Extrator LLM: adicionar campo `source` no schema Zod (B11) — valores `olx | zap | site | instagram | indicacao | outro | desconhecido`
+- [x] Bot: persistir `source` extraído em `Lead.source` (1ª detecção; não sobrescreve depois)
+- [x] Bot: setar `propertyId` quando lead foca em imóvel (`flows/lead/index.ts`)
+- [x] Bot: no router de webhook, se `conversation.botPaused === true`, ignora mensagem (sem LLM, sem resposta)
+- [x] Bot endpoint: `PATCH /admin/leads/:id/pause-bot` — body `{paused: boolean}` → atualiza `Conversation.botPaused`
+- [x] Bot: notificação WhatsApp ao owner quando `stage` muda pra `kyc_pending` (via `notifyOwner`)
 
 #### Web (admin)
-- [ ] `fetchLeads()` projeta `name`, `source`, `propertyId`, `property.externalId`, `externalId`
-- [ ] Kanban card rico: nome (fallback phone), `externalId` em mono muted, propertyRef, source chip, relative time
-- [ ] Labels corretas das colunas: Novo / Qualificação / Visita agendada / Proposta / Ganho
-- [ ] Mapeamento FSM → coluna (B6) — função pura em `lib/lead-utils.ts`
-- [ ] Tabela: colunas nome + source + property + stage + updatedAt
-- [ ] Header: botões Filtros (stub) + Novo lead (stub "leads vêm via WhatsApp")
-- [ ] Detalhe lead: source + property visíveis; dropdown manual de source pra correção
-- [ ] Detalhe lead: toggle "Pausar bot" no header — chama `PATCH /admin/leads/:id/pause-bot`
-- [ ] Detalhe lead: badge "Bot pausado — você assume" quando `botPaused === true`
+- [x] `fetchLead(id)` retorna `botPaused: boolean` + `documents` (via `Conversation` join)
+- [x] Kanban card rico: `externalId` mono muted, source chip, relative time, propertyRef
+- [x] Mapeamento FSM → coluna (B6) — `stageToColumn()` em `lib/lead-utils.ts`
+- [x] `SOURCE_LABELS` cobre `olx`, `outro`, `desconhecido`
+- [x] `api.ts`: `pauseLead()` e `updateLeadSource()`
+- [x] Detalhe lead: dropdown manual de source para correção
+- [x] Detalhe lead: toggle "Pausar bot / Retomar bot"
+- [x] Detalhe lead: badge "Bot pausado — você assume" quando `botPaused === true`
+- [ ] Labels corretas das colunas kanban: Novo / Qualificação / Visita agendada / Proposta / Ganho (→ Slice 2 cleanup)
+- [ ] Tabela: colunas nome + source + property + stage + updatedAt (→ Slice 2 cleanup)
+- [ ] Header: botões Filtros (stub) + Novo lead (stub) (→ Slice 2 cleanup)
 
 #### Activity log
-- [ ] `lead_created` (bot escreve)
-- [ ] `lead_source_corrected` (web escreve quando owner muda dropdown)
-- [ ] `bot_paused`, `bot_resumed` (web escreve)
-- [ ] `kyc_approved`, `contract_generated`, `payment_confirmed` (bot escreve via endpoints existentes)
+- [x] `lead_created` (bot escreve na 1ª criação)
+- [x] `lead_source_corrected` (web escreve quando owner muda dropdown)
+- [x] `bot_paused`, `bot_resumed` (web escreve junto ao PATCH)
+- [x] `kyc_approved`, `contract_generated`, `payment_confirmed` (pré-existentes em admin.ts)
 
 #### Notif
-- [ ] WhatsApp pro owner em `stage = kyc_pending` (lead submeteu docs)
-- [ ] Email diário (Resend) com resumo de leads novos (cron — pode ficar pra slice posterior)
+- [x] WhatsApp pro owner em `stage = kyc_pending` (bot via `notifyOwner`)
+- [ ] Email diário (Resend) com resumo de leads novos (→ F0.4 Resend pendente)
 
-- [ ] Commit
+- [x] Commit
 
 ### Slice 2 — Properties (CRUD completo + UI)
 **Por quê:** Lead refere imóvel. Tenant refere imóvel. Tudo amarra aqui.

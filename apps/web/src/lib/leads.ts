@@ -40,6 +40,7 @@ export const STAGE_TONE: Record<string, StageTone> = {
   interest: 'default',
   collection: 'default',
   review_submitted: 'accent',
+  visiting: 'accent',
   kyc_pending: 'warn',
   kyc_approved: 'ok',
   residents_docs_complete: 'accent',

@@ -41,24 +41,25 @@ export async function fetchLeads(): Promise<Lead[]> {
 export async function fetchLead(
   id: string,
 ): Promise<Lead & { botPaused: boolean; documents: LeadDocument[] }> {
-  const { data: lead, error: leadErr } = await supabase
-    .from('Lead')
-    .select('*, property:Property(externalId)')
-    .eq('id', id)
-    .single();
-  if (leadErr) throw leadErr;
-
-  const mappedLead = mapLeadRow(lead as LeadRow);
-
-  const [{ data: docs, error: docsErr }, { data: conv }] = await Promise.all([
+  const [{ data: lead, error: leadErr }, { data: docs, error: docsErr }] = await Promise.all([
+    supabase.from('Lead').select('*, property:Property(externalId)').eq('id', id).single(),
     supabase
       .from('LeadDocument')
       .select('*')
       .eq('leadId', id)
       .order('createdAt', { ascending: true }),
-    supabase.from('Conversation').select('botPaused').eq('chatId', mappedLead.phone).maybeSingle(),
   ]);
+  if (leadErr) throw leadErr;
   if (docsErr) throw docsErr;
+
+  const mappedLead = mapLeadRow(lead as LeadRow);
+
+  // Conversation has no leadId FK — must join on phone after lead resolves
+  const { data: conv } = await supabase
+    .from('Conversation')
+    .select('botPaused')
+    .eq('chatId', mappedLead.phone)
+    .maybeSingle();
 
   return {
     ...mappedLead,

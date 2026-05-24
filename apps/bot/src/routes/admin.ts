@@ -57,6 +57,7 @@ function logActivity(
   subjectId: string,
   subjectType: string,
   warn: (data: unknown, msg: string) => void,
+  metadata?: Record<string, unknown>,
 ): void {
   prisma.activityLog
     .create({
@@ -69,7 +70,7 @@ function logActivity(
         subject,
         subjectId,
         subjectType,
-        metadata: {},
+        metadata: (metadata ?? {}) as object,
       },
     })
     .catch((err: unknown) => warn({ err }, 'Failed to write activity log'));
@@ -105,12 +106,31 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const existing = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
     if (!existing) return reply.status(404).send({ error: 'Lead not found' });
 
+    if (propertyId !== undefined) {
+      const prop = await prisma.property.findUnique({ where: { id: propertyId }, select: { id: true } });
+      if (!prop) return reply.status(404).send({ error: 'Property not found' });
+    }
+
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (source !== undefined) data.source = source;
     if (propertyId !== undefined) data.propertyId = propertyId;
 
     const lead = await prisma.lead.update({ where: { id }, data });
+
+    if (source !== undefined) {
+      logActivity(
+        request.adminUserId ?? 'admin',
+        lead.ownerId,
+        'lead_source_corrected',
+        lead.name ?? lead.phone,
+        id,
+        'lead',
+        fastify.log.warn.bind(fastify.log),
+        { source },
+      );
+    }
+
     return reply.send(lead);
   });
 
@@ -149,7 +169,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn.bind(fastify.log),
       );
 
-      return reply.send({ success: true, botPaused: paused });
+      return reply.send({ paused });
     },
   );
 
@@ -408,6 +428,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
+      const existing = await prisma.property.findUnique({ where: { id }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Property not found' });
+
       const data = Object.fromEntries(
         Object.entries(request.body).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
       );
@@ -425,6 +448,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
+
+      const existing = await prisma.property.findUnique({ where: { id }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Property not found' });
 
       await prisma.property.update({ where: { id }, data: { status: 'archived', active: false } });
       await redis.del(`property:${id}`);
@@ -611,6 +637,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const { id } = request.params;
     const { name, description, propagatePolicies, propagateClauses, propagateFields } =
       request.body;
+    const existing = await prisma.ruleSet.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) return reply.status(404).send({ error: 'Rule set not found' });
     const data: Record<string, unknown> = {};
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
@@ -627,6 +655,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
+      const existing = await prisma.ruleSet.findUnique({ where: { id }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Rule set not found' });
       const linked = await prisma.propertyRuleSet.count({ where: { ruleSetId: id } });
       if (linked > 0) {
         return reply.status(409).send({ error: 'Rule set is linked to properties — unlink first' });
@@ -665,6 +695,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { policyId } = request.params;
       const { value, appliesToProperty } = request.body;
+      const existing = await prisma.ruleSetPolicy.findUnique({ where: { id: policyId }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Policy not found' });
       if (value !== undefined && !VALID_POLICY_VALUES.has(value)) {
         return reply
           .status(400)
@@ -684,6 +716,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { policyId } = request.params;
+      const existing = await prisma.ruleSetPolicy.findUnique({ where: { id: policyId }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Policy not found' });
       await prisma.ruleSetPolicy.delete({ where: { id: policyId } });
       return reply.send({ success: true });
     },
@@ -772,6 +806,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/admin/contract-templates/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { id } = request.params;
     const { name, body, status } = request.body;
+    const existing = await prisma.contractTemplate.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) return reply.status(404).send({ error: 'Template not found' });
     if (status !== undefined && !['draft', 'published'].includes(status)) {
       return reply.status(400).send({ error: 'status must be draft or published' });
     }
@@ -888,11 +924,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     '/admin/contracts/:id/status',
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
+      const { id } = request.params;
       const { status } = request.body;
+      const existing = await prisma.contract.findUnique({ where: { id }, select: { id: true } });
+      if (!existing) return reply.status(404).send({ error: 'Contract not found' });
       const valid = ['active', 'terminated', 'renewal'];
       if (!valid.includes(status)) return reply.status(400).send({ error: 'Invalid status' });
       const contract = await prisma.contract.update({
-        where: { id: request.params.id },
+        where: { id },
         data: { status },
       });
       return reply.send(contract);

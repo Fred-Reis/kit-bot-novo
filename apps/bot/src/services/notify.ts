@@ -25,14 +25,16 @@ function buildMessage(args: NotifyArgs): string {
   }
 }
 
-let cachedOwnerPhone: string | null = null;
+const ownerPhoneCache = new Map<string, string>();
 
 async function getOwnerPhone(ownerId: string): Promise<string | null> {
-  if (cachedOwnerPhone) return cachedOwnerPhone;
+  const cached = ownerPhoneCache.get(ownerId);
+  if (cached) return cached;
   const owner = await prisma.owner.findUnique({ where: { id: ownerId } });
   if (!owner) return null;
-  cachedOwnerPhone = owner.notificationPhone ?? owner.phone;
-  return cachedOwnerPhone;
+  const phone = owner.notificationPhone ?? owner.phone;
+  ownerPhoneCache.set(ownerId, phone);
+  return phone;
 }
 
 export async function notifyOwner<T extends NotifyOwnerEventType>(
