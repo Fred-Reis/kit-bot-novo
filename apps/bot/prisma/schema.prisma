@@ -131,7 +131,7 @@ model Tenant {
   id            String     @id @default(uuid())
   ownerId       String
   owner         Owner      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  externalId    String?    @unique
+  externalId    String     @unique
   phone         String     @unique
   propertyId    String
   property      Property   @relation(fields: [propertyId], references: [id])

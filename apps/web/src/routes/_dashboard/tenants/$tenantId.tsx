@@ -56,7 +56,7 @@ function TenantDetailPage() {
         <Avatar name={displayName} size="sm" />
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-foreground">{displayName}</h1>
-          <p className="font-mono text-xs text-muted-foreground">{tenant.phone}</p>
+          <p className="font-mono text-xs text-muted-foreground">{tenant.externalId ?? tenant.phone}</p>
         </div>
       </div>
 
@@ -64,7 +64,7 @@ function TenantDetailPage() {
         { label: 'Pontuação', value: score },
         { label: 'Pgtos em dia', value: onTimeRate },
         { label: 'Fim contrato', value: contractEnd },
-        { label: 'Imóvel', value: tenant.propertyId.slice(0, 6) + '…' },
+        { label: 'Imóvel', value: tenant.propertyName ?? '—' },
       ]} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">

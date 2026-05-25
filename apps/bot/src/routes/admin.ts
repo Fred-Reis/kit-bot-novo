@@ -546,6 +546,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
     await redis.del(`property:${propertyId}`);
 
+    await logActivityHelper({
+      ownerId: owner.id,
+      actorType: 'user',
+      actorLabel: request.adminUserId ?? 'Admin',
+      action: 'tenant_created',
+      subjectType: 'tenant',
+      subjectId: tenant.id,
+      subject: tenant.name ?? tenant.phone,
+    }).catch(fastify.log.warn.bind(fastify.log));
+
     return reply.status(201).send({ success: true, id: tenant.id, tenant });
   });
 

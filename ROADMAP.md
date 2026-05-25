@@ -146,18 +146,19 @@
 - [x] Activity log: `property_created`, `property_archived`
 - [x] Commit
 
-### Slice 3 — Tenants (lista + detalhe completos)
+### Slice 3 — Tenants (lista + detalhe completos) ✅ DONE
+
 **Por quê:** Lead converte em Tenant. Status do inquilino aparece em vários lugares.
 
-- [ ] Migration: `Tenant.externalId` (`IQ-XXX` sequence) — enforce no create
-- [ ] Atualizar tipo `Tenant` em `packages/types`
-- [ ] Bot: auto-gerar `externalId` em `POST /admin/tenants`
-- [ ] Web: `fetchTenants()` join `Property` retorna `propertyName`, `externalId`
-- [ ] Web: tabela com colunas IMÓVEL + STATUS pill (Em dia / Atenção)
-- [ ] Web: cards view atualizado
-- [ ] Web: detalhe — propertyName, externalId, score
-- [ ] Activity log: `tenant_created`
-- [ ] Commit
+- [x] Migration: `Tenant.externalId` (`IQ-XXX` sequence) — enforce no create
+- [x] Atualizar tipo `Tenant` em `packages/types`
+- [x] Bot: auto-gerar `externalId` em `POST /admin/tenants`
+- [x] Web: `fetchTenants()` join `Property` retorna `propertyName`, `externalId`
+- [x] Web: tabela com colunas IMÓVEL + STATUS pill (Em dia / Atenção)
+- [x] Web: cards view atualizado
+- [x] Web: detalhe — propertyName, externalId, score
+- [x] Activity log: `tenant_created`
+- [x] Commit
 
 ### Slice 4 — Templates de contrato (refinement)
 **Por quê:** próximo passo é gerar contrato, então template precisa estar firme antes.
@@ -357,7 +358,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 2/9 (Slice 1 ✓, Slice 2 ✓) | 22% |
+| F1 — Vertical slices | 3/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓) | 33% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 
