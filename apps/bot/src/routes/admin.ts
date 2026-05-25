@@ -6,10 +6,10 @@ import { redis } from '@/db/redis';
 import type { LeadContext } from '@/flows/lead/context';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
+import { normalizeLookupText } from '@/services/catalog';
 import { sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { notifyOwner } from '@/services/notify';
-import { normalizeLookupText } from '@/services/catalog';
 import { generateAndUploadPdf } from '@/services/pdf';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
@@ -52,7 +52,6 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'listingUrl',
   'active',
 ]);
-
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update lead ──────────────────────────────────────────────────────────
@@ -664,6 +663,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const ruleSet = await prisma.ruleSet.create({
         data: { name, description, ownerId: owner.id },
       });
+      await logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: ruleSet.ownerId,
+        action: 'rule_set_created',
+        subject: ruleSet.name,
+        subjectId: ruleSet.id,
+        subjectType: 'rule_set',
+      }).catch(fastify.log.warn.bind(fastify.log));
       return reply.status(201).send(ruleSet);
     },
   );
@@ -782,7 +790,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const { propertyId } = request.body;
       if (!propertyId) return reply.status(400).send({ error: 'propertyId is required' });
+      const ruleSet = await prisma.ruleSet.findUnique({
+        where: { id },
+        select: { ownerId: true, name: true },
+      });
+      if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
       await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      await logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: ruleSet.ownerId,
+        action: 'rule_set_linked',
+        subject: ruleSet.name,
+        subjectId: id,
+        subjectType: 'rule_set',
+        metadata: { propertyId },
+      }).catch(fastify.log.warn.bind(fastify.log));
       return reply.status(201).send({ success: true });
     },
   );
@@ -906,7 +929,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         select: { _count: { select: { contracts: true } } },
       });
       if (!template) return reply.status(404).send({ error: 'Template not found' });
-      if (template._count.contracts > 0) return reply.status(409).send({ error: 'Template is in use' });
+      if (template._count.contracts > 0)
+        return reply.status(409).send({ error: 'Template is in use' });
       await prisma.contractTemplate.delete({ where: { id } });
       return reply.status(204).send();
     },
@@ -948,7 +972,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     const formatDate = (d: string | Date) =>
-      new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      new Date(d).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
 
     const prazo = (() => {
       if (!endDate) return 'Indeterminado';
@@ -992,18 +1020,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const suggestions = [
-      { field: 'owner.name',              label: 'Nome do proprietário',   value: owner.name },
-      { field: 'tenant.name',             label: 'Nome do inquilino',      value: tenant.name ?? '' },
-      { field: 'tenant.cpf',              label: 'CPF do inquilino',       value: tenant.cpf ?? '' },
-      { field: 'tenant.phone',            label: 'Telefone do inquilino',  value: tenant.phone },
-      { field: 'tenant.email',            label: 'E-mail do inquilino',    value: tenant.email ?? '' },
-      { field: 'property.name',           label: 'Nome do imóvel',         value: property.name },
-      { field: 'property.address',        label: 'Endereço',               value: property.address },
-      { field: 'property.neighborhood',   label: 'Bairro',                 value: property.neighborhood },
-      { field: 'property.deposit',        label: 'Depósito',               value: formatBRL(Number(property.deposit)) },
-      { field: 'contract.monthlyRent',    label: 'Aluguel mensal',         value: formatBRL(monthlyRent) },
-      { field: 'contract.startDate',      label: 'Data de início',         value: formatDate(startDate) },
-      { field: 'contract.endDate',        label: 'Data de fim',            value: endDate ? formatDate(endDate) : 'Indeterminado' },
+      { field: 'owner.name', label: 'Nome do proprietário', value: owner.name },
+      { field: 'tenant.name', label: 'Nome do inquilino', value: tenant.name ?? '' },
+      { field: 'tenant.cpf', label: 'CPF do inquilino', value: tenant.cpf ?? '' },
+      { field: 'tenant.phone', label: 'Telefone do inquilino', value: tenant.phone },
+      { field: 'tenant.email', label: 'E-mail do inquilino', value: tenant.email ?? '' },
+      { field: 'property.name', label: 'Nome do imóvel', value: property.name },
+      { field: 'property.address', label: 'Endereço', value: property.address },
+      { field: 'property.neighborhood', label: 'Bairro', value: property.neighborhood },
+      { field: 'property.deposit', label: 'Depósito', value: formatBRL(Number(property.deposit)) },
+      { field: 'contract.monthlyRent', label: 'Aluguel mensal', value: formatBRL(monthlyRent) },
+      { field: 'contract.startDate', label: 'Data de início', value: formatDate(startDate) },
+      {
+        field: 'contract.endDate',
+        label: 'Data de fim',
+        value: endDate ? formatDate(endDate) : 'Indeterminado',
+      },
     ];
 
     return reply.send({ resolved, unresolved, suggestions });

@@ -200,9 +200,12 @@ export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
   return {
     ...(rs as RuleSetDetail),
     policies: (policies ?? []) as RuleSetDetail['policies'],
-    linkedPropertyIds: (links ?? []).map((l) => {
+    linkedProperties: (links ?? []).map((l) => {
       const row = l as unknown as LinkRow;
-      return row.property[0]?.externalId ?? row.propertyId;
+      return {
+        propertyId: row.propertyId,
+        externalId: row.property[0]?.externalId ?? row.propertyId,
+      };
     }),
   };
 }

@@ -22,7 +22,12 @@ export interface RuleSetSummary extends RuleSet {
   _count: { policies: number; properties: number };
 }
 
+export interface LinkedProperty {
+  propertyId: string;
+  externalId: string;
+}
+
 export interface RuleSetDetail extends RuleSet {
   policies: RuleSetPolicy[];
-  linkedPropertyIds: string[];
+  linkedProperties: LinkedProperty[];
 }

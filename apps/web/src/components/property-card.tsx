@@ -1,5 +1,5 @@
 import type { Property } from '@kit-manager/types';
-import { BedDouble, Bath, Maximize2 } from 'lucide-react';
+import { Bath, BedDouble, Maximize2 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { formatCurrency } from '@/lib/utils';
 import { Pill } from './ui/pill';

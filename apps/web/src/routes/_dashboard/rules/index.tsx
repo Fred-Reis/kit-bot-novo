@@ -1,14 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { createFileRoute } from '@tanstack/react-router';
+import { Plus, Trash2, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { fetchRuleSets, fetchRuleSet } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
+import type { RuleSetPolicy } from '@kit-manager/types';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
 import { Toggle } from '@/components/ui/toggle';
-import type { RuleSetPolicy } from '@kit-manager/types';
+import { adminApi } from '@/lib/api';
+import { fetchRuleSets, fetchRuleSet, fetchProperties } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/rules/')({ component: RulesPage });
 
@@ -157,6 +157,84 @@ function RuleSetNameEditor({ detail }: { detail: { id: string; name: string; des
         <p className="mt-0.5 text-xs text-muted-foreground">{detail.description}</p>
       )}
     </div>
+  );
+}
+
+function UnlinkPropertyButton({ ruleSetId, propertyId, externalId }: {
+  ruleSetId: string; propertyId: string; externalId: string;
+}) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => adminApi.unlinkProperty(ruleSetId, propertyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rule-set', ruleSetId] });
+      toast.success('Imóvel desvinculado');
+    },
+    onError: () => toast.error('Falha ao desvincular'),
+  });
+  return (
+    <button
+      type="button"
+      aria-label={`Desvincular ${externalId}`}
+      disabled={mutation.isPending}
+      onClick={() => mutation.mutate()}
+      className="rounded-full p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+    >
+      <X className="size-2.5" />
+    </button>
+  );
+}
+
+function LinkPropertyForm({ ruleSetId, linkedProperties }: {
+  ruleSetId: string; linkedProperties: { propertyId: string }[];
+}) {
+  const [selectedId, setSelectedId] = useState('');
+  const qc = useQueryClient();
+  const { data: properties = [] } = useQuery({
+    queryKey: ['properties'],
+    queryFn: fetchProperties,
+    staleTime: 60_000,
+    refetchInterval: false,
+  });
+  const linkedIds = linkedProperties.map((lp) => lp.propertyId);
+  const available = properties.filter((p) => !linkedIds.includes(p.id));
+  const mutation = useMutation({
+    mutationFn: () => adminApi.linkProperty(ruleSetId, selectedId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rule-set', ruleSetId] });
+      setSelectedId('');
+      toast.success('Imóvel vinculado');
+    },
+    onError: () => toast.error('Falha ao vincular imóvel'),
+  });
+  if (available.length === 0) return null;
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}
+      className="flex gap-2 pt-1"
+    >
+      <select
+        value={selectedId}
+        onChange={(e) => setSelectedId(e.target.value)}
+        className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+      >
+        <option value="">Selecionar imóvel...</option>
+        {available.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.externalId} — {p.name}
+          </option>
+        ))}
+      </select>
+      <CustomButton
+        type="submit"
+        variant="secondary"
+        size="sm"
+        disabled={!selectedId || mutation.isPending}
+      >
+        <Plus className="size-3" />
+        Vincular
+      </CustomButton>
+    </form>
   );
 }
 
@@ -376,23 +454,34 @@ function RulesPage() {
                 ))}
               </div>
 
-              {detail.linkedPropertyIds.length > 0 && (
-                <div>
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Em uso
-                  </p>
+              <div>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Em uso
+                </p>
+                {detail.linkedProperties.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {detail.linkedPropertyIds.map((pid) => (
-                      <span
-                        key={pid}
-                        className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-mono text-muted-foreground"
+                    {detail.linkedProperties.map(({ propertyId, externalId }) => (
+                      <div
+                        key={propertyId}
+                        className="flex items-center gap-0.5 rounded-full bg-muted pl-2 pr-1 py-0.5"
                       >
-                        {pid}
-                      </span>
+                        <span className="text-[11px] font-mono text-muted-foreground">
+                          {externalId}
+                        </span>
+                        <UnlinkPropertyButton
+                          ruleSetId={detail.id}
+                          propertyId={propertyId}
+                          externalId={externalId}
+                        />
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+                <LinkPropertyForm
+                  ruleSetId={detail.id}
+                  linkedProperties={detail.linkedProperties}
+                />
+              </div>
             </div>
           )}
         </div>

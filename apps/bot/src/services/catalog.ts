@@ -15,8 +15,14 @@ const SINGLE_PROPERTY_ALIASES = new Set([
   'do anuncio',
 ]);
 
+export interface PolicyEntry {
+  name: string;
+  value: 'yes' | 'no' | 'conditional';
+}
+
 export interface PropertyData extends Property {
   media: PropertyMedia[];
+  policies: PolicyEntry[];
 }
 
 export function normalizeLookupText(value: string): string {
@@ -43,7 +49,43 @@ export async function invalidatePropertyCache(id: string): Promise<void> {
   await redis.del(`property:${id}`);
 }
 
+const POLICY_VALUE_PT: Record<PolicyEntry['value'], string> = {
+  yes: 'sim',
+  no: 'nao',
+  conditional: 'condicional',
+};
+
 // ─── Queries ─────────────────────────────────────────────────────────────────
+
+const POLICY_INCLUDE = {
+  ruleSets: {
+    include: {
+      ruleSet: {
+        include: {
+          policies: {
+            where: { appliesToProperty: true },
+            orderBy: { name: 'asc' },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+type PolicyIncludeResult = {
+  ruleSets: Array<{
+    ruleSet: { policies: Array<{ name: string; value: string }> };
+  }>;
+};
+
+function extractPolicies(result: PolicyIncludeResult): PolicyEntry[] {
+  return result.ruleSets.flatMap((prs) =>
+    prs.ruleSet.policies.map((p) => ({
+      name: p.name,
+      value: p.value as PolicyEntry['value'],
+    })),
+  );
+}
 
 export async function getProperty(id: string): Promise<PropertyData | null> {
   const cacheKey = `property:${id}`;
@@ -52,22 +94,26 @@ export async function getProperty(id: string): Promise<PropertyData | null> {
 
   const property = await prisma.property.findUnique({
     where: { id },
-    include: { media: { orderBy: { order: 'asc' } } },
+    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
   });
 
-  if (property) await cacheSet(cacheKey, property, PROPERTY_CACHE_TTL);
-  return property as PropertyData | null;
+  if (!property) return null;
+  const { ruleSets: _, ...rest } = property;
+  const propertyData: PropertyData = { ...rest, policies: extractPolicies(property) };
+  await cacheSet(cacheKey, propertyData, PROPERTY_CACHE_TTL);
+  return propertyData;
 }
 
 export async function getPropertyByExternalId(externalId: string): Promise<PropertyData | null> {
   const property = await prisma.property.findUnique({
     where: { externalId: externalId.toUpperCase() },
-    include: { media: { orderBy: { order: 'asc' } } },
+    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
   });
-  if (property) {
-    await cacheSet(`property:${property.id}`, property, PROPERTY_CACHE_TTL);
-  }
-  return property as PropertyData | null;
+  if (!property) return null;
+  const { ruleSets: _, ...rest } = property;
+  const propertyData: PropertyData = { ...rest, policies: extractPolicies(property) };
+  await cacheSet(`property:${property.id}`, propertyData, PROPERTY_CACHE_TTL);
+  return propertyData;
 }
 
 const AVAILABLE_CACHE_KEY = 'properties:available';
@@ -79,11 +125,15 @@ export async function listAvailableProperties(): Promise<PropertyData[]> {
 
   const properties = await prisma.property.findMany({
     where: { active: true },
-    include: { media: { orderBy: { order: 'asc' } } },
+    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
     orderBy: { externalId: 'asc' },
   });
-  await cacheSet(AVAILABLE_CACHE_KEY, properties, AVAILABLE_CACHE_TTL);
-  return properties as PropertyData[];
+  const result: PropertyData[] = properties.map((p) => {
+    const { ruleSets: _, ...rest } = p;
+    return { ...rest, policies: extractPolicies(p) };
+  });
+  await cacheSet(AVAILABLE_CACHE_KEY, result, AVAILABLE_CACHE_TTL);
+  return result;
 }
 
 export async function invalidateAvailablePropertiesCache(): Promise<void> {
@@ -196,6 +246,10 @@ export function describeProperty(p: PropertyData): string {
   facts.push(`Caucao parcelavel em ate ${p.depositInstallmentsMax}x`);
   if (p.visitSchedule) facts.push(`Janela de visita: ${p.visitSchedule}`);
   if (p.rulesText) facts.push(`Regras adicionais: ${p.rulesText}`);
+  if (p.policies.length > 0) {
+    const lines = p.policies.map((pl) => `  ${pl.name}: ${POLICY_VALUE_PT[pl.value]}`).join('\n');
+    facts.push(`Politicas vinculadas:\n${lines}`);
+  }
   return facts.map((f) => `- ${f}`).join('\n');
 }
 
@@ -218,5 +272,9 @@ export function describePropertyTerms(p: PropertyData): string {
   if (p.visitSchedule) facts.push(`Visitas: ${p.visitSchedule}`);
   if (p.media.length > 0) facts.push(`Midias e links: ${describeMediaItems(p.media)}`);
   if (p.rulesText) facts.push(`Regras adicionais: ${p.rulesText}`);
+  if (p.policies.length > 0) {
+    const lines = p.policies.map((pl) => `  ${pl.name}: ${POLICY_VALUE_PT[pl.value]}`).join('\n');
+    facts.push(`Politicas vinculadas:\n${lines}`);
+  }
   return facts.map((f) => `- ${f}`).join('\n');
 }

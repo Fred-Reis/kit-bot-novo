@@ -63,6 +63,10 @@ export const adminApi = {
   ) => botApi.patch(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`, data),
   deletePolicy: (ruleSetId: string, policyId: string) =>
     botApi.delete(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`),
+  linkProperty: (ruleSetId: string, propertyId: string) =>
+    botApi.post(`/admin/rule-sets/${ruleSetId}/properties`, { propertyId }),
+  unlinkProperty: (ruleSetId: string, propertyId: string) =>
+    botApi.delete(`/admin/rule-sets/${ruleSetId}/properties/${propertyId}`),
   previewContract: (data: {
     templateId: string;
     tenantId: string;

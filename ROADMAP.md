@@ -187,16 +187,18 @@
 - [x] Notif: bot avisa owner em `contract_signed`
 - [ ] Commit
 
-### Slice 6 — Rules (UI refinement)
+### Slice 6 — Rules (UI refinement) ✅ DONE
+
 **Por quê:** policies vinculadas a imóvel são usadas pelo bot e referenciadas no contrato.
 
-- [ ] Web: labels corretas das tabs (Políticas / Blocos reutilizáveis / Templates completos / Campos estruturados)
-- [ ] Web: políticas tab — 3-way toggle (Sim/Não/Cond) por policy
-- [ ] Web: políticas tab — "Aplica ao imóvel" toggle por policy
-- [ ] Web: reuso panel — propagação flags + lista de propriedades vinculadas (chips com externalId)
-- [ ] Bot: usar policies do rule set vinculado nas respostas (`info` agent já lê via `catalog.ts`?)
-- [ ] Activity log: `rule_set_created`, `rule_set_linked`
-- [ ] Commit
+- [x] Web: labels corretas das tabs (Políticas / Blocos reutilizáveis / Templates completos / Campos estruturados)
+- [x] Web: políticas tab — 3-way toggle (Sim/Não/Cond) por policy
+- [x] Web: políticas tab — "Aplica ao imóvel" toggle por policy
+- [x] Web: reuso panel — propagação flags + lista de propriedades vinculadas (chips com externalId)
+- [x] Web: reuso panel — vincular/desvincular imóveis
+- [x] Bot: usar policies do rule set vinculado nas respostas (via `catalog.ts`)
+- [x] Activity log: `rule_set_created`, `rule_set_linked`
+- [x] Commit
 
 ### Slice 7 — Financeiro (KPIs + transações + lançamento manual)
 **Por quê:** dor real — proprietário precisa ver pagamentos. Lançamento manual viabiliza o uso.
@@ -358,7 +360,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 5/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓) | 56% |
+| F1 — Vertical slices | 6/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓) | 67% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 

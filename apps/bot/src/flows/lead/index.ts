@@ -5,13 +5,13 @@ import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
 import { getSimpleGreetingReply } from '@/flows/lead/intents';
+import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
   getRequestedMediaType,
   mediaCaption,
   shouldSendMediaDeterministically,
 } from '@/flows/lead/media';
-import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import { resolveTargetAgent } from '@/flows/lead/rules';
 import {
   findMatchingProperty,
