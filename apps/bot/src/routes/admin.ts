@@ -793,12 +793,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           code: true,
           name: true,
           status: true,
-          usageCount: true,
           updatedAt: true,
+          _count: { select: { contracts: true } },
         },
         orderBy: { updatedAt: 'desc' },
       });
-      return reply.send(templates);
+      return reply.send(
+        templates.map(({ _count, ...t }) => ({ ...t, usageCount: _count.contracts })),
+      );
     },
   );
 
@@ -828,6 +830,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const template = await prisma.contractTemplate.create({
         data: { name, code, ownerId: owner.id },
       });
+      logActivityHelper({
+        ownerId: owner.id,
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'Admin',
+        action: 'template_created',
+        subjectType: 'template',
+        subjectId: template.id,
+        subject: template.name,
+      }).catch(fastify.log.warn.bind(fastify.log));
       return reply.status(201).send(template);
     },
   );
@@ -841,7 +852,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const { name, body, status } = request.body;
     const existing = await prisma.contractTemplate.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, name: true, status: true, ownerId: true },
     });
     if (!existing) return reply.status(404).send({ error: 'Template not found' });
     if (status !== undefined && !['draft', 'published'].includes(status)) {
@@ -852,6 +863,17 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     if (body !== undefined) data.body = body;
     if (status !== undefined) data.status = status;
     const template = await prisma.contractTemplate.update({ where: { id }, data });
+    if (status === 'published' && existing.status !== 'published') {
+      logActivityHelper({
+        ownerId: existing.ownerId,
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'Admin',
+        action: 'template_published',
+        subjectType: 'template',
+        subjectId: id,
+        subject: existing.name,
+      }).catch(fastify.log.warn.bind(fastify.log));
+    }
     return reply.send(template);
   });
 
@@ -863,10 +885,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const template = await prisma.contractTemplate.findUnique({
         where: { id },
-        select: { usageCount: true },
+        select: { _count: { select: { contracts: true } } },
       });
       if (!template) return reply.status(404).send({ error: 'Template not found' });
-      if (template.usageCount > 0) return reply.status(409).send({ error: 'Template is in use' });
+      if (template._count.contracts > 0) return reply.status(409).send({ error: 'Template is in use' });
       await prisma.contractTemplate.delete({ where: { id } });
       return reply.status(204).send();
     },
@@ -898,26 +920,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
     const code = await nextExternalId('contract');
 
-    const contract = await prisma.$transaction(async (tx) => {
-      const created = await tx.contract.create({
-        data: {
-          code,
-          ownerId: property.ownerId,
-          templateId,
-          tenantId,
-          propertyId,
-          body: template.body,
-          status: 'active',
-          startDate: new Date(startDate),
-          endDate: endDate ? new Date(endDate) : null,
-          monthlyRent,
-        },
-      });
-      await tx.contractTemplate.update({
-        where: { id: templateId },
-        data: { usageCount: { increment: 1 } },
-      });
-      return created;
+    const contract = await prisma.contract.create({
+      data: {
+        code,
+        ownerId: property.ownerId,
+        templateId,
+        tenantId,
+        propertyId,
+        body: template.body,
+        status: 'active',
+        startDate: new Date(startDate),
+        endDate: endDate ? new Date(endDate) : null,
+        monthlyRent,
+      },
     });
 
     return reply.status(201).send(contract);

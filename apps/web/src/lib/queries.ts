@@ -210,10 +210,13 @@ export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
 export async function fetchContractTemplates(): Promise<ContractTemplateSummary[]> {
   const { data, error } = await supabase
     .from('ContractTemplate')
-    .select('id, code, name, status, usageCount, updatedAt')
+    .select('id, code, name, status, updatedAt, contracts:Contract(count)')
     .order('updatedAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as ContractTemplateSummary[];
+  return (data ?? []).map((t) => {
+    const { contracts, ...rest } = t as typeof t & { contracts: { count: number }[] };
+    return { ...rest, usageCount: contracts[0]?.count ?? 0 };
+  }) as ContractTemplateSummary[];
 }
 
 export async function fetchContractTemplate(id: string): Promise<ContractTemplate> {

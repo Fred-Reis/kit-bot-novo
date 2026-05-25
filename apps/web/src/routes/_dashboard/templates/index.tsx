@@ -50,9 +50,10 @@ function TemplateListItem({
       </button>
       <button
         type="button"
-        aria-label="Remover template"
+        aria-label={template.usageCount > 0 ? 'Template em uso — não pode remover' : 'Remover template'}
         onClick={onDelete}
-        className="mt-0.5 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all"
+        disabled={template.usageCount > 0}
+        className="mt-0.5 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all disabled:pointer-events-none disabled:opacity-50"
       >
         <Trash2 className="size-3.5" />
       </button>

@@ -160,17 +160,16 @@
 - [x] Activity log: `tenant_created`
 - [x] Commit
 
-### Slice 4 — Templates de contrato (refinement)
-**Por quê:** próximo passo é gerar contrato, então template precisa estar firme antes.
+### Slice 4 — Templates de contrato (refinement) ✅ DONE
 
-- [ ] Web: lista esquerda com status pill (Publ./Rasc.) + code + metadata
-- [ ] Web: editor com code visível + Pré-visualizar button
-- [ ] Web: variables chips clicáveis (`{{locador}}` etc) que inserem no cursor
-- [ ] Web: highlighting de `{{variável}}` no body editado
-- [ ] Web: `usageCount` computado em query
-- [ ] Web: bloquear delete se `usageCount > 0`
-- [ ] Activity log: `template_created`, `template_published`
-- [ ] Commit
+- [x] Web: lista esquerda com status pill (Publ./Rasc.) + code + metadata
+- [x] Web: editor com code visível + Pré-visualizar button
+- [x] Web: variables chips clicáveis (`{{locador}}` etc) que inserem no cursor
+- [x] Web: highlighting de `{{variável}}` no body editado
+- [x] Web: `usageCount` computado em query
+- [x] Web: bloquear delete se `usageCount > 0`
+- [x] Activity log: `template_created`, `template_published`
+- [x] Commit
 
 ### Slice 5 — Contracts (geração de Word/PDF)
 **Por quê:** fluxo central do MVP — admin gera contrato baixável.
@@ -358,7 +357,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 3/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓) | 33% |
+| F1 — Vertical slices | 4/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓) | 44% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 
