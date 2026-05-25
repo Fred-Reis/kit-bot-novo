@@ -1,0 +1,1 @@
+ALTER TABLE "Contract" ADD COLUMN "pdfUrl" TEXT;

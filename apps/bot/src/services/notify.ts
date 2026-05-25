@@ -3,7 +3,7 @@ import { sendText } from './evolution';
 
 type NotifyPayloadMap = {
   kyc_pending: { leadName: string; leadPhone: string };
-  contract_signed: { tenantName: string; contractCode: string };
+  contract_signed: { leadName: string };
   payment_overdue: { tenantName: string; propertyName: string; daysOverdue: number };
 };
 
@@ -19,7 +19,7 @@ function buildMessage(args: NotifyArgs): string {
     case 'kyc_pending':
       return `KYC pendente: ${args.payload.leadName} (${args.payload.leadPhone}) enviou documentos para analise.`;
     case 'contract_signed':
-      return `Contrato ${args.payload.contractCode} assinado por ${args.payload.tenantName}.`;
+      return `✅ Contrato assinado por ${args.payload.leadName}. Próximo passo: confirmar pagamento.`;
     case 'payment_overdue':
       return `Pagamento em atraso ha ${args.payload.daysOverdue} dias: ${args.payload.tenantName} - ${args.payload.propertyName}.`;
   }

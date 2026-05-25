@@ -1,4 +1,4 @@
-import type { ContractSummary } from '@kit-manager/types';
+import type { ContractPreview, ContractSummary } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Download, Plus, X } from 'lucide-react';
@@ -55,8 +55,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const MANUAL_SENTINEL = '__manual__';
+
 function NewContractModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
+  const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     templateId: '',
     tenantId: '',
@@ -65,27 +68,31 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
     endDate: '',
     monthlyRent: '',
   });
+  const [preview, setPreview] = useState<ContractPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [manualValues, setManualValues] = useState<Record<string, string>>({});
+  const [manualSet, setManualSet] = useState<Set<string>>(new Set());
 
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: fetchTenants });
-  const { data: properties = [] } = useQuery({
-    queryKey: ['properties'],
-    queryFn: fetchProperties,
-  });
+  const { data: properties = [] } = useQuery({ queryKey: ['properties'], queryFn: fetchProperties });
   const { data: templates = [] } = useQuery({
     queryKey: ['contract-templates'],
     queryFn: fetchContractTemplates,
   });
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      adminApi.createContract({
+  const createMutation = useMutation({
+    mutationFn: () => {
+      const variables = { ...preview?.resolved, ...manualValues };
+      return adminApi.createContract({
         templateId: form.templateId,
         tenantId: form.tenantId,
         propertyId: form.propertyId,
         startDate: form.startDate,
         endDate: form.endDate || undefined,
         monthlyRent: Number(form.monthlyRent),
-      }),
+        variables,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contracts'] });
       toast.success('Contrato criado');
@@ -98,8 +105,46 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
     (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const valid =
+  const step1Valid =
     form.templateId && form.tenantId && form.propertyId && form.startDate && form.monthlyRent;
+
+  const allResolved =
+    preview !== null &&
+    preview.unresolved.every((ph) => (manualValues[ph] ?? '').trim().length > 0);
+
+  async function handleNext() {
+    setPreviewLoading(true);
+    try {
+      const { data } = await adminApi.previewContract({
+        templateId: form.templateId,
+        tenantId: form.tenantId,
+        propertyId: form.propertyId,
+        startDate: form.startDate,
+        endDate: form.endDate || undefined,
+        monthlyRent: Number(form.monthlyRent),
+      });
+      setPreview(data);
+      setManualValues({});
+      setManualSet(new Set());
+      setStep(2);
+    } catch {
+      toast.error('Falha ao verificar variáveis do template');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function handleSelectChange(placeholder: string, value: string) {
+    if (value === MANUAL_SENTINEL) {
+      setManualSet((s) => new Set(s).add(placeholder));
+      setManualValues((v) => ({ ...v, [placeholder]: '' }));
+    } else {
+      setManualSet((s) => { const n = new Set(s); n.delete(placeholder); return n; });
+      setManualValues((v) => ({ ...v, [placeholder]: value }));
+    }
+  }
+
+  const resolvedEntries = Object.entries(preview?.resolved ?? {});
 
   return (
     <div
@@ -111,7 +156,9 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Novo contrato</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            {step === 1 ? 'Novo contrato' : 'Variáveis do contrato'}
+          </h2>
           <button
             type="button"
             aria-label="Fechar"
@@ -122,87 +169,175 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="space-y-3">
-          <Field label="Template">
-            <select value={form.templateId} onChange={set('templateId')} className={FIELD_CLS}>
-              <option value="">Selecionar template…</option>
-              {templates
-                .filter((t) => t.status === 'published')
-                .map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
+        {step === 1 && (
+          <>
+            <div className="space-y-3">
+              <Field label="Template">
+                <select value={form.templateId} onChange={set('templateId')} className={FIELD_CLS}>
+                  <option value="">Selecionar template…</option>
+                  {templates
+                    .filter((t) => t.status === 'published')
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
 
-          <Field label="Inquilino">
-            <select value={form.tenantId} onChange={set('tenantId')} className={FIELD_CLS}>
-              <option value="">Selecionar inquilino…</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name ?? t.phone}
-                </option>
-              ))}
-            </select>
-          </Field>
+              <Field label="Inquilino">
+                <select value={form.tenantId} onChange={set('tenantId')} className={FIELD_CLS}>
+                  <option value="">Selecionar inquilino…</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name ?? t.phone}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-          <Field label="Imóvel">
-            <select value={form.propertyId} onChange={set('propertyId')} className={FIELD_CLS}>
-              <option value="">Selecionar imóvel…</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+              <Field label="Imóvel">
+                <select value={form.propertyId} onChange={set('propertyId')} className={FIELD_CLS}>
+                  <option value="">Selecionar imóvel…</option>
+                  {properties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Início">
-              <input
-                type="date"
-                value={form.startDate}
-                onChange={set('startDate')}
-                className={FIELD_CLS}
-              />
-            </Field>
-            <Field label="Fim (opcional)">
-              <input
-                type="date"
-                value={form.endDate}
-                onChange={set('endDate')}
-                className={FIELD_CLS}
-              />
-            </Field>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Início">
+                  <input
+                    type="date"
+                    value={form.startDate}
+                    onChange={set('startDate')}
+                    className={FIELD_CLS}
+                  />
+                </Field>
+                <Field label="Fim (opcional)">
+                  <input
+                    type="date"
+                    value={form.endDate}
+                    onChange={set('endDate')}
+                    className={FIELD_CLS}
+                  />
+                </Field>
+              </div>
 
-          <Field label="Aluguel mensal (R$)">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.monthlyRent}
-              onChange={set('monthlyRent')}
-              placeholder="900.00"
-              className={FIELD_CLS}
-            />
-          </Field>
-        </div>
+              <Field label="Aluguel mensal (R$)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.monthlyRent}
+                  onChange={set('monthlyRent')}
+                  placeholder="900.00"
+                  className={FIELD_CLS}
+                />
+              </Field>
+            </div>
 
-        <div className="mt-5 flex justify-end gap-2">
-          <CustomButton variant="secondary" size="sm" onClick={onClose}>
-            Cancelar
-          </CustomButton>
-          <CustomButton
-            variant="primary"
-            size="sm"
-            disabled={!valid || mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            Criar contrato
-          </CustomButton>
-        </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <CustomButton variant="secondary" size="sm" onClick={onClose}>
+                Cancelar
+              </CustomButton>
+              <CustomButton
+                variant="primary"
+                size="sm"
+                disabled={!step1Valid || previewLoading}
+                onClick={handleNext}
+              >
+                {previewLoading ? 'Verificando…' : 'Próximo →'}
+              </CustomButton>
+            </div>
+          </>
+        )}
+
+        {step === 2 && preview && (
+          <>
+            <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
+              {resolvedEntries.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Mapeadas automaticamente
+                  </p>
+                  <div className="space-y-1">
+                    {resolvedEntries.map(([ph, val]) => (
+                      <div key={ph} className="flex items-center gap-2 text-xs">
+                        <span className="rounded bg-accent-soft px-1 font-mono text-accent-ink">
+                          {ph}
+                        </span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="truncate text-foreground">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {preview.unresolved.length === 0 && resolvedEntries.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma variável encontrada no template.
+                </p>
+              )}
+
+              {preview.unresolved.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    Precisam de associação
+                  </p>
+                  <div className="space-y-3">
+                    {preview.unresolved.map((ph) => (
+                      <div key={ph}>
+                        <label className="mb-1 block font-mono text-xs text-foreground">{ph}</label>
+                        <select
+                          className={FIELD_CLS}
+                          value={manualSet.has(ph) ? MANUAL_SENTINEL : (manualValues[ph] ?? '')}
+                          onChange={(e) => handleSelectChange(ph, e.target.value)}
+                        >
+                          <option value="">Associar a…</option>
+                          {preview.suggestions.map((s) => (
+                            <option key={s.field} value={s.value}>
+                              {s.label} — {s.value}
+                            </option>
+                          ))}
+                          <option value={MANUAL_SENTINEL}>Preencher manualmente</option>
+                        </select>
+                        {manualSet.has(ph) && (
+                          <input
+                            type="text"
+                            className={`${FIELD_CLS} mt-1`}
+                            placeholder="Digite o valor…"
+                            value={manualValues[ph] ?? ''}
+                            onChange={(e) =>
+                              setManualValues((v) => ({ ...v, [ph]: e.target.value }))
+                            }
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-between gap-2">
+              <CustomButton variant="secondary" size="sm" onClick={() => setStep(1)}>
+                ← Voltar
+              </CustomButton>
+              <CustomButton
+                variant="primary"
+                size="sm"
+                disabled={!allResolved || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? 'Criando…' : 'Criar contrato'}
+              </CustomButton>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

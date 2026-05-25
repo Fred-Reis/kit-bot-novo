@@ -7,11 +7,24 @@ export interface Contract {
   propertyId: string;
   body: string;
   status: 'active' | 'terminated' | 'renewal';
+  pdfUrl: string | null;
   startDate: string;
   endDate: string | null;
   monthlyRent: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ContractVariableSuggestion {
+  field: string;
+  label: string;
+  value: string;
+}
+
+export interface ContractPreview {
+  resolved: Record<string, string>;
+  unresolved: string[];
+  suggestions: ContractVariableSuggestion[];
 }
 
 export interface ContractDetail extends Contract {

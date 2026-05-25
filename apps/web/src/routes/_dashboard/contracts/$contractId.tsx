@@ -2,9 +2,11 @@ import type { ContractDetail } from '@kit-manager/types';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, Download } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
+import { adminApi } from '@/lib/api';
 import { fetchContract } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
@@ -32,12 +34,14 @@ function formatDate(d: string) {
   });
 }
 
+const VAR_PATTERN = /{{[^}]+}}/;
+
 function ContractBody({ body }: { body: string }) {
   const parts = body.split(/({{[^}]+}})/g);
   return (
     <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground font-mono">
       {parts.map((part, i) =>
-        /^{{[^}]+}}$/.test(part) ? (
+        VAR_PATTERN.test(part) ? (
           <span key={i} className="rounded bg-accent-soft px-1 text-accent-ink">
             {part}
           </span>
@@ -52,6 +56,7 @@ function ContractBody({ body }: { body: string }) {
 function ContractDetailPage() {
   const { contractId } = Route.useParams();
   const navigate = useNavigate();
+  const [downloading, setDownloading] = useState(false);
   const {
     data: contract,
     isLoading,
@@ -60,6 +65,18 @@ function ContractDetailPage() {
     queryKey: ['contract', contractId],
     queryFn: () => fetchContract(contractId),
   });
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const { data } = await adminApi.getContractPdf(contractId);
+      window.open(data.url, '_blank');
+    } catch {
+      toast.error('Falha ao gerar PDF');
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -99,9 +116,9 @@ function ContractDetailPage() {
             {contract.tenant.name ?? contract.tenant.phone} · {contract.property.name}
           </p>
         </div>
-        <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
+        <CustomButton variant="secondary" size="sm" disabled={downloading} onClick={handleDownload}>
           <Download className="size-4" />
-          Baixar PDF
+          {downloading ? 'Gerando…' : 'Baixar PDF'}
         </CustomButton>
       </div>
 

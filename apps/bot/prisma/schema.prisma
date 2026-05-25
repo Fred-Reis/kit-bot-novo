@@ -272,6 +272,7 @@ model Contract {
   property    Property         @relation(fields: [propertyId], references: [id])
   body        String
   status      String           @default("active")
+  pdfUrl      String?
   startDate   DateTime
   endDate     DateTime?
   monthlyRent Decimal

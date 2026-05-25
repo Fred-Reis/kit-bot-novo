@@ -1,3 +1,4 @@
+import type { ContractPreview } from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
@@ -62,6 +63,14 @@ export const adminApi = {
   ) => botApi.patch(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`, data),
   deletePolicy: (ruleSetId: string, policyId: string) =>
     botApi.delete(`/admin/rule-sets/${ruleSetId}/policies/${policyId}`),
+  previewContract: (data: {
+    templateId: string;
+    tenantId: string;
+    propertyId: string;
+    startDate: string;
+    endDate?: string;
+    monthlyRent: number;
+  }) => botApi.post<ContractPreview>('/admin/contracts/preview', data),
   createContract: (data: {
     templateId: string;
     tenantId: string;
@@ -69,7 +78,12 @@ export const adminApi = {
     startDate: string;
     endDate?: string;
     monthlyRent: number;
+    variables: Record<string, string>;
   }) => botApi.post('/admin/contracts', data),
+  getContractPdf: (contractId: string) =>
+    botApi.get<{ url: string }>(`/admin/contracts/${contractId}/pdf`),
+  markContractSigned: (leadId: string) =>
+    botApi.post(`/admin/leads/${leadId}/mark-signed`),
   createContractTemplate: (name: string) => botApi.post('/admin/contract-templates', { name }),
   updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string }) =>
     botApi.patch(`/admin/contract-templates/${id}`, data),

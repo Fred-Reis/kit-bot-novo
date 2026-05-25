@@ -163,6 +163,15 @@ function LeadDetailPage() {
     onError: () => toast.error('Erro ao confirmar pagamento.'),
   });
 
+  const markSigned = useMutation({
+    mutationFn: () => adminApi.markContractSigned(leadId),
+    onSuccess: () => {
+      toast.success('Contrato marcado como assinado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: () => toast.error('Erro ao marcar contrato.'),
+  });
+
   if (isLoading) return <div className="h-96 animate-pulse rounded-xl bg-muted" />;
 
   if (!lead) return <p className="text-sm text-muted-foreground">Lead não encontrado.</p>;
@@ -244,6 +253,18 @@ function LeadDetailPage() {
           <CustomButton variant="primary" onClick={() => setShowContractModal(true)}>
             <FileText className="size-4" />
             Gerar Contrato
+          </CustomButton>
+        </div>
+      )}
+      {lead.stage === 'contract_pending' && (
+        <div className="flex gap-2">
+          <CustomButton
+            variant="primary"
+            disabled={markSigned.isPending}
+            onClick={() => markSigned.mutate()}
+          >
+            <CheckCircle className="size-4" />
+            {markSigned.isPending ? 'Salvando…' : 'Marcar contrato assinado'}
           </CustomButton>
         </div>
       )}

@@ -171,19 +171,20 @@
 - [x] Activity log: `template_created`, `template_published`
 - [x] Commit
 
-### Slice 5 — Contracts (geração de Word/PDF)
-**Por quê:** fluxo central do MVP — admin gera contrato baixável.
+### Slice 5 — Contracts (geração de Word/PDF) ✅ DONE
 
-- [ ] Decidir B1 (provisório: `pdfkit`)
-- [ ] Bot: serviço `apps/bot/src/services/pdf.ts` — render template + dados → PDF
-- [ ] Bot: endpoint `GET /admin/contracts/:id/pdf` (gera se não existir, retorna URL Storage)
-- [ ] Bot: endpoint `POST /admin/contracts` cria contrato + body renderizado
-- [ ] Web: `fetchContract(id)` já retorna joins corretos (parcial — finalizar)
-- [ ] Web: detalhe `$contractId.tsx` (uncommitted) — finalizar + botão Baixar PDF funcional
-- [ ] Web: tabela com VIGÊNCIA merged + VALOR + status Renovação computado (≤60 dias do fim)
-- [ ] Web: modal novo contrato funcional (já existe)
-- [ ] Activity log: `contract_created`, `contract_signed`
-- [ ] Notif: bot avisa owner em `contract_signed`
+- [x] Decidir B1 (provisório: `pdfkit`)
+- [x] Bot: serviço `apps/bot/src/services/pdf.ts` — render template + dados → PDF
+- [x] Bot: endpoint `GET /admin/contracts/:id/pdf` (gera se não existir, retorna URL Storage)
+- [x] Bot: endpoint `POST /admin/contracts` cria contrato + body renderizado
+- [x] Bot: endpoint `POST /admin/contracts/preview` — resolução de variáveis com auto-map + suggestions
+- [x] Bot: endpoint `POST /admin/leads/:id/mark-signed` — move stage contract_pending → contract_signed
+- [x] Web: `fetchContract(id)` já retorna joins corretos
+- [x] Web: detalhe `$contractId.tsx` — botão Baixar PDF funcional
+- [x] Web: tabela com VIGÊNCIA merged + VALOR + status Renovação computado (≤60 dias do fim)
+- [x] Web: modal novo contrato em 2 steps — step 2 resolve variáveis não mapeadas
+- [x] Activity log: `contract_created`, `contract_signed`
+- [x] Notif: bot avisa owner em `contract_signed`
 - [ ] Commit
 
 ### Slice 6 — Rules (UI refinement)
@@ -357,7 +358,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 4/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓) | 44% |
+| F1 — Vertical slices | 5/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓) | 56% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 

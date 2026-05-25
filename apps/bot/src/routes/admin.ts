@@ -8,6 +8,9 @@ import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
+import { notifyOwner } from '@/services/notify';
+import { normalizeLookupText } from '@/services/catalog';
+import { generateAndUploadPdf } from '@/services/pdf';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
@@ -50,32 +53,6 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'active',
 ]);
 
-function logActivity(
-  actorLabel: string,
-  ownerId: string,
-  action: string,
-  subject: string,
-  subjectId: string,
-  subjectType: string,
-  warn: (data: unknown, msg: string) => void,
-  metadata?: Record<string, unknown>,
-): void {
-  prisma.activityLog
-    .create({
-      data: {
-        actorType: 'user',
-        actorId: null,
-        actorLabel,
-        ownerId,
-        action,
-        subject,
-        subjectId,
-        subjectType,
-        metadata: (metadata ?? {}) as object,
-      },
-    })
-    .catch((err: unknown) => warn({ err }, 'Failed to write activity log'));
-}
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update lead ──────────────────────────────────────────────────────────
@@ -123,16 +100,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const lead = await prisma.lead.update({ where: { id }, data });
 
     if (source !== undefined) {
-      logActivity(
-        request.adminUserId ?? 'admin',
-        lead.ownerId,
-        'lead_source_corrected',
-        lead.name ?? lead.phone,
-        id,
-        'lead',
-        fastify.log.warn.bind(fastify.log),
-        { source },
-      );
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'lead_source_corrected',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+        metadata: { source },
+      }).catch(fastify.log.warn.bind(fastify.log));
     }
 
     return reply.send(lead);
@@ -163,15 +140,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       const action = paused ? 'bot_paused' : 'bot_resumed';
-      logActivity(
-        request.adminUserId ?? 'admin',
-        lead.ownerId,
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
         action,
-        lead.name ?? lead.phone,
-        id,
-        'lead',
-        fastify.log.warn.bind(fastify.log),
-      );
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ paused });
     },
@@ -216,15 +193,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err }, 'Failed to notify lead after KYC approval');
       });
 
-      logActivity(
-        request.adminUserId ?? 'admin',
-        lead.ownerId,
-        'aprovou KYC',
-        lead.name ?? lead.phone,
-        id,
-        'lead',
-        fastify.log.warn.bind(fastify.log),
-      );
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'kyc_approved',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: nextStage });
     },
@@ -276,17 +253,58 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err }, 'Failed to notify lead after contract generation'),
       );
 
-      logActivity(
-        request.adminUserId ?? 'admin',
-        lead.ownerId,
-        'gerou contrato',
-        lead.name ?? lead.phone,
-        id,
-        'lead',
-        fastify.log.warn.bind(fastify.log),
-      );
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'contract_created',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: 'contract_pending' });
+    },
+  );
+
+  // ─── mark-contract-signed ────────────────────────────────────────────────
+  fastify.post<{ Params: { id: string } }>(
+    '/admin/leads/:id/mark-signed',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: { name: true, phone: true, ownerId: true, stage: true },
+      });
+      if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+
+      const { count } = await prisma.lead.updateMany({
+        where: { id, stage: 'contract_pending' },
+        data: { stage: 'contract_signed' },
+      });
+      if (count === 0) {
+        return reply.status(409).send({
+          error: `Lead is in stage '${lead.stage}', expected 'contract_pending'`,
+        });
+      }
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'contract_signed',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      notifyOwner(lead.ownerId, 'contract_signed', { leadName: lead.name ?? lead.phone }).catch(
+        (err: unknown) => fastify.log.warn({ err }, 'Failed to notify owner on contract_signed'),
+      );
+
+      return reply.send({ success: true, stage: 'contract_signed' });
     },
   );
 
@@ -314,15 +332,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      logActivity(
-        request.adminUserId ?? 'admin',
-        lead.ownerId,
-        'confirmou pagamento',
-        lead.name ?? lead.phone,
-        id,
-        'lead',
-        fastify.log.warn.bind(fastify.log),
-      );
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'payment_confirmed',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ success: true, stage: 'converted' });
     },
@@ -894,7 +912,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  // ─── create contract ─────────────────────────────────────────────────────
+  // ─── preview contract variables ───────────────────────────────────────────
   fastify.post<{
     Body: {
       templateId: string;
@@ -904,8 +922,107 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       endDate?: string;
       monthlyRent: number;
     };
-  }>('/admin/contracts', { preHandler: verifyAdminJwt }, async (request, reply) => {
+  }>('/admin/contracts/preview', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
+
+    const [template, tenant, property] = await Promise.all([
+      prisma.contractTemplate.findUnique({ where: { id: templateId } }),
+      prisma.tenant.findUnique({ where: { id: tenantId } }),
+      prisma.property.findUnique({ where: { id: propertyId }, include: { owner: true } }),
+    ]);
+    if (!template) return reply.status(404).send({ error: 'Template not found' });
+    if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+    if (!property) return reply.status(404).send({ error: 'Property not found' });
+    if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
+    if (isNaN(new Date(startDate).getTime()))
+      return reply.status(400).send({ error: 'Invalid startDate' });
+    if (endDate && isNaN(new Date(endDate).getTime()))
+      return reply.status(400).send({ error: 'Invalid endDate' });
+    if (endDate && new Date(endDate) <= new Date(startDate))
+      return reply.status(400).send({ error: 'endDate must be after startDate' });
+
+    const { owner } = property;
+    if (!owner) return reply.status(404).send({ error: 'Owner not found' });
+
+    const formatBRL = (n: number | { toString(): string }) =>
+      Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const formatDate = (d: string | Date) =>
+      new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const prazo = (() => {
+      if (!endDate) return 'Indeterminado';
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      const months = (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth());
+      return `${months} ${months === 1 ? 'mês' : 'meses'}`;
+    })();
+
+    const autoMap: Record<string, string> = {
+      locador: owner.name,
+      locatario: tenant.name ?? tenant.phone,
+      cpf_locatario: tenant.cpf ?? '',
+      email_locatario: tenant.email ?? '',
+      telefone_locatario: tenant.phone,
+      imovel: property.name,
+      endereco: [property.address, property.complement].filter(Boolean).join(', '),
+      bairro: property.neighborhood,
+      aluguel: formatBRL(monthlyRent),
+      deposito: formatBRL(Number(property.deposit)),
+      inicio: formatDate(startDate),
+      fim: endDate ? formatDate(endDate) : 'Indeterminado',
+      prazo,
+      data_hoje: formatDate(new Date()),
+    };
+
+    const varRegex = /\{\{([^}]+)\}\}/g;
+    const allVars = [...new Set([...template.body.matchAll(varRegex)].map((m) => m[0]))];
+
+    const resolved: Record<string, string> = {};
+    const unresolved: string[] = [];
+
+    for (const placeholder of allVars) {
+      const inner = placeholder.slice(2, -2);
+      const key = normalizeLookupText(inner);
+      if (key in autoMap) {
+        resolved[placeholder] = autoMap[key];
+      } else {
+        unresolved.push(placeholder);
+      }
+    }
+
+    const suggestions = [
+      { field: 'owner.name',              label: 'Nome do proprietário',   value: owner.name },
+      { field: 'tenant.name',             label: 'Nome do inquilino',      value: tenant.name ?? '' },
+      { field: 'tenant.cpf',              label: 'CPF do inquilino',       value: tenant.cpf ?? '' },
+      { field: 'tenant.phone',            label: 'Telefone do inquilino',  value: tenant.phone },
+      { field: 'tenant.email',            label: 'E-mail do inquilino',    value: tenant.email ?? '' },
+      { field: 'property.name',           label: 'Nome do imóvel',         value: property.name },
+      { field: 'property.address',        label: 'Endereço',               value: property.address },
+      { field: 'property.neighborhood',   label: 'Bairro',                 value: property.neighborhood },
+      { field: 'property.deposit',        label: 'Depósito',               value: formatBRL(Number(property.deposit)) },
+      { field: 'contract.monthlyRent',    label: 'Aluguel mensal',         value: formatBRL(monthlyRent) },
+      { field: 'contract.startDate',      label: 'Data de início',         value: formatDate(startDate) },
+      { field: 'contract.endDate',        label: 'Data de fim',            value: endDate ? formatDate(endDate) : 'Indeterminado' },
+    ];
+
+    return reply.send({ resolved, unresolved, suggestions });
+  });
+
+  // ─── create contract ─────────────────────────────────────────────────────
+  fastify.post<{
+    Body: {
+      templateId: string;
+      tenantId: string;
+      propertyId: string;
+      startDate: string;
+      endDate?: string;
+      monthlyRent: number;
+      variables?: Record<string, string>;
+    };
+  }>('/admin/contracts', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent, variables } =
+      request.body;
 
     const [template, tenant, property] = await Promise.all([
       prisma.contractTemplate.findUnique({ where: { id: templateId } }),
@@ -915,8 +1032,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     if (!template) return reply.status(404).send({ error: 'Template not found' });
     if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
     if (!property) return reply.status(404).send({ error: 'Property not found' });
-
     if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
+    if (isNaN(new Date(startDate).getTime()))
+      return reply.status(400).send({ error: 'Invalid startDate' });
+    if (endDate && isNaN(new Date(endDate).getTime()))
+      return reply.status(400).send({ error: 'Invalid endDate' });
+    if (endDate && new Date(endDate) <= new Date(startDate))
+      return reply.status(400).send({ error: 'endDate must be after startDate' });
+
+    let renderedBody = template.body;
+    for (const [placeholder, value] of Object.entries(variables ?? {})) {
+      renderedBody = renderedBody.replaceAll(placeholder, value);
+    }
 
     const code = await nextExternalId('contract');
 
@@ -927,13 +1054,23 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         templateId,
         tenantId,
         propertyId,
-        body: template.body,
+        body: renderedBody,
         status: 'active',
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         monthlyRent,
       },
     });
+
+    logActivityHelper({
+      actorType: 'user',
+      actorLabel: request.adminUserId ?? 'admin',
+      ownerId: property.ownerId,
+      action: 'contract_created',
+      subject: contract.code,
+      subjectId: contract.id,
+      subjectType: 'contract',
+    }).catch(fastify.log.warn.bind(fastify.log));
 
     return reply.status(201).send(contract);
   });
@@ -989,10 +1126,31 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
-  // ─── get contract pdf (stub) ──────────────────────────────────────────────
+  // ─── get contract pdf ─────────────────────────────────────────────────────
   fastify.get<{ Params: { id: string } }>(
     '/admin/contracts/:id/pdf',
     { preHandler: verifyAdminJwt },
-    async (_request, reply) => reply.status(501).send({ error: 'PDF generation not implemented' }),
+    async (request, reply) => {
+      const { id } = request.params;
+      const contract = await prisma.contract.findUnique({
+        where: { id },
+        select: { id: true, code: true, body: true, pdfUrl: true },
+      });
+      if (!contract) return reply.status(404).send({ error: 'Contract not found' });
+
+      let path: string;
+      if (contract.pdfUrl) {
+        path = contract.pdfUrl;
+      } else {
+        path = await generateAndUploadPdf(contract.id, contract.body, contract.code);
+        await prisma.contract.update({ where: { id }, data: { pdfUrl: path } });
+      }
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from('contracts')
+        .createSignedUrl(path, 300);
+      if (signError || !signed) return reply.status(500).send({ error: 'Could not sign PDF URL' });
+      return reply.send({ url: signed.signedUrl });
+    },
   );
 }
