@@ -108,7 +108,7 @@ function DashboardPage() {
   const tenantById = new Map(tenants.map((t) => [t.id, t]));
 
   const upcomingPayments = payments
-    .filter((p) => p.status === 'pending' || p.status === 'overdue')
+    .filter((p) => p.type === 'income' && (p.status === 'pending' || p.status === 'overdue'))
     .slice(0, 4);
 
   const recentLeads = [...leads]
@@ -237,7 +237,7 @@ function DashboardPage() {
           ) : (
             <div className="space-y-3">
               {upcomingPayments.map((p) => {
-                const tenant = tenantById.get(p.tenantId);
+                const tenant = p.tenantId ? tenantById.get(p.tenantId) : undefined;
                 const days = daysUntil(p.month);
                 const isOverdue = p.status === 'overdue';
                 const isDueSoon = !isOverdue && days <= 3;
@@ -245,7 +245,7 @@ function DashboardPage() {
                   <div key={p.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">
-                        {tenant?.name ?? formatPhone(tenant?.phone ?? p.tenantId.slice(0, 8))}
+                        {tenant?.name ?? formatPhone(tenant?.phone ?? (p.tenantId ?? p.id).slice(0, 8))}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         {dueLabel(days, isOverdue)}

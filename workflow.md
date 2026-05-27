@@ -193,7 +193,7 @@ Após mudanças: tsc + oxlint verde.
 
 ## 5️⃣ REVIEW
 
-**Skill:** `/review` (alias `agent-skills:review` / `code-review-and-quality`)
+**Skill:** `/review` (alias `code-review` / `code-review-and-quality`)
 **Entrada:** diff da slice
 **Saída:** issues categorizados
 

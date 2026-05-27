@@ -96,4 +96,9 @@ export const adminApi = {
     botApi.patch(`/admin/leads/${leadId}/pause-bot`, { paused }),
   updateLeadSource: (leadId: string, source: string) =>
     botApi.patch(`/admin/leads/${leadId}`, { source }),
+  createPayment: (
+    data:
+      | { type: 'income'; amount: number; month: string; inquilinoId: string; description?: string; status?: string }
+      | { type: 'expense'; amount: number; month: string; propertyId: string; description: string; status?: string },
+  ) => botApi.post('/admin/payments', data),
 };

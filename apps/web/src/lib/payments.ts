@@ -27,6 +27,7 @@ export function computePaymentsSummary(payments: Payment[]): PaymentsSummary {
   let pendingAmount = 0;
 
   for (const p of payments) {
+    if (p.type !== 'income') continue;
     if (p.status === 'paid' && p.month.startsWith(currentMonth)) monthRevenue += p.amount;
     if (p.status === 'paid' && p.month.startsWith(prevMonth)) prevMonthRevenue += p.amount;
     if (p.status === 'overdue') { overdueAmount += p.amount; overdueCount++; }

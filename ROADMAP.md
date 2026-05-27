@@ -200,24 +200,23 @@
 - [x] Activity log: `rule_set_created`, `rule_set_linked`
 - [x] Commit
 
-### Slice 7 — Financeiro (KPIs + transações + lançamento manual)
-**Por quê:** dor real — proprietário precisa ver pagamentos. Lançamento manual viabiliza o uso.
+### Slice 7 — Financeiro (KPIs + transações + lançamento manual) ✅ DONE
 
-- [ ] Migration: `Payment.description text`, `Payment.type ('income'|'expense')`
-- [ ] Atualizar tipo `Payment` em `packages/types`
-- [ ] Bot: endpoint `POST /admin/payments` (lançamento manual)
-- [ ] Web: `fetchFinanceSummary()` — toReceiveMonth, received, overdue, etc
-- [ ] Web: `fetchMonthlyTotals(months)` — para chart Receita x Inadimplência
-- [ ] Web: `fetchRecentTransactions(limit)` — para tabela movimentos
-- [ ] Web: KPIs labels corretos + subtext + sem sparkline
-- [ ] Web: tabs corretas (Visão geral / À receber / Repasses placeholder / Relatórios placeholder)
-- [ ] Web: chart dual-series (Receita + Inadimplência) com legend
-- [ ] Web: tabela Últimos movimentos
-- [ ] Web: modal "Novo lançamento"
-- [ ] Web: aba À receber funcional
-- [ ] Web: aba Repasses fica placeholder com texto "Disponível com multi-tenancy"
-- [ ] Activity log: `payment_confirmed`, `payment_recorded`, `payment_overdue` (job cron)
-- [ ] Notif: bot avisa owner em atrasos > 5 dias
+- [x] Migration: `Payment.tenantId` nullable + `Payment.propertyId` adicionado
+- [x] Atualizar tipo `Payment` em `packages/types`
+- [x] Bot: endpoint `POST /admin/payments` (lançamento manual)
+- [x] Bot: endpoint `GET /admin/payments` (lista filtrada)
+- [x] Web: KPIs labels corretos + subtext + sparkline
+- [x] Web: tabs corretas (Visão geral / Receitas / À receber / Repasses placeholder / Relatórios placeholder)
+- [x] Web: chart dual-series (Recebido + Em atraso) com legend
+- [x] Web: tabela Últimos movimentos (10 recentes, todos os tipos)
+- [x] Web: aba Receitas com filtro Mês/Semestre/Ano
+- [x] Web: aba À receber funcional (status='pending', ordenada por mês)
+- [x] Web: aba Repasses placeholder "Disponível com multi-tenancy"
+- [x] Web: modal "Novo lançamento" (receita vincula inquilino, despesa vincula imóvel)
+- [x] Activity log: `payment_recorded` (lançamento manual)
+- [ ] Activity log: `payment_overdue` (cron job) — roadmap futuro
+- [ ] Notif: bot avisa owner em atrasos > 5 dias — roadmap futuro
 - [ ] Commit
 
 ### Slice 8 — Dashboard (KPIs + activity + occupancy)
@@ -360,7 +359,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 6/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓) | 67% |
+| F1 — Vertical slices | 7/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓, Slice 7 ✓) | 78% |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 

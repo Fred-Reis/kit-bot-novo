@@ -29,6 +29,7 @@ export function computeMonthlyTotals(payments: Payment[], months: number): Month
   }
 
   for (const p of payments) {
+    if (p.type !== 'income') continue;
     const entry = buckets.get(p.month);
     if (!entry) continue;
     if (p.status === 'paid') entry.revenue += p.amount;

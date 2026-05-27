@@ -20,7 +20,8 @@ export interface Tenant {
 export interface Payment {
   id: string;
   ownerId: string;
-  tenantId: string;
+  tenantId: string | null;
+  propertyId: string | null;
   month: string;
   amount: number;
   status: 'paid' | 'pending' | 'overdue';
