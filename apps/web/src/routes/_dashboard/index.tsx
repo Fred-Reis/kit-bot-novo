@@ -2,10 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/empty-state';
 import { KpiCard } from '@/components/kpi-card';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
+import { formatActivityLabel } from '@/lib/activity-labels';
 import { computeMonthlyTotals } from '@/lib/finance';
 import { formatPhone, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 import { computePaymentsSummary } from '@/lib/payments';
@@ -38,16 +40,14 @@ function dueLabel(days: number, isOverdue: boolean): string {
 }
 
 function ActivityRow({ entry }: { entry: ActivityLogEntry }) {
+  const actor = entry.actorLabel ?? 'Sistema';
+  const verb = formatActivityLabel(entry.action);
   return (
     <li className="flex items-center justify-between px-5 py-3">
       <div className="flex items-center gap-3">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <span className="text-[10px] font-medium">
-            {(entry.actor ?? '?').slice(-2).toUpperCase()}
-          </span>
-        </div>
+        <Avatar name={actor} size="sm" className="size-7 bg-muted text-[10px] text-muted-foreground" />
         <p className="text-xs text-foreground">
-          <span className="font-medium">{entry.actor ?? 'Sistema'}</span> {entry.action}
+          <span className="font-medium">{actor}</span> {verb}
           {entry.subject && (
             <>
               {' '}
@@ -200,8 +200,8 @@ function DashboardPage() {
                 const unitCount = tenants.filter((t) => t.propertyId === p.id).length;
                 const isTaken = unitCount > 0;
                 return (
-                  <div key={p.id} className="flex items-center gap-3">
-                    <span className="w-32 text-xs text-muted-foreground">{p.name}</span>
+                  <div key={p.id} className="flex items-center gap-3" title={p.name}>
+                    <span className="w-32 truncate text-xs text-muted-foreground">{p.name}</span>
                     <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-primary transition-all duration-500"

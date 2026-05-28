@@ -147,7 +147,7 @@ export async function fetchAllPayments(): Promise<Payment[]> {
 
 export interface ActivityLogEntry {
   id: string;
-  actor: string | null;
+  actorLabel: string | null;
   action: string;
   subject: string | null;
   subjectType: string | null;
@@ -157,7 +157,7 @@ export interface ActivityLogEntry {
 export async function fetchActivityLog(limit = 10): Promise<ActivityLogEntry[]> {
   const { data, error } = await supabase
     .from('ActivityLog')
-    .select('id, actor, action, subject, subjectType, createdAt')
+    .select('id, actorLabel, action, subject, subjectType, createdAt')
     .order('createdAt', { ascending: false })
     .limit(limit);
   if (error) throw error;
