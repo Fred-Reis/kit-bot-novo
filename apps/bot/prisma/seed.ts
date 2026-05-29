@@ -5,227 +5,513 @@ import { Pool } from 'pg'
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 
+function monthStr(offsetMonths: number): string {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + offsetMonths)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 async function main() {
   console.log('Seeding database...')
 
-  // Upsert owner
+  // ─── Owner ────────────────────────────────────────────────────────────────
   const owner = await prisma.owner.upsert({
     where: { phone: '5524999999999' },
     update: { name: 'Fred' },
-    create: {
-      name: 'Fred',
-      phone: '5524999999999',
-    },
+    create: { name: 'Fred', phone: '5524999999999' },
   })
+  console.log(`Owner: ${owner.name} (${owner.id})`)
+  const oid = owner.id
 
-  console.log(`Owner upserted: ${owner.name} (${owner.id})`)
-
-  // Upsert KIT-01 property
-  const property = await prisma.property.upsert({
-    where: { externalId: 'KIT-01' },
-    update: {
-      name: 'Kitnet no Retiro',
-      address: 'Rua Laranjeiras, 111',
-      neighborhood: 'Retiro',
-      category: 'kitnet',
-      description:
-        'Quitinete no Retiro, imóvel novo e primeira locação, com porcelanato ' +
-        'e acabamento de primeira. Tem sala e cozinha americana amplas, quarto ' +
-        'suite e lavanderia individual com cobertura. São 4 unidades iguais ' +
-        'disponíveis. Fica perto da entrada da CSN e do Supermercado Poupe. ' +
-        'O ambiente é tranquilo e reservado. A entrada não é independente.',
-      rent: 900,
-      deposit: 900,
-      depositInstallmentsMax: 3,
-      contractMonths: 6,
-      rooms: 1,
-      bathrooms: 1,
-      includesWater: true,
-      includesIptu: true,
-      individualElectricity: true,
-      firstRental: true,
-      independentEntrance: false,
-      acceptsPets: false,
-      maxAdults: 2,
-      acceptsChildren: false,
-      visitSchedule:
-        'Segunda a sexta, 9h–17h. Aos sábados, confirmar disponibilidade; ' +
-        'quando houver atendimento, o ideal é visitar até meio-dia. No local, procurar Valéria ou Vitória.',
-      listingUrl:
-        'https://rj.olx.com.br/serra-angra-dos-reis-e-regiao/imoveis/alugo-kitnet-no-retiro-1487572817',
-      rulesText:
-        'Locação direta com o proprietário Fred. Não é permitido animais. ' +
-        'Permitido no máximo 2 moradores adultos por quitinete; crianças e bebês ' +
-        'não são aceitos nesta quitinete. Prioridade para pessoas sozinhas. ' +
-        'Aluguel de R$ 900 adiantado + caução de R$ 900. ' +
-        'A caução pode ser parcelada em até 3x junto com os aluguéis, deixando ' +
-        'os 3 primeiros pagamentos em R$ 1.200. O contrato inicial é de 6 meses ' +
-        'e se renova automaticamente se ambas as partes concordarem. Água e IPTU ' +
-        'inclusos; luz individual, com ligação por conta do inquilino junto à Light. ' +
-        'O valor do aluguel não baixa para R$ 800; se a pessoa pedir mais parcelas ' +
-        'da caução, diga que o padrão é até 3x e que exceção precisa ser confirmada ' +
-        'com o responsável.',
-      active: true,
-      ownerId: owner.id,
-    },
-    create: {
-      externalId: 'KIT-01',
-      ownerId: owner.id,
-      name: 'Kitnet no Retiro',
-      address: 'Rua Laranjeiras, 111',
-      neighborhood: 'Retiro',
-      category: 'kitnet',
-      description:
-        'Quitinete no Retiro, imóvel novo e primeira locação, com porcelanato ' +
-        'e acabamento de primeira. Tem sala e cozinha americana amplas, quarto ' +
-        'suite e lavanderia individual com cobertura. São 4 unidades iguais ' +
-        'disponíveis. Fica perto da entrada da CSN e do Supermercado Poupe. ' +
-        'O ambiente é tranquilo e reservado. A entrada não é independente.',
-      rent: 900,
-      deposit: 900,
-      depositInstallmentsMax: 3,
-      contractMonths: 6,
-      rooms: 1,
-      bathrooms: 1,
-      includesWater: true,
-      includesIptu: true,
-      individualElectricity: true,
-      firstRental: true,
-      independentEntrance: false,
-      acceptsPets: false,
-      maxAdults: 2,
-      acceptsChildren: false,
-      visitSchedule:
-        'Segunda a sexta, 9h–17h. Aos sábados, confirmar disponibilidade; ' +
-        'quando houver atendimento, o ideal é visitar até meio-dia. No local, procurar Valéria ou Vitória.',
-      listingUrl:
-        'https://rj.olx.com.br/serra-angra-dos-reis-e-regiao/imoveis/alugo-kitnet-no-retiro-1487572817',
-      rulesText:
-        'Locação direta com o proprietário Fred. Não é permitido animais. ' +
-        'Permitido no máximo 2 moradores adultos por quitinete; crianças e bebês ' +
-        'não são aceitos nesta quitinete. Prioridade para pessoas sozinhas. ' +
-        'Aluguel de R$ 900 adiantado + caução de R$ 900. ' +
-        'A caução pode ser parcelada em até 3x junto com os aluguéis, deixando ' +
-        'os 3 primeiros pagamentos em R$ 1.200. O contrato inicial é de 6 meses ' +
-        'e se renova automaticamente se ambas as partes concordarem. Água e IPTU ' +
-        'inclusos; luz individual, com ligação por conta do inquilino junto à Light. ' +
-        'O valor do aluguel não baixa para R$ 800; se a pessoa pedir mais parcelas ' +
-        'da caução, diga que o padrão é até 3x e que exceção precisa ser confirmada ' +
-        'com o responsável.',
-      active: true,
-    },
-  })
-
-  console.log(`Property upserted: ${property.externalId} (${property.id})`)
-
-  // Upsert OLX listing media (type: listing)
-  const existingListing = await prisma.propertyMedia.findFirst({
-    where: { propertyId: property.id, type: 'listing' },
-  })
-
-  if (!existingListing) {
-    await prisma.propertyMedia.create({
-      data: {
-        propertyId: property.id,
-        ownerId: property.ownerId,
-        type: 'listing',
-        url: 'https://rj.olx.com.br/serra-angra-dos-reis-e-regiao/imoveis/alugo-kitnet-no-retiro-1487572817',
-        label: 'Anúncio OLX com fotos e informações',
-        order: 0,
-      },
-    })
-    console.log('OLX listing media created')
+  // ─── Properties ───────────────────────────────────────────────────────────
+  const propBase = {
+    ownerId: oid,
+    category: 'kitnet',
+    rooms: 1,
+    bathrooms: 1,
+    deposit: 900,
+    depositInstallmentsMax: 3,
+    contractMonths: 6,
+    includesWater: true,
+    includesIptu: true,
+    individualElectricity: true,
+    acceptsPets: false,
+    maxAdults: 2,
+    acceptsChildren: false,
+    active: true,
+    visitSchedule: 'Segunda a sexta, 9h–17h.',
   }
 
-  // NOTE: Video media should be added after uploading to Supabase Storage.
-  // Run: npx supabase storage upload properties/KIT-01/videos/tour.mp4
-  // Then update the PropertyMedia record with the public URL.
-  console.log(
-    'REMINDER: Upload kitnet-retiro-video.mp4 to Supabase Storage bucket "properties/KIT-01/videos/" ' +
-      'and add a PropertyMedia record with type="video" and the public URL.',
-  )
+  const p1 = await prisma.property.upsert({
+    where: { externalId: 'KIT-01' },
+    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 01' },
+    create: {
+      ...propBase,
+      externalId: 'KIT-01',
+      name: 'Kitnet no Retiro – Unid. 01',
+      address: 'Rua Laranjeiras, 111',
+      neighborhood: 'Retiro',
+      rent: 900,
+      area: 28,
+      status: 'available',
+      description: 'Quitinete nova, porcelanato, suíte, lavanderia coberta. Próxima à CSN.',
+      rulesText: 'Locação direta. Sem pets. Máx 2 adultos.',
+      listingUrl: 'https://rj.olx.com.br/serra-angra-dos-reis-e-regiao/imoveis/alugo-kitnet-no-retiro-1487572817',
+    },
+  })
 
-  // Upsert contract templates
-  const templates = [
-    {
+  const p2 = await prisma.property.upsert({
+    where: { externalId: 'KIT-02' },
+    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 02' },
+    create: {
+      ...propBase,
+      externalId: 'KIT-02',
+      name: 'Kitnet no Retiro – Unid. 02',
+      address: 'Rua Laranjeiras, 111',
+      neighborhood: 'Retiro',
+      rent: 900,
+      area: 28,
+      status: 'available',
+      description: 'Unidade igual à 01, segundo andar, mais silenciosa.',
+      rulesText: 'Locação direta. Sem pets. Máx 2 adultos.',
+    },
+  })
+
+  const p3 = await prisma.property.upsert({
+    where: { externalId: 'KIT-03' },
+    update: { status: 'rented', name: 'Kitnet no Retiro – Unid. 03' },
+    create: {
+      ...propBase,
+      externalId: 'KIT-03',
+      name: 'Kitnet no Retiro – Unid. 03',
+      address: 'Rua Laranjeiras, 111',
+      neighborhood: 'Retiro',
+      rent: 900,
+      area: 28,
+      status: 'rented',
+      description: 'Ocupada por inquilino ativo.',
+      rulesText: 'Locação direta. Sem pets. Máx 2 adultos.',
+    },
+  })
+
+  const p4 = await prisma.property.upsert({
+    where: { externalId: 'KIT-04' },
+    update: { status: 'rented', name: 'Studio no Centro' },
+    create: {
+      ...propBase,
+      externalId: 'KIT-04',
+      name: 'Studio no Centro',
+      address: 'Av. Lucas Evangelista, 230',
+      neighborhood: 'Vila Santa Cecília',
+      rent: 1100,
+      deposit: 1100,
+      area: 35,
+      status: 'rented',
+      acceptsChildren: true,
+      maxAdults: 3,
+      description: 'Studio amplo, ótima localização, próximo ao comércio.',
+      rulesText: 'Locação direta. Aceita família pequena.',
+    },
+  })
+
+  const p5 = await prisma.property.upsert({
+    where: { externalId: 'KIT-05' },
+    update: { status: 'maintenance', name: 'Kitnet Vila Rica' },
+    create: {
+      ...propBase,
+      externalId: 'KIT-05',
+      name: 'Kitnet Vila Rica',
+      address: 'Rua João XXIII, 45',
+      neighborhood: 'Vila Rica',
+      rent: 800,
+      area: 22,
+      status: 'maintenance',
+      active: false,
+      description: 'Em reforma — previsão de disponibilidade em 30 dias.',
+      rulesText: 'Locação direta. Sem pets.',
+    },
+  })
+
+  console.log(`Properties: ${[p1, p2, p3, p4, p5].map((p) => p.externalId).join(', ')}`)
+
+  // ─── Contract Templates ───────────────────────────────────────────────────
+  const template = await prisma.contractTemplate.upsert({
+    where: { code: 'CT-01' },
+    update: { name: 'Contrato de Locação Residencial', status: 'published' },
+    create: {
       code: 'CT-01',
+      ownerId: oid,
       name: 'Contrato de Locação Residencial',
       status: 'published',
       body: `CONTRATO DE LOCAÇÃO RESIDENCIAL
 
-Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Locação Residencial, que se regerá pelas cláusulas e condições seguintes:
-
-LOCADOR: {{nome_locador}}, CPF {{cpf_locador}}, residente à {{endereco_locador}}.
-
-LOCATÁRIO: {{nome_locatario}}, CPF {{cpf_locatario}}, RG {{rg_locatario}}, residente à {{endereco_locatario}}.
-
-IMÓVEL: {{endereco_imovel}}, {{complemento_imovel}}, {{bairro_imovel}} — doravante denominado "imóvel".
+LOCADOR: {{nome_locador}}, CPF {{cpf_locador}}.
+LOCATÁRIO: {{nome_locatario}}, CPF {{cpf_locatario}}.
+IMÓVEL: {{endereco_imovel}}, {{bairro_imovel}}.
 
 CLÁUSULA 1 — DO PRAZO
-O prazo de locação é de {{prazo_meses}} meses, com início em {{data_inicio}} e término em {{data_termino}}, renovando-se automaticamente por igual período caso nenhuma das partes manifeste intenção contrária com 30 dias de antecedência.
+Prazo de {{prazo_meses}} meses, com início em {{data_inicio}} e término em {{data_termino}}.
 
 CLÁUSULA 2 — DO ALUGUEL
-O valor do aluguel mensal é de R$ {{valor_aluguel}}, a ser pago até o dia {{dia_vencimento}} de cada mês mediante transferência bancária ou PIX para os dados informados pelo LOCADOR.
+Aluguel mensal de R$ {{valor_aluguel}}, pago até o dia {{dia_vencimento}} de cada mês.
 
 CLÁUSULA 3 — DA CAUÇÃO
-O LOCATÁRIO deposita, neste ato, caução equivalente a R$ {{valor_caucao}}, a ser devolvida ao término da locação, descontadas eventuais despesas de reparos por danos causados pelo LOCATÁRIO.
+Caução equivalente a R$ {{valor_caucao}}, devolvida ao término, descontados eventuais reparos.
 
 CLÁUSULA 4 — DAS DESPESAS
-Ficam a cargo do LOCATÁRIO as despesas de energia elétrica, gás e demais consumos individuais. Água e IPTU {{agua_iptu}}.
-
-CLÁUSULA 5 — DAS OBRIGAÇÕES DO LOCATÁRIO
-O LOCATÁRIO se compromete a: (a) usar o imóvel exclusivamente para fins residenciais; (b) conservar o imóvel em bom estado; (c) não sublocar, ceder ou emprestar o imóvel sem autorização expressa do LOCADOR; (d) respeitar o regulamento interno do condomínio, se houver.
-
-CLÁUSULA 6 — DA RESCISÃO
-Em caso de rescisão antecipada pelo LOCATÁRIO, fica estabelecida multa equivalente a {{multa_proporcional}} proporcional ao período restante do contrato.
+Água e IPTU inclusos. Energia elétrica por conta do LOCATÁRIO.
 
 {{cidade}}, {{data_assinatura}}.
 
-___________________________________
-LOCADOR: {{nome_locador}}
+___________________________________     ___________________________________
+LOCADOR: {{nome_locador}}               LOCATÁRIO: {{nome_locatario}}`,
+    },
+  })
 
-___________________________________
-LOCATÁRIO: {{nome_locatario}}`,
+  await prisma.contractTemplate.upsert({
+    where: { code: 'CT-02' },
+    update: {},
+    create: {
+      code: 'CT-02',
+      ownerId: oid,
+      name: 'Aditivo de Reajuste',
+      status: 'draft',
+      body: `ADITIVO — REAJUSTE DE ALUGUEL
+
+LOCADOR: {{nome_locador}} | LOCATÁRIO: {{nome_locatario}}
+
+A partir de {{data_vigencia}}, o aluguel passa de R$ {{valor_anterior}} para R$ {{valor_novo}} ({{percentual_reajuste}}% — {{indice_reajuste}}).
+
+{{cidade}}, {{data_assinatura}}.`,
+    },
+  })
+
+  console.log('Templates: CT-01 (published), CT-02 (draft)')
+
+  // ─── Tenants ──────────────────────────────────────────────────────────────
+  const t1 = await prisma.tenant.upsert({
+    where: { externalId: 'IQ-001' },
+    update: { name: 'Maria Silva', onTimeRate: 0.95, score: 92, propertyId: p3.id },
+    create: {
+      ownerId: oid,
+      externalId: 'IQ-001',
+      phone: '5524988110001',
+      propertyId: p3.id,
+      name: 'Maria Silva',
+      cpf: '123.456.789-00',
+      email: 'maria.silva@gmail.com',
+      score: 92,
+      dueDay: 10,
+      onTimeRate: 0.95,
+      contractStart: new Date('2025-06-01'),
+      contractEnd: new Date('2025-12-01'),
+    },
+  })
+
+  const t2 = await prisma.tenant.upsert({
+    where: { externalId: 'IQ-002' },
+    update: { name: 'João Oliveira', onTimeRate: 0.6, score: 65, propertyId: p4.id },
+    create: {
+      ownerId: oid,
+      externalId: 'IQ-002',
+      phone: '5524988220002',
+      propertyId: p4.id,
+      name: 'João Oliveira',
+      cpf: '987.654.321-00',
+      email: 'joao.oliveira@hotmail.com',
+      score: 65,
+      dueDay: 5,
+      onTimeRate: 0.6,
+      contractStart: new Date('2024-07-01'),
+      contractEnd: new Date('2026-07-01'),
+    },
+  })
+
+  console.log(`Tenants: ${t1.externalId} (${t1.name}), ${t2.externalId} (${t2.name})`)
+
+  // ─── Contracts ────────────────────────────────────────────────────────────
+  const contractBody = template.body
+    .replace('{{nome_locador}}', 'Fred Lopes')
+    .replace('{{cpf_locador}}', '000.000.000-00')
+
+  await prisma.contract.upsert({
+    where: { code: 'CT-2025-0001' },
+    update: {},
+    create: {
+      ownerId: oid,
+      code: 'CT-2025-0001',
+      templateId: template.id,
+      tenantId: t1.id,
+      propertyId: p3.id,
+      body: contractBody
+        .replace('{{nome_locatario}}', 'Maria Silva')
+        .replace('{{cpf_locatario}}', '123.456.789-00')
+        .replace('{{endereco_imovel}}', 'Rua Laranjeiras, 111')
+        .replace('{{bairro_imovel}}', 'Retiro')
+        .replace('{{prazo_meses}}', '6')
+        .replace('{{data_inicio}}', '01/06/2025')
+        .replace('{{data_termino}}', '01/12/2025')
+        .replace('{{valor_aluguel}}', '900,00')
+        .replace('{{dia_vencimento}}', '10')
+        .replace('{{valor_caucao}}', '900,00')
+        .replace('{{cidade}}', 'Volta Redonda')
+        .replace('{{data_assinatura}}', '01/06/2025'),
+      status: 'active',
+      startDate: new Date('2025-06-01'),
+      endDate: new Date('2025-12-01'),
+      monthlyRent: 900,
+    },
+  })
+
+  // Contract nearing renewal (ends in ~45 days)
+  const nearEnd = new Date()
+  nearEnd.setDate(nearEnd.getDate() + 45)
+  await prisma.contract.upsert({
+    where: { code: 'CT-2024-0001' },
+    update: { endDate: nearEnd },
+    create: {
+      ownerId: oid,
+      code: 'CT-2024-0001',
+      templateId: template.id,
+      tenantId: t2.id,
+      propertyId: p4.id,
+      body: contractBody
+        .replace('{{nome_locatario}}', 'João Oliveira')
+        .replace('{{cpf_locatario}}', '987.654.321-00')
+        .replace('{{endereco_imovel}}', 'Av. Lucas Evangelista, 230')
+        .replace('{{bairro_imovel}}', 'Vila Santa Cecília')
+        .replace('{{prazo_meses}}', '12')
+        .replace('{{data_inicio}}', '01/07/2024')
+        .replace('{{data_termino}}', nearEnd.toLocaleDateString('pt-BR'))
+        .replace('{{valor_aluguel}}', '1.100,00')
+        .replace('{{dia_vencimento}}', '5')
+        .replace('{{valor_caucao}}', '1.100,00')
+        .replace('{{cidade}}', 'Volta Redonda')
+        .replace('{{data_assinatura}}', '01/07/2024'),
+      status: 'active',
+      startDate: new Date('2024-07-01'),
+      endDate: nearEnd,
+      monthlyRent: 1100,
+    },
+  })
+
+  console.log('Contracts: CT-2025-0001 (active), CT-2024-0001 (near renewal)')
+
+  // ─── Payments ─────────────────────────────────────────────────────────────
+  // Maria Silva (IQ-001, KIT-03, R$900) — pagadora pontual
+  const paymentsT1 = [
+    { month: monthStr(-2), status: 'paid', amount: 900, paidAt: new Date() },
+    { month: monthStr(-1), status: 'paid', amount: 900, paidAt: new Date() },
+    { month: monthStr(0),  status: 'paid', amount: 900, paidAt: new Date() },
+    { month: monthStr(1),  status: 'pending', amount: 900 },
+  ]
+
+  // João Oliveira (IQ-002, KIT-04, R$1100) — com atraso
+  const paymentsT2 = [
+    { month: monthStr(-2), status: 'paid', amount: 1100, paidAt: new Date() },
+    { month: monthStr(-1), status: 'paid', amount: 1100, paidAt: new Date() },
+    { month: monthStr(0),  status: 'overdue', amount: 1100 },
+    { month: monthStr(1),  status: 'pending', amount: 1100 },
+  ]
+
+  for (const [tenant, property, payments] of [
+    [t1, p3, paymentsT1],
+    [t2, p4, paymentsT2],
+  ] as const) {
+    for (const p of payments) {
+      const existing = await prisma.payment.findFirst({
+        where: { tenantId: tenant.id, month: p.month },
+      })
+      if (!existing) {
+        await prisma.payment.create({
+          data: {
+            ownerId: oid,
+            tenantId: tenant.id,
+            propertyId: property.id,
+            month: p.month,
+            amount: p.amount,
+            status: p.status,
+            type: 'income',
+            paidAt: 'paidAt' in p ? p.paidAt : null,
+          },
+        })
+      }
+    }
+  }
+
+  console.log('Payments: 8 registros (4 por inquilino)')
+
+  // ─── Leads ────────────────────────────────────────────────────────────────
+  const leadsData = [
+    {
+      externalId: 'LD-0001',
+      phone: '5524991001001',
+      name: 'Ana Costa',
+      source: 'olx',
+      stage: 'interest',
+      propertyId: p1.id,
     },
     {
-      code: 'CT-02',
-      name: 'Aditivo de Reajuste de Aluguel',
-      status: 'draft',
-      body: `ADITIVO CONTRATUAL — REAJUSTE DE ALUGUEL
-
-Pelo presente Aditivo ao Contrato de Locação firmado em {{data_contrato_original}}, as partes:
-
-LOCADOR: {{nome_locador}}
-LOCATÁRIO: {{nome_locatario}}
-
-acordam o seguinte:
-
-CLÁUSULA 1 — DO REAJUSTE
-A partir de {{data_vigencia}}, o valor mensal do aluguel do imóvel situado à {{endereco_imovel}} passará de R$ {{valor_anterior}} para R$ {{valor_novo}}, representando reajuste de {{percentual_reajuste}}% conforme índice {{indice_reajuste}} acumulado no período.
-
-CLÁUSULA 2 — DAS DEMAIS CLÁUSULAS
-Permanecem inalteradas todas as demais cláusulas e condições do contrato original.
-
-{{cidade}}, {{data_assinatura}}.
-
-___________________________________
-LOCADOR: {{nome_locador}}
-
-___________________________________
-LOCATÁRIO: {{nome_locatario}}`,
+      externalId: 'LD-0002',
+      phone: '5524991002002',
+      name: 'Bruno Ferreira',
+      source: 'zap',
+      stage: 'visiting',
+      propertyId: p2.id,
+    },
+    {
+      externalId: 'LD-0003',
+      phone: '5524991003003',
+      name: 'Carla Mendes',
+      source: 'instagram',
+      stage: 'collection',
+      propertyId: p1.id,
+      visitedAt: new Date(Date.now() - 3 * 86400000),
+    },
+    {
+      externalId: 'LD-0004',
+      phone: '5524991004004',
+      name: 'Diego Ramos',
+      source: 'indicacao',
+      stage: 'kyc_pending',
+      propertyId: p2.id,
+      visitedAt: new Date(Date.now() - 7 * 86400000),
+      docsSentAt: new Date(Date.now() - 2 * 86400000),
+    },
+    {
+      externalId: 'LD-0005',
+      phone: '5524991005005',
+      name: 'Elisa Duarte',
+      source: 'olx',
+      stage: 'contract_pending',
+      propertyId: p1.id,
+      visitedAt: new Date(Date.now() - 14 * 86400000),
+      docsSentAt: new Date(Date.now() - 10 * 86400000),
     },
   ]
 
-  for (const tpl of templates) {
-    await prisma.contractTemplate.upsert({
-      where: { code: tpl.code },
-      update: { name: tpl.name, body: tpl.body, status: tpl.status },
-      create: { ...tpl, ownerId: owner.id },
+  for (const lead of leadsData) {
+    await prisma.lead.upsert({
+      where: { externalId: lead.externalId },
+      update: { stage: lead.stage, name: lead.name },
+      create: { ownerId: oid, ...lead },
     })
-    console.log(`ContractTemplate upserted: ${tpl.code} — ${tpl.name}`)
   }
 
-  console.log('Seed complete.')
+  console.log(`Leads: ${leadsData.map((l) => l.externalId).join(', ')}`)
+
+  // ─── Rule Set ─────────────────────────────────────────────────────────────
+  const existingRuleSet = await prisma.ruleSet.findFirst({
+    where: { ownerId: oid, name: 'Padrão Residencial' },
+  })
+
+  const ruleSet = existingRuleSet ?? await prisma.ruleSet.create({
+    data: {
+      ownerId: oid,
+      name: 'Padrão Residencial',
+      description: 'Regras base para todas as kitnets do Retiro',
+      propagatePolicies: true,
+      propagateClauses: true,
+      propagateFields: false,
+    },
+  })
+
+  const policies = [
+    { name: 'Aceita pets', value: 'no' },
+    { name: 'Aceita crianças', value: 'no' },
+    { name: 'Aceita fumantes', value: 'no' },
+    { name: 'Permite sublocação', value: 'no' },
+    { name: 'Aceita fiador', value: 'conditional', description: 'Apenas quando caução não é viável' },
+  ]
+
+  for (const pol of policies) {
+    const existing = await prisma.ruleSetPolicy.findFirst({
+      where: { ruleSetId: ruleSet.id, name: pol.name },
+    })
+    if (!existing) {
+      await prisma.ruleSetPolicy.create({
+        data: { ruleSetId: ruleSet.id, ...pol, appliesToProperty: true },
+      })
+    }
+  }
+
+  // Link rule set to available properties
+  for (const prop of [p1, p2]) {
+    await prisma.propertyRuleSet.upsert({
+      where: { propertyId_ruleSetId: { propertyId: prop.id, ruleSetId: ruleSet.id } },
+      update: {},
+      create: { propertyId: prop.id, ruleSetId: ruleSet.id },
+    })
+  }
+
+  console.log(`RuleSet: "${ruleSet.name}" com ${policies.length} políticas`)
+
+  // ─── Activity Log ─────────────────────────────────────────────────────────
+  const activityCount = await prisma.activityLog.count({ where: { ownerId: oid } })
+
+  if (activityCount === 0) {
+    const logEntries = [
+      {
+        actorType: 'bot', actorLabel: 'Bot', action: 'lead_created',
+        subjectType: 'lead', subjectId: 'LD-0001', subject: 'LD-0001 (Ana Costa)',
+        createdAt: new Date(Date.now() - 6 * 3600000),
+      },
+      {
+        actorType: 'bot', actorLabel: 'Bot', action: 'lead_created',
+        subjectType: 'lead', subjectId: 'LD-0002', subject: 'LD-0002 (Bruno Ferreira)',
+        createdAt: new Date(Date.now() - 5 * 3600000),
+      },
+      {
+        actorType: 'user', actorLabel: 'Fred', action: 'property_created',
+        subjectType: 'property', subjectId: p5.id, subject: 'KIT-05',
+        createdAt: new Date(Date.now() - 4 * 3600000),
+      },
+      {
+        actorType: 'bot', actorLabel: 'Bot', action: 'lead_created',
+        subjectType: 'lead', subjectId: 'LD-0003', subject: 'LD-0003 (Carla Mendes)',
+        createdAt: new Date(Date.now() - 3 * 3600000),
+      },
+      {
+        actorType: 'user', actorLabel: 'Fred', action: 'rule_set_linked',
+        subjectType: 'property', subjectId: p1.id, subject: 'KIT-01',
+        createdAt: new Date(Date.now() - 2 * 3600000),
+      },
+      {
+        actorType: 'bot', actorLabel: 'Bot', action: 'kyc_approved',
+        subjectType: 'lead', subjectId: 'LD-0004', subject: 'LD-0004 (Diego Ramos)',
+        createdAt: new Date(Date.now() - 1 * 3600000),
+      },
+      {
+        actorType: 'user', actorLabel: 'Fred', action: 'payment_recorded',
+        subjectType: 'payment', subjectId: t1.id, subject: `IQ-001 — ${monthStr(0)}`,
+        createdAt: new Date(Date.now() - 30 * 60000),
+      },
+      {
+        actorType: 'user', actorLabel: 'Fred', action: 'tenant_created',
+        subjectType: 'tenant', subjectId: t1.id, subject: 'IQ-001 (Maria Silva)',
+        createdAt: new Date(Date.now() - 10 * 60000),
+      },
+    ]
+
+    for (const entry of logEntries) {
+      await prisma.activityLog.create({ data: { ownerId: oid, ...entry, metadata: {} } })
+    }
+
+    console.log(`ActivityLog: ${logEntries.length} entradas`)
+  } else {
+    console.log(`ActivityLog: ${activityCount} entradas existentes — pulando`)
+  }
+
+  console.log('\nSeed completo ✓')
+  console.log('─────────────────────────────────────────')
+  console.log(`Imóveis : 5 (2 available, 2 rented, 1 maintenance)`)
+  console.log(`Tenants : 2 (IQ-001 pontual, IQ-002 com atraso)`)
+  console.log(`Leads   : 5 (interest → contract_pending)`)
+  console.log(`Pagtos  : 8 (paid/pending/overdue)`)
+  console.log(`Contratos: 2 (1 ativo, 1 próximo do vencimento)`)
+  console.log(`RuleSets: 1 com 5 políticas`)
+  console.log(`ActivityLog: 8 entradas`)
 }
 
 main()
