@@ -217,33 +217,33 @@
 - [x] Activity log: `payment_recorded` (lançamento manual)
 - [ ] Activity log: `payment_overdue` (cron job) — roadmap futuro
 - [ ] Notif: bot avisa owner em atrasos > 5 dias — roadmap futuro
-- [ ] Commit
+- [x] Commit
 
-### Slice 8 — Dashboard (KPIs + activity + occupancy)
+### Slice 8 — Dashboard (KPIs + activity + occupancy) ✅ DONE
 **Por quê:** depende de tudo acima (activity_log, payments, leads enriched).
 
-- [ ] Web: KPI labels corretos (A RECEBER / RECEBIDO / EM ATRASO / LEADS ATIVOS)
-- [ ] Web: KPI delta % vs mês anterior
-- [ ] Web: KPI subtext linhas
-- [ ] Web: month chip no header + botão Exportar (stub)
-- [ ] Web: ocupação por empreendimento — barras com unit count + tooltip nome
-- [ ] Web: próximos vencimentos — nome do tenant + status pill (prio/atraso) + relative time
-- [ ] Web: activity feed — fetch `ActivityLog` últimos 10 + render "actor action subject"
-- [ ] Web: time filter toggle 30d/90d/12m (UI only)
-- [ ] Commit
+- [x] Web: KPI labels corretos (A RECEBER / RECEBIDO / EM ATRASO / LEADS ATIVOS)
+- [x] Web: KPI delta % vs mês anterior
+- [x] Web: KPI subtext linhas
+- [x] Web: month chip no header + botão Exportar (stub)
+- [x] Web: ocupação por empreendimento — barras com unit count + tooltip nome
+- [x] Web: próximos vencimentos — nome do tenant + status pill (prio/atraso) + relative time
+- [x] Web: activity feed — fetch `ActivityLog` últimos 10 + render "actor action subject"
+- [x] Web: time filter toggle 30d/90d/12m (UI only)
+- [x] Commit
 
-### Slice 9 — Configurações (sidebar layout + 7 seções)
+### Slice 9 — Configurações (sidebar layout + 7 seções) ✅ DONE
 **Por quê:** menor urgência operacional. Pode ser last.
 
-- [ ] Web: layout sidebar nav 220px + content panel
-- [ ] Web: Workspace section read-only (nome empresa, CNPJ, etc — hardcoded ou em env por ora)
-- [ ] Web: Integrações section — campos Evolution URL/instância (move da Conta)
-- [ ] Web: Notificações section — toggles
-- [ ] Web: Aparência section — dark mode wired
-- [ ] Web: Segurança stub
-- [ ] Web: Equipe stub ("Disponível com multi-tenancy")
-- [ ] Web: Plano stub ("Em breve")
-- [ ] Commit
+- [x] Web: layout sidebar nav 220px + content panel
+- [x] Web: Workspace section read-only (nome empresa, CNPJ, etc — hardcoded ou em env por ora)
+- [x] Web: Integrações section — campos Evolution URL/instância (move da Conta)
+- [x] Web: Notificações section — toggles
+- [x] Web: Aparência section — dark mode wired
+- [x] Web: Segurança stub
+- [x] Web: Equipe stub ("Disponível com multi-tenancy")
+- [x] Web: Plano stub ("Em breve")
+- [x] Commit
 
 ---
 
@@ -359,7 +359,7 @@
 | Fase | Slices completas | % MVP |
 |---|---|---|
 | F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 7/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓, Slice 7 ✓) | 78% |
+| F1 — Vertical slices | 9/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓, Slice 7 ✓, Slice 8 ✓, Slice 9 ✓) | 100% 🎉 |
 | F2 — Hardening | 0 | — |
 | F3 — Dogfooding | — | — |
 

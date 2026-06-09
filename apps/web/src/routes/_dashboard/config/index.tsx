@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/page-header';
 import { Toggle } from '@/components/ui/toggle';
 import { FormField } from '@/components/form-field';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { CustomButton } from '@/components/ui/btn';
 import { toast } from 'sonner';
 
@@ -106,13 +105,12 @@ function IntegrationsSection() {
 }
 
 function NotificationsSection() {
-  const [notifications, setNotifications] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const { notificationsEnabled, setNotificationsEnabled, autoRefresh, setAutoRefresh } = useUiStore();
 
   return (
     <SectionCard title="Notificações" subtitle="Alertas e atualizações automáticas.">
       <SettingRow label="Notificações ativas">
-        <Toggle checked={notifications} onChange={setNotifications} aria-label="Alternar notificações" />
+        <Toggle checked={notificationsEnabled} onChange={setNotificationsEnabled} aria-label="Alternar notificações" />
       </SettingRow>
       <SettingRow label="Atualização automática">
         <Toggle checked={autoRefresh} onChange={setAutoRefresh} aria-label="Alternar atualização automática" />
@@ -123,18 +121,11 @@ function NotificationsSection() {
 
 function AppearanceSection() {
   const { darkMode, setDarkMode } = useUiStore();
-  const [language, setLanguage] = useState('pt-BR');
 
   return (
-    <SectionCard title="Aparência" subtitle="Tema e idioma da interface.">
+    <SectionCard title="Aparência" subtitle="Tema da interface.">
       <SettingRow label="Modo escuro">
         <Toggle checked={darkMode} onChange={setDarkMode} aria-label="Alternar modo escuro" />
-      </SettingRow>
-      <SettingRow label="Idioma">
-        <Select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-36">
-          <option value="pt-BR">Português (BR)</option>
-          <option value="en-US">English (US)</option>
-        </Select>
       </SettingRow>
     </SectionCard>
   );
@@ -185,8 +176,9 @@ function SettingsPage() {
             <button
               key={item.id}
               type="button"
+              data-active={active === item.id ? '' : undefined}
               onClick={() => setActive(item.id)}
-              className={`w-full rounded-[7px] px-3 py-2 text-left text-sm transition-colors ${active === item.id ? 'bg-accent-soft text-accent-ink font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+              className="w-full rounded-[7px] px-3 py-2 text-left text-sm transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50 data-[active]:bg-accent-soft data-[active]:text-accent-ink data-[active]:font-medium"
             >
               {item.label}
             </button>

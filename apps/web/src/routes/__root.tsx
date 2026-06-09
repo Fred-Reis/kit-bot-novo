@@ -1,6 +1,6 @@
-import { createRootRouteWithContext, Outlet, redirect } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import type { QueryClient } from '@tanstack/react-query';
+import { createRootRouteWithContext, Outlet, redirect } from '@tanstack/react-router';
 import { Toaster } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
