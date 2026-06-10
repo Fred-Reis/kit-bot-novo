@@ -86,8 +86,7 @@ export const adminApi = {
   }) => botApi.post('/admin/contracts', data),
   getContractPdf: (contractId: string) =>
     botApi.get<{ url: string }>(`/admin/contracts/${contractId}/pdf`),
-  markContractSigned: (leadId: string) =>
-    botApi.post(`/admin/leads/${leadId}/mark-signed`),
+  markContractSigned: (leadId: string) => botApi.post(`/admin/leads/${leadId}/mark-signed`),
   createContractTemplate: (name: string) => botApi.post('/admin/contract-templates', { name }),
   updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string }) =>
     botApi.patch(`/admin/contract-templates/${id}`, data),
@@ -98,7 +97,29 @@ export const adminApi = {
     botApi.patch(`/admin/leads/${leadId}`, { source }),
   createPayment: (
     data:
-      | { type: 'income'; amount: number; month: string; inquilinoId: string; description?: string; status?: string }
-      | { type: 'expense'; amount: number; month: string; propertyId: string; description: string; status?: string },
+      | {
+          type: 'income';
+          amount: number;
+          month: string;
+          inquilinoId: string;
+          description?: string;
+          status?: string;
+        }
+      | {
+          type: 'expense';
+          amount: number;
+          month: string;
+          propertyId: string;
+          description: string;
+          status?: string;
+        },
   ) => botApi.post('/admin/payments', data),
 };
+
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const msg = (err.response?.data as { error?: string } | undefined)?.error;
+    if (msg) return msg;
+  }
+  return fallback;
+}

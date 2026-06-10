@@ -1,29 +1,120 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Building2, ChevronLeft, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { ChevronLeft, Building2, RefreshCw, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchProperty } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
-import { SpecBar } from '@/components/spec-bar';
-import { Pill } from '@/components/ui/pill';
-import { CustomButton } from '@/components/ui/btn';
 import { ConfirmButton } from '@/components/confirm-button';
+import { SpecBar } from '@/components/spec-bar';
+import { CustomButton } from '@/components/ui/btn';
+import { Pill } from '@/components/ui/pill';
+import { formatActivityLabel } from '@/lib/activity-labels';
+import { adminApi } from '@/lib/api';
+import {
+  type ActivityLogEntry,
+  fetchProperty,
+  fetchPropertyActivityLog,
+  fetchPropertyTenant,
+} from '@/lib/queries';
+import { tenantStatus } from '@/lib/tenant-utils';
+import { cn, formatCurrency, relativeTime } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/properties/$propertyId/')({
   component: PropertyDetailPage,
 });
 
-type Tab = 'details' | 'rules' | 'gallery' | 'documents' | 'history';
+type Tab = 'details' | 'rules' | 'gallery' | 'history';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'details', label: 'Detalhes' },
   { id: 'rules', label: 'Regras' },
   { id: 'gallery', label: 'Galeria' },
-  { id: 'documents', label: 'Documentos' },
   { id: 'history', label: 'Histórico' },
 ];
+
+const TENANT_STATUS_DISPLAY = {
+  ok: { label: 'Em dia', color: 'text-success' },
+  attention: { label: 'Atenção', color: 'text-warning' },
+} as const;
+
+function PropertyHistoryTab({ propertyId }: { propertyId: string }) {
+  const {
+    data: entries = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['property-activity', propertyId],
+    queryFn: () => fetchPropertyActivityLog(propertyId),
+    staleTime: 60_000,
+  });
+
+  if (isLoading) return <div className="h-24 animate-pulse rounded-lg bg-muted" />;
+
+  if (isError) return <p className="text-sm text-destructive">Erro ao carregar histórico.</p>;
+
+  if (entries.length === 0)
+    return <p className="text-sm text-muted-foreground">Nenhuma atividade registrada.</p>;
+
+  return (
+    <ul data-slot="activity-list" className="divide-y divide-border">
+      {entries.map((entry: ActivityLogEntry) => {
+        const actor = entry.actorLabel ?? 'Sistema';
+        const verb = formatActivityLabel(entry.action);
+        return (
+          <li key={entry.id} className="flex items-center justify-between py-3">
+            <p className="text-sm text-foreground">
+              <span className="font-medium">{actor}</span> {verb}
+              {entry.subject && (
+                <>
+                  {' '}
+                  <span className="font-medium">{entry.subject}</span>
+                </>
+              )}
+            </p>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {relativeTime(entry.createdAt)}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function TenantSidebar({ propertyId }: { propertyId: string }) {
+  const {
+    data: tenant,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['property-tenant', propertyId],
+    queryFn: () => fetchPropertyTenant(propertyId),
+    staleTime: 300_000,
+  });
+
+  if (isLoading) return <div className="h-16 animate-pulse rounded-lg bg-muted" />;
+
+  if (isError) return <p className="text-sm text-destructive">Erro ao carregar inquilino.</p>;
+
+  if (!tenant) return <p className="text-sm text-muted-foreground">Sem inquilino.</p>;
+
+  const statusToken = tenantStatus(tenant.onTimeRate);
+  const status = statusToken ? TENANT_STATUS_DISPLAY[statusToken] : null;
+
+  return (
+    <div data-slot="tenant-summary" className="space-y-2">
+      <p className="text-sm font-medium text-foreground">{tenant.name ?? '—'}</p>
+      <p className="font-mono text-xs text-muted-foreground">{tenant.phone ?? '—'}</p>
+      {status && <span className={cn('text-xs font-medium', status.color)}>{status.label}</span>}
+      <Link
+        to="/tenants/$tenantId"
+        params={{ tenantId: tenant.id }}
+        className="block text-xs text-primary hover:underline"
+      >
+        Ver inquilino →
+      </Link>
+    </div>
+  );
+}
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -115,8 +206,12 @@ function PropertyDetailPage() {
       </div>
 
       {/* Gallery grid */}
-      <div className="grid h-72 gap-1.5 overflow-hidden rounded-[10px]"
-        style={{ gridTemplateColumns: hero ? '2fr 1fr' : '1fr', gridTemplateRows: 'repeat(2, 1fr)' }}
+      <div
+        className="grid h-72 gap-1.5 overflow-hidden rounded-[10px]"
+        style={{
+          gridTemplateColumns: hero ? '2fr 1fr' : '1fr',
+          gridTemplateRows: 'repeat(2, 1fr)',
+        }}
       >
         {hero ? (
           <img
@@ -126,25 +221,36 @@ function PropertyDetailPage() {
             style={{ gridRow: '1 / 3' }}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-muted" style={{ gridRow: '1 / 3' }}>
+          <div
+            className="flex h-full w-full items-center justify-center bg-muted"
+            style={{ gridRow: '1 / 3' }}
+          >
             <Building2 className="size-12 text-muted-foreground/30" />
           </div>
         )}
         {rest.slice(0, 2).map((m, i) => (
-          <img key={m.id} src={m.url} alt={m.label ?? `foto ${i + 2}`} className="h-full w-full object-cover" />
+          <img
+            key={m.id}
+            src={m.url}
+            alt={m.label ?? `foto ${i + 2}`}
+            className="h-full w-full object-cover"
+          />
         ))}
-        {rest.length < 2 && Array.from({ length: 2 - rest.length }).map((_, i) => (
-          <div key={i} className="h-full w-full bg-muted" />
-        ))}
+        {rest.length < 2 &&
+          Array.from({ length: 2 - rest.length }).map((_, i) => (
+            <div key={i} className="h-full w-full bg-muted" />
+          ))}
       </div>
 
       {/* SpecBar */}
-      <SpecBar cells={[
-        { label: 'Aluguel', value: formatCurrency(property.rent) },
-        { label: 'Área', value: '—' },
-        { label: 'Quartos', value: String(property.rooms) },
-        { label: 'Banheiros', value: String(property.bathrooms) },
-      ]} />
+      <SpecBar
+        cells={[
+          { label: 'Aluguel', value: formatCurrency(property.rent) },
+          { label: 'Área', value: '—' },
+          { label: 'Quartos', value: String(property.rooms) },
+          { label: 'Banheiros', value: String(property.bathrooms) },
+        ]}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         {/* Tabbed main content */}
@@ -169,7 +275,10 @@ function PropertyDetailPage() {
 
           {/* Tab content */}
           {tab === 'details' && (
-            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <div
+              className="rounded-[10px] bg-surface-raised p-5"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
+            >
               <div className="divide-y divide-border">
                 <InfoRow
                   label="Endereço"
@@ -188,7 +297,10 @@ function PropertyDetailPage() {
                 <InfoRow label="Aceita pets" value={property.acceptsPets ? 'Sim' : 'Não'} />
                 <InfoRow label="Inclui água" value={property.includesWater ? 'Sim' : 'Não'} />
                 <InfoRow label="Inclui IPTU" value={property.includesIptu ? 'Sim' : 'Não'} />
-                <InfoRow label="Luz individual" value={property.individualElectricity ? 'Sim' : 'Não'} />
+                <InfoRow
+                  label="Luz individual"
+                  value={property.individualElectricity ? 'Sim' : 'Não'}
+                />
                 <InfoRow
                   label="Entrada independente"
                   value={property.independentEntrance ? 'Sim' : 'Não'}
@@ -221,7 +333,10 @@ function PropertyDetailPage() {
           )}
 
           {tab === 'rules' && (
-            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <div
+              className="rounded-[10px] bg-surface-raised p-5"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
+            >
               {property.rulesText ? (
                 <p className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
                   {property.rulesText}
@@ -233,7 +348,10 @@ function PropertyDetailPage() {
           )}
 
           {tab === 'gallery' && (
-            <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+            <div
+              className="rounded-[10px] bg-surface-raised p-5"
+              style={{ boxShadow: 'var(--shadow-sm)' }}
+            >
               {property.media.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma mídia cadastrada.</p>
               ) : (
@@ -241,14 +359,20 @@ function PropertyDetailPage() {
                   {property.media.map((m) => (
                     <div key={m.id} className="overflow-hidden rounded-lg border border-border">
                       {m.type === 'photo' ? (
-                        <img src={m.url} alt={m.label ?? 'foto'} className="h-32 w-full object-cover" />
+                        <img
+                          src={m.url}
+                          alt={m.label ?? 'foto'}
+                          className="h-32 w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-32 items-center justify-center bg-muted text-xs text-muted-foreground">
                           {m.type === 'video' ? 'Vídeo' : 'Listing'}
                         </div>
                       )}
                       {m.label && (
-                        <p className="px-2 py-1 text-[11px] text-muted-foreground truncate">{m.label}</p>
+                        <p className="px-2 py-1 text-[11px] text-muted-foreground truncate">
+                          {m.label}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -257,12 +381,13 @@ function PropertyDetailPage() {
             </div>
           )}
 
-          {(tab === 'documents' || tab === 'history') && (
+          {tab === 'history' && (
             <div
-              className="flex h-40 items-center justify-center rounded-[10px] bg-surface-raised"
+              className="rounded-[10px] bg-surface-raised p-5"
               style={{ boxShadow: 'var(--shadow-sm)' }}
             >
-              <p className="text-sm text-muted-foreground">Em construção.</p>
+              <h2 className="mb-4 text-sm font-medium text-foreground">Histórico</h2>
+              <PropertyHistoryTab propertyId={propertyId} />
             </div>
           )}
         </div>
@@ -275,7 +400,7 @@ function PropertyDetailPage() {
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Inquilino
           </h3>
-          <p className="text-sm text-muted-foreground">Sem inquilino.</p>
+          <TenantSidebar propertyId={propertyId} />
         </div>
       </div>
     </div>

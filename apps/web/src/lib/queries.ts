@@ -267,3 +267,43 @@ export async function fetchContract(id: string): Promise<ContractDetail> {
     property: { name: r.property[0]?.name ?? '' },
   };
 }
+
+export async function fetchPublishedTemplates(): Promise<ContractTemplateSummary[]> {
+  const { data, error } = await supabase
+    .from('ContractTemplate')
+    .select('id, code, name, status, updatedAt')
+    .eq('status', 'published')
+    .order('updatedAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((t) => ({ ...t, usageCount: 0 })) as ContractTemplateSummary[];
+}
+
+export async function fetchPropertyActivityLog(propertyId: string): Promise<ActivityLogEntry[]> {
+  const { data, error } = await supabase
+    .from('ActivityLog')
+    .select('id, actorLabel, action, subject, subjectType, createdAt')
+    .eq('subjectId', propertyId)
+    .order('createdAt', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  return (data ?? []) as ActivityLogEntry[];
+}
+
+export interface PropertyTenantSummary {
+  id: string;
+  name: string | null;
+  phone: string;
+  onTimeRate: number | null;
+}
+
+export async function fetchPropertyTenant(
+  propertyId: string,
+): Promise<PropertyTenantSummary | null> {
+  const { data, error } = await supabase
+    .from('Tenant')
+    .select('id, name, phone, onTimeRate')
+    .eq('propertyId', propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as PropertyTenantSummary | null;
+}

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/_auth/login')({ component: LoginPage });
@@ -12,19 +13,28 @@ function LoginPage() {
   async function handleMagicLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: window.location.origin },
     });
-    setSent(true);
+    if (error) {
+      toast.error('Erro ao enviar magic link.');
+    } else {
+      setSent(true);
+    }
     setLoading(false);
   }
 
   async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) toast.error('Erro ao iniciar login com Google.');
+    } catch {
+      toast.error('Erro ao iniciar login com Google.');
+    }
   }
 
   return (

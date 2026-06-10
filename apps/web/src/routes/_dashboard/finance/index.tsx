@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 import { toast } from 'sonner';
 import { KpiCard } from '@/components/kpi-card';
@@ -17,20 +24,23 @@ import { formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/finance/')({ component: FinancePage });
 
-const TABS = ['Visão geral', 'Receitas', 'À receber', 'Repasses', 'Relatórios'];
+const TABS = ['Visão geral', 'Receitas', 'À receber', 'Repasses'];
 
 function currencyTick(value: number) {
   if (value >= 1000) return `R$${(value / 1000).toFixed(0)}k`;
   return `R$${value}`;
 }
 
-
 function RevenueChart({ data }: { data: { month: string; revenue: number; overdue: number }[] }) {
   return (
     <div>
       <p className="mb-4 text-xs text-muted-foreground">Receita mensal (R$)</p>
       <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }} barCategoryGap="30%">
+        <BarChart
+          data={data}
+          margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
+          barCategoryGap="30%"
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
           <XAxis
             dataKey="month"
@@ -62,7 +72,12 @@ function RevenueChart({ data }: { data: { month: string; revenue: number; overdu
             wrapperStyle={{ fontSize: 11 }}
           />
           <Bar dataKey="revenue" fill="var(--color-primary)" radius={[4, 4, 0, 0]} opacity={0.85} />
-          <Bar dataKey="overdue" fill="var(--color-destructive)" radius={[4, 4, 0, 0]} opacity={0.6} />
+          <Bar
+            dataKey="overdue"
+            fill="var(--color-destructive)"
+            radius={[4, 4, 0, 0]}
+            opacity={0.6}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -79,7 +94,9 @@ function RecentMovementsTable({ payments }: { payments: Payment[] }) {
   );
 
   if (recent.length === 0) {
-    return <p className="py-4 text-center text-xs text-muted-foreground">Nenhum movimento registrado.</p>;
+    return (
+      <p className="py-4 text-center text-xs text-muted-foreground">Nenhum movimento registrado.</p>
+    );
   }
   return (
     <table className="w-full text-xs" data-slot="recent-movements">
@@ -148,7 +165,9 @@ function ReceitasTab({ payments }: { payments: Payment[] }) {
               type="button"
               onClick={() => setFilter(f)}
               className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-                filter === f ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                filter === f
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {f === 'month' ? 'Mês' : f === 'semester' ? 'Semestre' : 'Ano'}
@@ -175,7 +194,9 @@ function ReceitasTab({ payments }: { payments: Payment[] }) {
         )}
       </div>
       {income.length === 0 ? (
-        <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma receita no período.</p>
+        <p className="py-6 text-center text-xs text-muted-foreground">
+          Nenhuma receita no período.
+        </p>
       ) : (
         <table className="w-full text-xs">
           <thead>
@@ -191,9 +212,13 @@ function ReceitasTab({ payments }: { payments: Payment[] }) {
               <tr key={p.id}>
                 <td className="py-2 font-mono text-muted-foreground">{p.month}</td>
                 <td className="py-2 text-foreground">{p.description ?? '—'}</td>
-                <td className="py-2 text-right font-mono font-medium">{formatCurrency(p.amount)}</td>
+                <td className="py-2 text-right font-mono font-medium">
+                  {formatCurrency(p.amount)}
+                </td>
                 <td className="py-2 text-right">
-                  <Pill tone={p.status === 'paid' ? 'ok' : p.status === 'overdue' ? 'bad' : 'default'}>
+                  <Pill
+                    tone={p.status === 'paid' ? 'ok' : p.status === 'overdue' ? 'bad' : 'default'}
+                  >
                     {p.status === 'paid' ? 'Pago' : p.status === 'overdue' ? 'Atraso' : 'Pendente'}
                   </Pill>
                 </td>
@@ -216,7 +241,9 @@ function AReceberTab({ payments }: { payments: Payment[] }) {
   );
 
   if (pending.length === 0) {
-    return <p className="py-6 text-center text-xs text-muted-foreground">Nenhum pagamento pendente.</p>;
+    return (
+      <p className="py-6 text-center text-xs text-muted-foreground">Nenhum pagamento pendente.</p>
+    );
   }
   return (
     <table className="w-full text-xs">
@@ -266,12 +293,20 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
   const [inquilinoId, setInquilinoId] = useState('');
   const [propertyId, setPropertyId] = useState('');
 
-  const { data: tenants = [], isLoading: tenantsLoading, isError: tenantsError } = useQuery({
+  const {
+    data: tenants = [],
+    isLoading: tenantsLoading,
+    isError: tenantsError,
+  } = useQuery({
     queryKey: ['tenants'],
     queryFn: fetchTenants,
     staleTime: 60_000,
   });
-  const { data: properties = [], isLoading: propertiesLoading, isError: propertiesError } = useQuery({
+  const {
+    data: properties = [],
+    isLoading: propertiesLoading,
+    isError: propertiesError,
+  } = useQuery({
     queryKey: ['properties'],
     queryFn: fetchProperties,
     staleTime: 60_000,
@@ -281,7 +316,12 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
     mutationFn: () => {
       const base = { amount: Number(amount), month, status };
       if (type === 'income') {
-        return adminApi.createPayment({ ...base, type: 'income', inquilinoId, description: description || undefined });
+        return adminApi.createPayment({
+          ...base,
+          type: 'income',
+          inquilinoId,
+          description: description || undefined,
+        });
       }
       return adminApi.createPayment({ ...base, type: 'expense', propertyId, description });
     },
@@ -298,14 +338,25 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
     month.length === 7 &&
     (type === 'income' ? !!inquilinoId : !!propertyId && !!description);
 
-  const FIELD = 'w-full rounded border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary';
+  const FIELD =
+    'w-full rounded border border-border bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-slot="modal-overlay">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      data-slot="modal-overlay"
+    >
       <div className="w-full max-w-md rounded-xl bg-surface-raised p-6 shadow-lg" data-slot="modal">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-base font-semibold text-foreground">Novo lançamento</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar modal" className="text-muted-foreground hover:text-foreground">✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar modal"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="mb-4 flex gap-1 rounded-md border border-border p-0.5">
@@ -315,7 +366,9 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
               type="button"
               onClick={() => setType(t)}
               className={`flex-1 rounded py-1.5 text-sm font-medium transition-colors ${
-                type === t ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                type === t
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t === 'income' ? 'Receita' : 'Despesa'}
@@ -330,10 +383,17 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
               {tenantsError ? (
                 <p className="text-xs text-destructive">Erro ao carregar inquilinos.</p>
               ) : (
-                <select value={inquilinoId} onChange={(e) => setInquilinoId(e.target.value)} className={FIELD} disabled={tenantsLoading}>
+                <select
+                  value={inquilinoId}
+                  onChange={(e) => setInquilinoId(e.target.value)}
+                  className={FIELD}
+                  disabled={tenantsLoading}
+                >
                   <option value="">{tenantsLoading ? 'Carregando…' : 'Selecionar…'}</option>
                   {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name ?? t.phone}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name ?? t.phone}
+                    </option>
                   ))}
                 </select>
               )}
@@ -344,10 +404,17 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
               {propertiesError ? (
                 <p className="text-xs text-destructive">Erro ao carregar imóveis.</p>
               ) : (
-                <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} className={FIELD} disabled={propertiesLoading}>
+                <select
+                  value={propertyId}
+                  onChange={(e) => setPropertyId(e.target.value)}
+                  className={FIELD}
+                  disabled={propertiesLoading}
+                >
                   <option value="">{propertiesLoading ? 'Carregando…' : 'Selecionar…'}</option>
                   {properties.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
                   ))}
                 </select>
               )}
@@ -369,7 +436,12 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
 
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">Mês de referência *</label>
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={FIELD} />
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className={FIELD}
+            />
           </div>
 
           <div>
@@ -395,7 +467,11 @@ function NewPaymentModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="mt-6 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+          >
             Cancelar
           </button>
           <button
@@ -428,9 +504,10 @@ function FinancePage() {
   const overdueSpark = monthlyData.map((d) => d.overdue);
 
   const nonZeroMonths = monthlyData.filter((d) => d.revenue > 0);
-  const avgPerMonth = nonZeroMonths.length > 0
-    ? nonZeroMonths.reduce((s, d) => s + d.revenue, 0) / nonZeroMonths.length
-    : 0;
+  const avgPerMonth =
+    nonZeroMonths.length > 0
+      ? nonZeroMonths.reduce((s, d) => s + d.revenue, 0) / nonZeroMonths.length
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -457,7 +534,11 @@ function FinancePage() {
         <KpiCard
           label="EM ATRASO"
           value={summary.overdueAmount > 0 ? formatCurrency(summary.overdueAmount) : '—'}
-          subtext={summary.overdueCount > 0 ? `${summary.overdueCount} pagamento${summary.overdueCount !== 1 ? 's' : ''}` : undefined}
+          subtext={
+            summary.overdueCount > 0
+              ? `${summary.overdueCount} pagamento${summary.overdueCount !== 1 ? 's' : ''}`
+              : undefined
+          }
           sparkData={overdueSpark}
           up={false}
           className={summary.overdueAmount > 0 ? 'ring-1 ring-destructive/40' : undefined}
@@ -465,7 +546,11 @@ function FinancePage() {
         <KpiCard
           label="A RECEBER"
           value={formatCurrency(summary.pendingAmount)}
-          subtext={summary.pendingCount > 0 ? `${summary.pendingCount} boleto${summary.pendingCount !== 1 ? 's' : ''}` : undefined}
+          subtext={
+            summary.pendingCount > 0
+              ? `${summary.pendingCount} boleto${summary.pendingCount !== 1 ? 's' : ''}`
+              : undefined
+          }
           sparkData={revenueSpark}
           up={summary.pendingAmount > 0}
         />
@@ -477,7 +562,10 @@ function FinancePage() {
         />
       </div>
 
-      <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+      <div
+        className="rounded-[10px] bg-surface-raised p-5"
+        style={{ boxShadow: 'var(--shadow-sm)' }}
+      >
         <div className="mb-4 flex gap-1 border-b border-border">
           {TABS.map((t, i) => (
             <button
@@ -509,7 +597,6 @@ function FinancePage() {
         {tab === 1 && <ReceitasTab payments={payments} />}
         {tab === 2 && <AReceberTab payments={payments} />}
         {tab === 3 && <Placeholder text="Disponível com multi-tenancy." />}
-        {tab === 4 && <Placeholder text="Em construção." />}
       </div>
     </div>
   );

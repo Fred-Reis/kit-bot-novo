@@ -265,6 +265,18 @@
 
 ---
 
+## Backlog de features sem design
+
+> Features removidas da UI por não terem design ou backend definidos. Retomar quando houver spec.
+
+- [ ] Property detail — aba Documentos do imóvel (escritura, IPTU, matrícula)
+- [ ] Rules — aba Blocos reutilizáveis (cláusulas de contrato reutilizáveis)
+- [ ] Rules — aba Templates completos
+- [ ] Rules — aba Campos estruturados
+- [ ] Finance — aba Relatórios exportáveis
+
+---
+
 ## Fase 3 — Dogfooding (uso próprio real)
 
 > Operação ponta-a-ponta dos seus 5–15 imóveis. Métricas do PRD §7 começam a ser medidas.

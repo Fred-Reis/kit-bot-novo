@@ -5,9 +5,9 @@ import { AlertCircle, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { CustomButton } from '@/components/ui/btn';
-import { adminApi } from '@/lib/api';
+import { adminApi, apiErrorMessage } from '@/lib/api';
 import { SOURCE_LABELS, STAGES } from '@/lib/leads';
-import { fetchLead } from '@/lib/queries';
+import { fetchLead, fetchPublishedTemplates } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -75,6 +75,18 @@ function DocGrid({ docs }: { docs: LeadDocument[] }) {
 function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
   const [day, setDay] = useState(10);
   const qc = useQueryClient();
+
+  const {
+    data: templates = [],
+    isLoading: loadingTemplates,
+    isError: templatesError,
+  } = useQuery({
+    queryKey: ['published-templates'],
+    queryFn: fetchPublishedTemplates,
+  });
+
+  const hasTemplates = !templatesError && templates.length > 0;
+
   const mutation = useMutation({
     mutationFn: () => adminApi.generateContract(leadId, Math.min(28, Math.max(1, day))),
     onSuccess: () => {
@@ -82,8 +94,9 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       onClose();
     },
-    onError: () => toast.error('Erro ao gerar contrato.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao gerar contrato.')),
   });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
       <div
@@ -91,26 +104,51 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
         className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-6 shadow-lg"
       >
         <h2 className="text-base font-semibold text-foreground">Gerar Contrato</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Dia de vencimento do aluguel</p>
-        <input
-          type="number"
-          min={1}
-          max={28}
-          value={day}
-          onChange={(e) => setDay(Number(e.target.value))}
-          className="mt-3 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
+
+        {loadingTemplates ? (
+          <p className="mt-3 text-sm text-muted-foreground">Verificando templates…</p>
+        ) : templatesError ? (
+          <p className="mt-3 text-sm text-destructive">Erro ao verificar templates.</p>
+        ) : !hasTemplates ? (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm text-destructive">
+              Nenhum template publicado. Crie e publique um template antes de continuar.
+            </p>
+            <Link
+              to="/templates"
+              onClick={onClose}
+              className="inline-flex items-center text-sm font-medium text-primary hover:underline"
+            >
+              Ir para Templates →
+            </Link>
+          </div>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-muted-foreground">Dia de vencimento do aluguel</p>
+            <input
+              type="number"
+              min={1}
+              max={28}
+              value={day}
+              onChange={(e) => setDay(Number(e.target.value))}
+              className="mt-3 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </>
+        )}
+
         <div className="mt-4 flex justify-end gap-2">
           <CustomButton variant="secondary" onClick={onClose}>
             Cancelar
           </CustomButton>
-          <CustomButton
-            variant="primary"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? 'Gerando...' : 'Gerar contrato'}
-          </CustomButton>
+          {hasTemplates && (
+            <CustomButton
+              variant="primary"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending ? 'Gerando...' : 'Gerar contrato'}
+            </CustomButton>
+          )}
         </div>
       </div>
     </div>
@@ -133,7 +171,7 @@ function LeadDetailPage() {
       toast.success(next ? 'Bot pausado.' : 'Bot retomado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
-    onError: () => toast.error('Erro ao alternar bot.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao alternar bot.')),
   });
 
   const updateSource = useMutation({
@@ -142,7 +180,7 @@ function LeadDetailPage() {
       toast.success('Origem atualizada.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
-    onError: () => toast.error('Erro ao atualizar origem.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar origem.')),
   });
 
   const approveKyc = useMutation({
@@ -151,7 +189,7 @@ function LeadDetailPage() {
       toast.success('KYC aprovado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
-    onError: () => toast.error('Erro ao aprovar KYC.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao aprovar KYC.')),
   });
 
   const confirmPayment = useMutation({
@@ -160,7 +198,7 @@ function LeadDetailPage() {
       toast.success('Pagamento confirmado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
-    onError: () => toast.error('Erro ao confirmar pagamento.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao confirmar pagamento.')),
   });
 
   const markSigned = useMutation({
@@ -169,7 +207,7 @@ function LeadDetailPage() {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
-    onError: () => toast.error('Erro ao marcar contrato.'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
 
   if (isLoading) return <div className="h-96 animate-pulse rounded-xl bg-muted" />;
