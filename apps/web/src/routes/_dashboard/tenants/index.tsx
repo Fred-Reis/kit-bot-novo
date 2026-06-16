@@ -1,15 +1,15 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { ChevronRight, LayoutGrid, List, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import { ChevronRight, Plus, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
-import { fetchTenants } from '@/lib/queries';
-import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
+import { PageHeader } from '@/components/page-header';
 import { Avatar } from '@/components/ui/avatar';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
+import { fetchTenants } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/tenants/')({ component: TenantsPage });
 
@@ -55,11 +55,7 @@ function TenantsPage() {
         subtitle={`${tenants.length} inquilinos ativos`}
         actions={
           <div className="flex items-center gap-2">
-            <CustomButton
-              variant="secondary"
-              size="sm"
-              onClick={() => toast.info('Em breve')}
-            >
+            <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
               <SlidersHorizontal className="size-4" />
               Filtros
             </CustomButton>
@@ -125,12 +121,24 @@ function TenantsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">Inquilino</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Imóvel</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Status</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Score</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Venc.</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Início</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">
+                  Inquilino
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                  Imóvel
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">
+                  Status
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                  Score
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">
+                  Venc.
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                  Início
+                </th>
                 <th className="w-8 px-5 py-3" />
               </tr>
             </thead>
@@ -147,7 +155,9 @@ function TenantsPage() {
                       >
                         <Avatar name={displayName} size="sm" />
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {displayName}
+                          </p>
                           <p className="font-mono text-[11px] text-muted-foreground">
                             {tenant.externalId ?? tenant.phone}
                           </p>
@@ -196,7 +206,9 @@ function TenantsPage() {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar name={displayName} size="sm" />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-foreground">{displayName}</p>
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {displayName}
+                        </p>
                         <p className="font-mono text-[11px] text-muted-foreground">
                           {tenant.externalId ?? tenant.phone}
                         </p>
@@ -205,7 +217,9 @@ function TenantsPage() {
                     <StatusPill status={tenant.status} />
                   </div>
                   {tenant.propertyName && (
-                    <p className="mb-2 truncate text-xs text-muted-foreground">{tenant.propertyName}</p>
+                    <p className="mb-2 truncate text-xs text-muted-foreground">
+                      {tenant.propertyName}
+                    </p>
                   )}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Score</span>

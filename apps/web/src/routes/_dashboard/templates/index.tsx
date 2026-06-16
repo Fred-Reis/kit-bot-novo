@@ -1,14 +1,14 @@
+import type { ContractTemplateSummary } from '@kit-manager/types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Upload } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { fetchContractTemplates, fetchContractTemplate } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
-import type { ContractTemplateSummary } from '@kit-manager/types';
+import { adminApi } from '@/lib/api';
+import { fetchContractTemplate, fetchContractTemplates } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/templates/')({ component: TemplatesPage });
 
@@ -33,10 +33,14 @@ function TemplateListItem({
   onDelete: () => void;
 }) {
   return (
-    <div className={`group flex items-start gap-2 px-4 py-3 transition-colors hover:bg-muted/50 ${active ? 'bg-accent-soft' : ''}`}>
+    <div
+      className={`group flex items-start gap-2 px-4 py-3 transition-colors hover:bg-muted/50 ${active ? 'bg-accent-soft' : ''}`}
+    >
       <button type="button" onClick={onSelect} className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2">
-          <p className={`text-sm font-medium truncate ${active ? 'text-accent-ink' : 'text-foreground'}`}>
+          <p
+            className={`text-sm font-medium truncate ${active ? 'text-accent-ink' : 'text-foreground'}`}
+          >
             {template.name}
           </p>
           <Pill tone={template.status === 'published' ? 'ok' : 'warn'}>
@@ -45,12 +49,18 @@ function TemplateListItem({
         </div>
         <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{template.code}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          em uso · {template.usageCount} · atualizado {new Date(template.updatedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+          em uso · {template.usageCount} · atualizado{' '}
+          {new Date(template.updatedAt).toLocaleDateString('pt-BR', {
+            day: 'numeric',
+            month: 'short',
+          })}
         </p>
       </button>
       <button
         type="button"
-        aria-label={template.usageCount > 0 ? 'Template em uso — não pode remover' : 'Remover template'}
+        aria-label={
+          template.usageCount > 0 ? 'Template em uso — não pode remover' : 'Remover template'
+        }
         onClick={onDelete}
         disabled={template.usageCount > 0}
         className="mt-0.5 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all disabled:pointer-events-none disabled:opacity-50"
@@ -65,17 +75,30 @@ function AddVariableInput({ onAdd }: { onAdd: (name: string) => void }) {
   const [name, setName] = useState('');
   const commit = () => {
     const trimmed = name.trim().replace(/\s+/g, '_');
-    if (trimmed) { onAdd(trimmed); setName(''); }
+    if (trimmed) {
+      onAdd(trimmed);
+      setName('');
+    }
   };
   return (
-    <form onSubmit={(e) => { e.preventDefault(); commit(); }} className="flex items-center gap-1">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit();
+      }}
+      className="flex items-center gap-1"
+    >
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="nova_variavel"
         className="w-28 rounded border border-border bg-background px-2 py-0.5 font-mono text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
       />
-      <button type="submit" disabled={!name.trim()} className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40">
+      <button
+        type="submit"
+        disabled={!name.trim()}
+        className="rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+      >
         + add
       </button>
     </form>
@@ -101,20 +124,22 @@ function EditorPanel({ templateId }: { templateId: string }) {
     if (!template) return;
     setBody(template.body);
     setVarOrder(extractVariables(template.body));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template?.id]);
 
-  const getEditorHtml = useCallback((rawBody: string) =>
-    rawBody
-      .split(/(\{\{[^}]+\}\})/g)
-      .map((part) => {
-        if (part.startsWith('{{') && part.endsWith('}}')) {
-          return `<span contenteditable="false" style="background:var(--color-accent-soft);color:var(--color-accent-ink);border-radius:2px;padding:0 2px;font-size:11px;">${escapeHtml(varValues[part] || part)}</span>`;
-        }
-        return escapeHtml(part).replace(/\n/g, '<br/>');
-      })
-      .join(''),
-  [varValues]);
+  const getEditorHtml = useCallback(
+    (rawBody: string) =>
+      rawBody
+        .split(/(\{\{[^}]+\}\})/g)
+        .map((part) => {
+          if (part.startsWith('{{') && part.endsWith('}}')) {
+            return `<span contenteditable="false" style="background:var(--color-accent-soft);color:var(--color-accent-ink);border-radius:2px;padding:0 2px;font-size:11px;">${escapeHtml(varValues[part] || part)}</span>`;
+          }
+          return escapeHtml(part).replace(/\n/g, '<br/>');
+        })
+        .join(''),
+    [varValues],
+  );
 
   useEffect(() => {
     if (!editorFocused && editorRef.current) {
@@ -161,15 +186,24 @@ function EditorPanel({ templateId }: { templateId: string }) {
   };
 
   if (isLoading || !template) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Carregando…</div>;
+    return (
+      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+        Carregando…
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+    <div
+      className="flex flex-col rounded-[10px] bg-surface-raised p-5"
+      style={{ boxShadow: 'var(--shadow-sm)' }}
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-sm font-medium text-foreground truncate">{template.name}</h2>
-          <span className="font-mono text-[11px] text-muted-foreground shrink-0">{template.code}</span>
+          <span className="font-mono text-[11px] text-muted-foreground shrink-0">
+            {template.code}
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <CustomButton variant="ghost" size="sm" onClick={() => setPreviewing((p) => !p)}>
@@ -178,7 +212,9 @@ function EditorPanel({ templateId }: { templateId: string }) {
           <CustomButton
             variant="secondary"
             size="sm"
-            onClick={() => publishMutation.mutate(template.status === 'published' ? 'draft' : 'published')}
+            onClick={() =>
+              publishMutation.mutate(template.status === 'published' ? 'draft' : 'published')
+            }
             disabled={publishMutation.isPending}
           >
             {template.status === 'published' ? 'Rascunho' : 'Publicar'}
@@ -219,7 +255,9 @@ function EditorPanel({ templateId }: { templateId: string }) {
             <div className="mb-3 grid gap-2 sm:grid-cols-2">
               {varOrder.map((v) => (
                 <div key={v} className="flex items-center gap-1.5">
-                  <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] text-accent-ink bg-accent-soft w-32 truncate">{v}</span>
+                  <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] text-accent-ink bg-accent-soft w-32 truncate">
+                    {v}
+                  </span>
                   <input
                     value={varValues[v] ?? ''}
                     onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
@@ -235,11 +273,14 @@ function EditorPanel({ templateId }: { templateId: string }) {
 
       {previewing ? (
         <div className="flex-1 min-h-[300px] overflow-y-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-          {body.replace(/{{([^}]+)}}/g, (match, key) => varValues[`{{${key}}}`] || match)
+          {body
+            .replace(/{{([^}]+)}}/g, (match, key) => varValues[`{{${key}}}`] || match)
             .split(/({{[^}]+}})/g)
             .map((part, i) =>
               part.startsWith('{{') ? (
-                <span key={i} className="rounded px-0.5 text-accent-ink bg-accent-soft">{part}</span>
+                <span key={i} className="rounded px-0.5 text-accent-ink bg-accent-soft">
+                  {part}
+                </span>
               ) : (
                 <span key={i}>{part}</span>
               ),
@@ -336,9 +377,14 @@ function TemplatesPage() {
       />
 
       <div className="grid h-[calc(100vh-220px)] min-h-[400px] gap-4 lg:grid-cols-[280px_1fr]">
-        <div className="overflow-y-auto rounded-[10px] bg-surface-raised divide-y divide-border" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <div
+          className="overflow-y-auto rounded-[10px] bg-surface-raised divide-y divide-border"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           {templates.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Nenhum template. Crie um para começar.</p>
+            <p className="p-4 text-sm text-muted-foreground">
+              Nenhum template. Crie um para começar.
+            </p>
           ) : (
             templates.map((t) => (
               <TemplateListItem

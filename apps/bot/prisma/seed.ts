@@ -45,7 +45,7 @@ async function main() {
 
   const p1 = await prisma.property.upsert({
     where: { externalId: 'KIT-01' },
-    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 01' },
+    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 01', visitSchedule: 'Segunda a sexta, 9h–17h.' },
     create: {
       ...propBase,
       externalId: 'KIT-01',
@@ -63,7 +63,7 @@ async function main() {
 
   const p2 = await prisma.property.upsert({
     where: { externalId: 'KIT-02' },
-    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 02' },
+    update: { status: 'available', name: 'Kitnet no Retiro – Unid. 02', visitSchedule: 'Segunda a sexta, 9h–17h.' },
     create: {
       ...propBase,
       externalId: 'KIT-02',
@@ -192,7 +192,7 @@ A partir de {{data_vigencia}}, o aluguel passa de R$ {{valor_anterior}} para R$ 
   // ─── Tenants ──────────────────────────────────────────────────────────────
   const t1 = await prisma.tenant.upsert({
     where: { externalId: 'IQ-001' },
-    update: { name: 'Maria Silva', onTimeRate: 0.95, score: 92, propertyId: p3.id },
+    update: { name: 'Maria Silva', onTimeRate: 0.95, score: 92, propertyId: p3.id, dueDay: 10 },
     create: {
       ownerId: oid,
       externalId: 'IQ-001',
@@ -211,7 +211,7 @@ A partir de {{data_vigencia}}, o aluguel passa de R$ {{valor_anterior}} para R$ 
 
   const t2 = await prisma.tenant.upsert({
     where: { externalId: 'IQ-002' },
-    update: { name: 'João Oliveira', onTimeRate: 0.6, score: 65, propertyId: p4.id },
+    update: { name: 'João Oliveira', onTimeRate: 0.6, score: 65, propertyId: p4.id, dueDay: 5 },
     create: {
       ownerId: oid,
       externalId: 'IQ-002',

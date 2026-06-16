@@ -1,12 +1,12 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
-import { fetchTenant } from '@/lib/queries';
-import { formatCurrency } from '@/lib/utils';
-import { SpecBar } from '@/components/spec-bar';
 import { EmptyState } from '@/components/empty-state';
+import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
+import { fetchTenant } from '@/lib/queries';
+import { formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/tenants/$tenantId')({
   component: TenantDetailPage,
@@ -56,16 +56,20 @@ function TenantDetailPage() {
         <Avatar name={displayName} size="sm" />
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-foreground">{displayName}</h1>
-          <p className="font-mono text-xs text-muted-foreground">{tenant.externalId ?? tenant.phone}</p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {tenant.externalId ?? tenant.phone}
+          </p>
         </div>
       </div>
 
-      <SpecBar cells={[
-        { label: 'Pontuação', value: score },
-        { label: 'Pgtos em dia', value: onTimeRate },
-        { label: 'Fim contrato', value: contractEnd },
-        { label: 'Imóvel', value: tenant.propertyName ?? '—' },
-      ]} />
+      <SpecBar
+        cells={[
+          { label: 'Pontuação', value: score },
+          { label: 'Pgtos em dia', value: onTimeRate },
+          { label: 'Fim contrato', value: contractEnd },
+          { label: 'Imóvel', value: tenant.propertyName ?? '—' },
+        ]}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         <div

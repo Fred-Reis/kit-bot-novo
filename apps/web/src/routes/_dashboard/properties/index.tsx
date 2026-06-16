@@ -1,14 +1,14 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { LayoutGrid, List, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import { Plus, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchProperties } from '@/lib/queries';
-import { PropertyCard } from '@/components/property-card';
-import { PageHeader } from '@/components/page-header';
-import { EmptyState } from '@/components/empty-state';
-import { CustomButton } from '@/components/ui/btn';
 import { twMerge } from 'tailwind-merge';
+import { EmptyState } from '@/components/empty-state';
+import { PageHeader } from '@/components/page-header';
+import { PropertyCard } from '@/components/property-card';
+import { CustomButton } from '@/components/ui/btn';
+import { fetchProperties } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/properties/')({ component: PropertiesPage });
 
@@ -33,9 +33,7 @@ function PropertiesPage() {
     queryFn: fetchProperties,
   });
 
-  const filtered = properties.filter((p) =>
-    filter === 'all' ? true : p.status === filter,
-  );
+  const filtered = properties.filter((p) => (filter === 'all' ? true : p.status === filter));
 
   return (
     <div className="space-y-6">
@@ -44,11 +42,7 @@ function PropertiesPage() {
         subtitle={`${properties.length} imóveis cadastrados`}
         actions={
           <div className="flex items-center gap-2">
-            <CustomButton
-              variant="secondary"
-              size="sm"
-              onClick={() => toast.info('Em breve')}
-            >
+            <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
               <SlidersHorizontal className="size-4" />
               Filtros
             </CustomButton>
@@ -65,9 +59,10 @@ function PropertiesPage() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1">
           {FILTER_OPTS.map((opt) => {
-            const count = opt.value === 'all'
-              ? properties.length
-              : properties.filter((p) => p.status === opt.value).length;
+            const count =
+              opt.value === 'all'
+                ? properties.length
+                : properties.filter((p) => p.status === opt.value).length;
             const active = filter === opt.value;
             return (
               <button
@@ -119,7 +114,11 @@ function PropertiesPage() {
       </div>
 
       {isLoading ? (
-        <div className={view === 'grid' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'}>
+        <div
+          className={
+            view === 'grid' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'
+          }
+        >
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-64 animate-pulse rounded-[10px] bg-muted" />
           ))}
@@ -127,9 +126,17 @@ function PropertiesPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           illustration={filter === 'all' ? 'properties' : 'filter'}
-          title={filter === 'all' ? 'Nenhum imóvel cadastrado' : 'Nenhum resultado para este filtro'}
-          subtitle={filter === 'all' ? 'Adicione seu primeiro imóvel para começar.' : 'Tente outro filtro.'}
-          action={filter === 'all' ? { label: 'Novo imóvel', onClick: () => navigate({ to: '/properties/new' }) } : undefined}
+          title={
+            filter === 'all' ? 'Nenhum imóvel cadastrado' : 'Nenhum resultado para este filtro'
+          }
+          subtitle={
+            filter === 'all' ? 'Adicione seu primeiro imóvel para começar.' : 'Tente outro filtro.'
+          }
+          action={
+            filter === 'all'
+              ? { label: 'Novo imóvel', onClick: () => navigate({ to: '/properties/new' }) }
+              : undefined
+          }
         />
       ) : view === 'grid' ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

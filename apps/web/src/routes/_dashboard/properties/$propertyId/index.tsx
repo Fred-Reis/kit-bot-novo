@@ -7,28 +7,28 @@ import { ConfirmButton } from '@/components/confirm-button';
 import { SpecBar } from '@/components/spec-bar';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
-import { formatActivityLabel } from '@/lib/activity-labels';
 import { adminApi } from '@/lib/api';
 import {
-  type ActivityLogEntry,
   fetchProperty,
-  fetchPropertyActivityLog,
+  fetchPropertyContract,
+  fetchPropertyLeads,
+  fetchPropertyPayments,
   fetchPropertyTenant,
 } from '@/lib/queries';
 import { tenantStatus } from '@/lib/tenant-utils';
-import { cn, formatCurrency, relativeTime } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/properties/$propertyId/')({
   component: PropertyDetailPage,
 });
 
-type Tab = 'details' | 'rules' | 'gallery' | 'history';
+type Tab = 'details' | 'rules' | 'gallery' | 'financial';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'details', label: 'Detalhes' },
   { id: 'rules', label: 'Regras' },
   { id: 'gallery', label: 'Galeria' },
-  { id: 'history', label: 'Histórico' },
+  { id: 'financial', label: 'Financeiro' },
 ];
 
 const TENANT_STATUS_DISPLAY = {
@@ -36,47 +36,104 @@ const TENANT_STATUS_DISPLAY = {
   attention: { label: 'Atenção', color: 'text-warning' },
 } as const;
 
-function PropertyHistoryTab({ propertyId }: { propertyId: string }) {
-  const {
-    data: entries = [],
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: ['property-activity', propertyId],
-    queryFn: () => fetchPropertyActivityLog(propertyId),
+const PAYMENT_STATUS_TONE: Record<string, 'ok' | 'warn' | 'bad'> = {
+  paid: 'ok',
+  pending: 'warn',
+  overdue: 'bad',
+};
+
+const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  paid: 'Pago',
+  pending: 'Pendente',
+  overdue: 'Atrasado',
+};
+
+const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'short', year: 'numeric' });
+const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+
+function PropertyFinancialTab({ propertyId }: { propertyId: string }) {
+  const { data: contract, isLoading: contractLoading } = useQuery({
+    queryKey: ['property-contract', propertyId],
+    queryFn: () => fetchPropertyContract(propertyId),
     staleTime: 60_000,
   });
 
-  if (isLoading) return <div className="h-24 animate-pulse rounded-lg bg-muted" />;
+  const { data: payments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ['property-payments', propertyId],
+    queryFn: () => fetchPropertyPayments(propertyId),
+    staleTime: 60_000,
+  });
 
-  if (isError) return <p className="text-sm text-destructive">Erro ao carregar histórico.</p>;
+  if (contractLoading || paymentsLoading)
+    return <div className="h-24 animate-pulse rounded-lg bg-muted" />;
 
-  if (entries.length === 0)
-    return <p className="text-sm text-muted-foreground">Nenhuma atividade registrada.</p>;
+  const daysLeft = contract?.endDate
+    ? Math.ceil((new Date(contract.endDate).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const contractTone =
+    daysLeft === null ? 'ok' : daysLeft < 0 ? 'bad' : daysLeft <= 60 ? 'warn' : 'ok';
+  const contractLabel =
+    daysLeft === null
+      ? 'Ativo'
+      : daysLeft < 0
+        ? 'Vencido'
+        : daysLeft <= 60
+          ? `Vence em ${daysLeft}d`
+          : 'Ativo';
 
   return (
-    <ul data-slot="activity-list" className="divide-y divide-border">
-      {entries.map((entry: ActivityLogEntry) => {
-        const actor = entry.actorLabel ?? 'Sistema';
-        const verb = formatActivityLabel(entry.action);
-        return (
-          <li key={entry.id} className="flex items-center justify-between py-3">
-            <p className="text-sm text-foreground">
-              <span className="font-medium">{actor}</span> {verb}
-              {entry.subject && (
-                <>
-                  {' '}
-                  <span className="font-medium">{entry.subject}</span>
-                </>
-              )}
+    <div className="space-y-5">
+      {contract ? (
+        <div className="rounded-lg bg-muted/40 px-4 py-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Contrato {contract.code}</p>
+            <p className="text-sm font-medium text-foreground">
+              {contract.tenantName ?? '—'} · {formatCurrency(contract.monthlyRent)}
             </p>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
-              {relativeTime(entry.createdAt)}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
+            {contract.endDate && (
+              <p className="text-xs text-muted-foreground">
+                Término: {dateFmt.format(new Date(contract.endDate))}
+              </p>
+            )}
+          </div>
+          <Pill tone={contractTone} dot>
+            {contractLabel}
+          </Pill>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nenhum contrato ativo.</p>
+      )}
+
+      <div>
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Últimos pagamentos
+        </h3>
+        {payments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum pagamento registrado.</p>
+        ) : (
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between rounded-lg bg-muted/40 px-4 py-2.5"
+              >
+                <span className="text-sm text-foreground">
+                  {monthFmt.format(new Date(`${p.month}-01`))}
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs text-foreground">
+                    {formatCurrency(p.amount)}
+                  </span>
+                  <Pill tone={PAYMENT_STATUS_TONE[p.status] ?? 'default'} dot>
+                    {PAYMENT_STATUS_LABEL[p.status] ?? p.status}
+                  </Pill>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -105,6 +162,9 @@ function TenantSidebar({ propertyId }: { propertyId: string }) {
       <p className="text-sm font-medium text-foreground">{tenant.name ?? '—'}</p>
       <p className="font-mono text-xs text-muted-foreground">{tenant.phone ?? '—'}</p>
       {status && <span className={cn('text-xs font-medium', status.color)}>{status.label}</span>}
+      {tenant.dueDay != null && (
+        <p className="text-xs text-muted-foreground">Vencimento: dia {tenant.dueDay}</p>
+      )}
       <Link
         to="/tenants/$tenantId"
         params={{ tenantId: tenant.id }}
@@ -112,6 +172,56 @@ function TenantSidebar({ propertyId }: { propertyId: string }) {
       >
         Ver inquilino →
       </Link>
+    </div>
+  );
+}
+
+const LEAD_STAGE_LABELS: Record<string, string> = {
+  interest: 'Interesse',
+  collection: 'Docs',
+  review_submitted: 'Em análise',
+  visiting: 'Visitando',
+  kyc_pending: 'KYC',
+  kyc_approved: 'Aprovado',
+  residents_docs_complete: 'Docs OK',
+  contract_pending: 'Contrato',
+  contract_signed: 'Assinado',
+};
+
+function LeadsSidebar({ propertyId }: { propertyId: string }) {
+  const { data: leads = [], isLoading } = useQuery({
+    queryKey: ['property-leads', propertyId],
+    queryFn: () => fetchPropertyLeads(propertyId),
+    staleTime: 60_000,
+  });
+
+  if (isLoading)
+    return (
+      <div
+        className="rounded-[10px] bg-surface-raised p-5 self-start"
+        style={{ boxShadow: 'var(--shadow-sm)' }}
+      >
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
+  if (leads.length === 0) return null;
+
+  return (
+    <div
+      className="rounded-[10px] bg-surface-raised p-5 self-start"
+      style={{ boxShadow: 'var(--shadow-sm)' }}
+    >
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Leads ativos
+      </h3>
+      <div data-slot="leads-summary" className="space-y-2">
+        {leads.map((lead) => (
+          <div key={lead.id} className="flex items-center justify-between gap-2">
+            <p className="text-sm text-foreground truncate">{lead.name ?? lead.phone}</p>
+            <Pill tone="default">{LEAD_STAGE_LABELS[lead.stage] ?? lead.stage}</Pill>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -141,6 +251,10 @@ function PropertyDetailPage() {
     onSuccess: () => {
       toast.success('Cache limpo com sucesso.');
       void qc.invalidateQueries({ queryKey: ['property', propertyId] });
+      void qc.invalidateQueries({ queryKey: ['property-tenant', propertyId] });
+      void qc.invalidateQueries({ queryKey: ['property-payments', propertyId] });
+      void qc.invalidateQueries({ queryKey: ['property-contract', propertyId] });
+      void qc.invalidateQueries({ queryKey: ['property-leads', propertyId] });
     },
     onError: () => toast.error('Erro ao limpar o cache.'),
   });
@@ -305,7 +419,7 @@ function PropertyDetailPage() {
                   label="Entrada independente"
                   value={property.independentEntrance ? 'Sim' : 'Não'}
                 />
-                {property.visitSchedule && (
+                {property.status === 'available' && property.visitSchedule && (
                   <InfoRow label="Visita" value={property.visitSchedule} />
                 )}
                 {property.listingUrl && (
@@ -381,27 +495,32 @@ function PropertyDetailPage() {
             </div>
           )}
 
-          {tab === 'history' && (
+          {tab === 'financial' && (
             <div
               className="rounded-[10px] bg-surface-raised p-5"
               style={{ boxShadow: 'var(--shadow-sm)' }}
             >
-              <h2 className="mb-4 text-sm font-medium text-foreground">Histórico</h2>
-              <PropertyHistoryTab propertyId={propertyId} />
+              <h2 className="mb-4 text-sm font-medium text-foreground">Financeiro</h2>
+              <PropertyFinancialTab propertyId={propertyId} />
             </div>
           )}
         </div>
 
         {/* Sidebar */}
-        <div
-          className="rounded-[10px] bg-surface-raised p-5 self-start"
-          style={{ boxShadow: 'var(--shadow-sm)' }}
-        >
-          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Inquilino
-          </h3>
-          <TenantSidebar propertyId={propertyId} />
-        </div>
+        {property.status === 'rented' && (
+          <div
+            className="rounded-[10px] bg-surface-raised p-5 self-start"
+            style={{ boxShadow: 'var(--shadow-sm)' }}
+          >
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Inquilino
+            </h3>
+            <TenantSidebar propertyId={propertyId} />
+          </div>
+        )}
+        {property.status !== 'maintenance' && property.status !== 'rented' && (
+          <LeadsSidebar propertyId={propertyId} />
+        )}
       </div>
     </div>
   );

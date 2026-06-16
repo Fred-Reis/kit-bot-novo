@@ -1,11 +1,11 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FormField } from '@/components/form-field';
-import { Select } from '@/components/ui/select';
-import { CustomButton } from '@/components/ui/btn';
 import { PropertyFormFields, type PropertyFormState } from '@/components/property-form-fields';
+import { CustomButton } from '@/components/ui/btn';
+import { Select } from '@/components/ui/select';
 import { adminApi } from '@/lib/api';
 import { uploadPropertyMedia } from '@/lib/storage';
 
@@ -17,13 +17,30 @@ interface FormState extends PropertyFormState {
 }
 
 const INITIAL: FormState = {
-  name: '', externalId: '', address: '', complement: '', neighborhood: '',
-  rent: '', deposit: '', depositInstallments: '', contractDuration: '',
-  rooms: '', bathrooms: '', maxAdults: '',
-  allowPets: 'false', allowChildren: 'true', includesWater: 'false',
-  includesIptu: 'false', individualElectricity: 'true', independentEntrance: 'true',
-  description: '', rules: '', visitSchedule: '', listingUrl: '',
-  active: 'true', firstRent: 'false',
+  name: '',
+  externalId: '',
+  address: '',
+  complement: '',
+  neighborhood: '',
+  rent: '',
+  deposit: '',
+  depositInstallments: '',
+  contractDuration: '',
+  rooms: '',
+  bathrooms: '',
+  maxAdults: '',
+  allowPets: 'false',
+  allowChildren: 'true',
+  includesWater: 'false',
+  includesIptu: 'false',
+  individualElectricity: 'true',
+  independentEntrance: 'true',
+  description: '',
+  rules: '',
+  visitSchedule: '',
+  listingUrl: '',
+  active: 'true',
+  firstRent: 'false',
 };
 
 function NewPropertyPage() {
@@ -113,15 +130,13 @@ function NewPropertyPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <PropertyFormFields
-          form={form}
-          set={set}
-          onFilesChange={setPendingFiles}
-          depositRequired
-        />
+        <PropertyFormFields form={form} set={set} onFilesChange={setPendingFiles} depositRequired />
 
         <div className="space-y-4 self-start lg:sticky lg:top-[76px]">
-          <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <div
+            className="rounded-[10px] bg-surface-raised p-5"
+            style={{ boxShadow: 'var(--shadow-sm)' }}
+          >
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </h3>

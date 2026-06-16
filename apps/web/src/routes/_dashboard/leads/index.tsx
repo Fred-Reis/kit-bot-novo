@@ -1,17 +1,17 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import type { Lead } from '@kit-manager/types';
 import { useQuery } from '@tanstack/react-query';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { ChevronRight, LayoutGrid, List, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import { ChevronRight, Plus, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
-import { fetchLeads } from '@/lib/queries';
-import type { Lead } from '@kit-manager/types';
+import { EmptyState } from '@/components/empty-state';
 import { LeadKanbanCard } from '@/components/lead-kanban-card';
 import { PageHeader } from '@/components/page-header';
-import { EmptyState } from '@/components/empty-state';
-import { Pill } from '@/components/ui/pill';
 import { CustomButton } from '@/components/ui/btn';
-import { STAGE_LABELS, STAGE_TONE, SOURCE_LABELS, formatPhone } from '@/lib/leads';
+import { Pill } from '@/components/ui/pill';
+import { formatPhone, SOURCE_LABELS, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
+import { fetchLeads } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/')({ component: LeadsPage });
 
@@ -23,7 +23,17 @@ const KANBAN_COLUMNS = [
   { key: 'novo', label: 'Novo', stages: ['interest'] },
   { key: 'qualificacao', label: 'Qualificação', stages: ['collection', 'review_submitted'] },
   { key: 'visita', label: 'Visita agendada', stages: ['visiting'] },
-  { key: 'proposta', label: 'Proposta', stages: ['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed'] },
+  {
+    key: 'proposta',
+    label: 'Proposta',
+    stages: [
+      'kyc_pending',
+      'kyc_approved',
+      'residents_docs_complete',
+      'contract_pending',
+      'contract_signed',
+    ],
+  },
   { key: 'ganho', label: 'Ganho', stages: ['converted'] },
 ] as const;
 
@@ -62,16 +72,30 @@ function TableView({ leads }: { leads: Lead[] }) {
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
       {leads.length === 0 ? (
-        <EmptyState illustration="leads" title="Nenhum lead encontrado" subtitle="Os leads do WhatsApp aparecerão aqui." />
+        <EmptyState
+          illustration="leads"
+          title="Nenhum lead encontrado"
+          subtitle="Os leads do WhatsApp aparecerão aqui."
+        />
       ) : (
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">Nome</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Origem</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">Imóvel</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">Etapa</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Atualizado</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">
+                Nome
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                Origem
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden md:table-cell">
+                Imóvel
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground">
+                Etapa
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                Atualizado
+              </th>
               <th className="w-8 px-5 py-3" />
             </tr>
           </thead>
@@ -79,43 +103,53 @@ function TableView({ leads }: { leads: Lead[] }) {
             {leads.map((lead) => {
               const cleanPhone = formatPhone(lead.phone);
               return (
-              <tr key={lead.id} className="transition-colors hover:bg-muted/50">
-                <td className="px-5 py-3.5">
-                  <Link
-                    to="/leads/$leadId"
-                    params={{ leadId: lead.id }}
-                    className="hover:text-primary"
-                  >
-                    <p className="text-sm font-medium text-foreground">{lead.name ?? cleanPhone}</p>
-                    {lead.name && (
-                      <p className="font-mono text-[11px] text-muted-foreground">{cleanPhone}</p>
+                <tr key={lead.id} className="transition-colors hover:bg-muted/50">
+                  <td className="px-5 py-3.5">
+                    <Link
+                      to="/leads/$leadId"
+                      params={{ leadId: lead.id }}
+                      className="hover:text-primary"
+                    >
+                      <p className="text-sm font-medium text-foreground">
+                        {lead.name ?? cleanPhone}
+                      </p>
+                      {lead.name && (
+                        <p className="font-mono text-[11px] text-muted-foreground">{cleanPhone}</p>
+                      )}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 hidden sm:table-cell">
+                    {lead.source ? (
+                      <span className="text-xs text-muted-foreground">
+                        {SOURCE_LABELS[lead.source]}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </Link>
-                </td>
-                <td className="px-5 py-3.5 hidden sm:table-cell">
-                  {lead.source
-                    ? <span className="text-xs text-muted-foreground">{SOURCE_LABELS[lead.source]}</span>
-                    : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-5 py-3.5 hidden md:table-cell">
-                  {lead.propertyExternalId
-                    ? <span className="font-mono text-xs text-foreground">{lead.propertyExternalId}</span>
-                    : <span className="text-muted-foreground">—</span>}
-                </td>
-                <td className="px-5 py-3.5">
-                  <Pill tone={STAGE_TONE[lead.stage] ?? 'default'} dot>
-                    {STAGE_LABELS[lead.stage] ?? lead.stage}
-                  </Pill>
-                </td>
-                <td className="px-5 py-3.5 text-muted-foreground hidden sm:table-cell">
-                  {dateFormatted.format(new Date(lead.updatedAt))}
-                </td>
-                <td className="px-5 py-3.5">
-                  <Link to="/leads/$leadId" params={{ leadId: lead.id }}>
-                    <ChevronRight className="size-4 text-muted-foreground" />
-                  </Link>
-                </td>
-              </tr>
+                  </td>
+                  <td className="px-5 py-3.5 hidden md:table-cell">
+                    {lead.propertyExternalId ? (
+                      <span className="font-mono text-xs text-foreground">
+                        {lead.propertyExternalId}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <Pill tone={STAGE_TONE[lead.stage] ?? 'default'} dot>
+                      {STAGE_LABELS[lead.stage] ?? lead.stage}
+                    </Pill>
+                  </td>
+                  <td className="px-5 py-3.5 text-muted-foreground hidden sm:table-cell">
+                    {dateFormatted.format(new Date(lead.updatedAt))}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <Link to="/leads/$leadId" params={{ leadId: lead.id }}>
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </Link>
+                  </td>
+                </tr>
               );
             })}
           </tbody>

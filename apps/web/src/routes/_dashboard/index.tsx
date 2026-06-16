@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/empty-state';
 import { KpiCard } from '@/components/kpi-card';
+import { Avatar } from '@/components/ui/avatar';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
 import { formatActivityLabel } from '@/lib/activity-labels';
@@ -45,7 +45,11 @@ function ActivityRow({ entry }: { entry: ActivityLogEntry }) {
   return (
     <li className="flex items-center justify-between px-5 py-3">
       <div className="flex items-center gap-3">
-        <Avatar name={actor} size="sm" className="size-7 bg-muted text-[10px] text-muted-foreground" />
+        <Avatar
+          name={actor}
+          size="sm"
+          className="size-7 bg-muted text-[10px] text-muted-foreground"
+        />
         <p className="text-xs text-foreground">
           <span className="font-medium">{actor}</span> {verb}
           {entry.subject && (
@@ -245,7 +249,8 @@ function DashboardPage() {
                   <div key={p.id} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">
-                        {tenant?.name ?? formatPhone(tenant?.phone ?? (p.tenantId ?? p.id).slice(0, 8))}
+                        {tenant?.name ??
+                          formatPhone(tenant?.phone ?? (p.tenantId ?? p.id).slice(0, 8))}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         {dueLabel(days, isOverdue)}

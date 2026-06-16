@@ -6,6 +6,7 @@ import type {
   Conversation,
   Lead,
   LeadDocument,
+  LeadStage,
   Payment,
   Property,
   PropertyMedia,
@@ -294,6 +295,7 @@ export interface PropertyTenantSummary {
   name: string | null;
   phone: string;
   onTimeRate: number | null;
+  dueDay: number | null;
 }
 
 export async function fetchPropertyTenant(
@@ -301,9 +303,77 @@ export async function fetchPropertyTenant(
 ): Promise<PropertyTenantSummary | null> {
   const { data, error } = await supabase
     .from('Tenant')
-    .select('id, name, phone, onTimeRate')
+    .select('id, name, phone, onTimeRate, dueDay')
     .eq('propertyId', propertyId)
     .maybeSingle();
   if (error) throw error;
   return data as PropertyTenantSummary | null;
+}
+
+export interface PropertyContractSummary {
+  id: string;
+  code: string;
+  endDate: string | null;
+  monthlyRent: number;
+  tenantName: string | null;
+}
+
+type PropertyContractRow = {
+  id: string;
+  code: string;
+  endDate: string | null;
+  monthlyRent: number;
+  tenant: { name: string | null }[];
+};
+
+export async function fetchPropertyContract(
+  propertyId: string,
+): Promise<PropertyContractSummary | null> {
+  const { data, error } = await supabase
+    .from('Contract')
+    .select('id, code, endDate, monthlyRent, tenant:Tenant(name)')
+    .eq('propertyId', propertyId)
+    .eq('status', 'active')
+    .order('createdAt', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as unknown as PropertyContractRow;
+  return {
+    id: row.id,
+    code: row.code,
+    endDate: row.endDate,
+    monthlyRent: row.monthlyRent,
+    tenantName: row.tenant[0]?.name ?? null,
+  };
+}
+
+export async function fetchPropertyPayments(propertyId: string): Promise<Payment[]> {
+  const { data, error } = await supabase
+    .from('Payment')
+    .select('*')
+    .eq('propertyId', propertyId)
+    .order('month', { ascending: false })
+    .limit(12);
+  if (error) throw error;
+  return (data ?? []) as Payment[];
+}
+
+export interface PropertyLeadSummary {
+  id: string;
+  name: string | null;
+  phone: string;
+  stage: LeadStage;
+}
+
+export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLeadSummary[]> {
+  const { data, error } = await supabase
+    .from('Lead')
+    .select('id, name, phone, stage')
+    .eq('propertyId', propertyId)
+    .neq('stage', 'converted')
+    .order('updatedAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PropertyLeadSummary[];
 }

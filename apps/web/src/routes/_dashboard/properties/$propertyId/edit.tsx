@@ -1,17 +1,17 @@
+import type { PropertyMedia } from '@kit-manager/types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, Video, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronLeft, X, Video } from 'lucide-react';
-import { fetchProperty } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
-import { uploadPropertyMedia } from '@/lib/storage';
 import { FormField } from '@/components/form-field';
 import { FormSection } from '@/components/form-section';
-import { Select } from '@/components/ui/select';
-import { CustomButton } from '@/components/ui/btn';
 import { PropertyFormFields, type PropertyFormState } from '@/components/property-form-fields';
-import type { PropertyMedia } from '@kit-manager/types';
+import { CustomButton } from '@/components/ui/btn';
+import { Select } from '@/components/ui/select';
+import { adminApi } from '@/lib/api';
+import { fetchProperty } from '@/lib/queries';
+import { uploadPropertyMedia } from '@/lib/storage';
 
 export const Route = createFileRoute('/_dashboard/properties/$propertyId/edit')({
   component: EditPropertyPage,
@@ -22,12 +22,29 @@ interface FormState extends PropertyFormState {
 }
 
 const INITIAL: FormState = {
-  name: '', externalId: '', address: '', complement: '', neighborhood: '',
-  rent: '', deposit: '', depositInstallments: '', contractDuration: '',
-  rooms: '', bathrooms: '', maxAdults: '',
-  allowPets: 'false', allowChildren: 'true', includesWater: 'false',
-  includesIptu: 'false', individualElectricity: 'true', independentEntrance: 'true',
-  description: '', rules: '', visitSchedule: '', listingUrl: '', active: 'true',
+  name: '',
+  externalId: '',
+  address: '',
+  complement: '',
+  neighborhood: '',
+  rent: '',
+  deposit: '',
+  depositInstallments: '',
+  contractDuration: '',
+  rooms: '',
+  bathrooms: '',
+  maxAdults: '',
+  allowPets: 'false',
+  allowChildren: 'true',
+  includesWater: 'false',
+  includesIptu: 'false',
+  individualElectricity: 'true',
+  independentEntrance: 'true',
+  description: '',
+  rules: '',
+  visitSchedule: '',
+  listingUrl: '',
+  active: 'true',
 };
 
 function EditPropertyPage() {
@@ -86,7 +103,8 @@ function EditPropertyPage() {
         neighborhood: form.neighborhood,
         rent: parseFloat(form.rent) || property!.rent,
         deposit: parseFloat(form.deposit) || property!.deposit,
-        depositInstallmentsMax: parseInt(form.depositInstallments) || property!.depositInstallmentsMax,
+        depositInstallmentsMax:
+          parseInt(form.depositInstallments) || property!.depositInstallmentsMax,
         contractMonths: parseInt(form.contractDuration) || property!.contractMonths,
         rooms: parseInt(form.rooms) || property!.rooms,
         bathrooms: parseInt(form.bathrooms) || property!.bathrooms,
@@ -110,6 +128,10 @@ function EditPropertyPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
+      queryClient.invalidateQueries({ queryKey: ['property-tenant', propertyId] });
+      queryClient.invalidateQueries({ queryKey: ['property-payments', propertyId] });
+      queryClient.invalidateQueries({ queryKey: ['property-contract', propertyId] });
+      queryClient.invalidateQueries({ queryKey: ['property-leads', propertyId] });
       toast.success('Imóvel atualizado');
       navigate({ to: '/properties/$propertyId', params: { propertyId } });
     },
@@ -117,8 +139,7 @@ function EditPropertyPage() {
   });
 
   const { mutate: deleteMedia, variables: deletingMedia } = useMutation({
-    mutationFn: (media: PropertyMedia) =>
-      adminApi.deletePropertyMedia(propertyId, media.id),
+    mutationFn: (media: PropertyMedia) => adminApi.deletePropertyMedia(propertyId, media.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
       toast.success('Foto removida');
@@ -170,9 +191,16 @@ function EditPropertyPage() {
             <FormSection title="Fotos existentes" subtitle="Clique no × para remover.">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {property.media.map((m) => (
-                  <div key={m.id} className="group relative overflow-hidden rounded-lg border border-border bg-muted">
+                  <div
+                    key={m.id}
+                    className="group relative overflow-hidden rounded-lg border border-border bg-muted"
+                  >
                     {m.type === 'photo' ? (
-                      <img src={m.url} alt={m.label ?? 'foto'} className="aspect-[4/3] w-full object-cover" />
+                      <img
+                        src={m.url}
+                        alt={m.label ?? 'foto'}
+                        className="aspect-[4/3] w-full object-cover"
+                      />
                     ) : (
                       <div className="flex aspect-[4/3] w-full items-center justify-center bg-muted/80">
                         <Video className="size-8 text-muted-foreground/60" />
@@ -188,7 +216,9 @@ function EditPropertyPage() {
                       <X className="size-3.5" />
                     </button>
                     {m.label && (
-                      <p className="px-2 py-1 text-[11px] text-muted-foreground truncate">{m.label}</p>
+                      <p className="px-2 py-1 text-[11px] text-muted-foreground truncate">
+                        {m.label}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -205,7 +235,10 @@ function EditPropertyPage() {
         </div>
 
         <div className="space-y-4 self-start lg:sticky lg:top-[76px]">
-          <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
+          <div
+            className="rounded-[10px] bg-surface-raised p-5"
+            style={{ boxShadow: 'var(--shadow-sm)' }}
+          >
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status
             </h3>

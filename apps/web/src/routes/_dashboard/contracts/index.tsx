@@ -74,7 +74,10 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
   const [manualSet, setManualSet] = useState<Set<string>>(new Set());
 
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: fetchTenants });
-  const { data: properties = [] } = useQuery({ queryKey: ['properties'], queryFn: fetchProperties });
+  const { data: properties = [] } = useQuery({
+    queryKey: ['properties'],
+    queryFn: fetchProperties,
+  });
   const { data: templates = [] } = useQuery({
     queryKey: ['contract-templates'],
     queryFn: fetchContractTemplates,
@@ -139,7 +142,11 @@ function NewContractModal({ onClose }: { onClose: () => void }) {
       setManualSet((s) => new Set(s).add(placeholder));
       setManualValues((v) => ({ ...v, [placeholder]: '' }));
     } else {
-      setManualSet((s) => { const n = new Set(s); n.delete(placeholder); return n; });
+      setManualSet((s) => {
+        const n = new Set(s);
+        n.delete(placeholder);
+        return n;
+      });
       setManualValues((v) => ({ ...v, [placeholder]: value }));
     }
   }

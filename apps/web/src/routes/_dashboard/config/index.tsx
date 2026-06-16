@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { useUiStore } from '@/store/ui';
-import { PageHeader } from '@/components/page-header';
-import { Toggle } from '@/components/ui/toggle';
-import { FormField } from '@/components/form-field';
-import { Input } from '@/components/ui/input';
-import { CustomButton } from '@/components/ui/btn';
 import { toast } from 'sonner';
+import { FormField } from '@/components/form-field';
+import { PageHeader } from '@/components/page-header';
+import { CustomButton } from '@/components/ui/btn';
+import { Input } from '@/components/ui/input';
+import { Toggle } from '@/components/ui/toggle';
+import { useUiStore } from '@/store/ui';
 
 export const Route = createFileRoute('/_dashboard/config/')({ component: SettingsPage });
 
@@ -29,7 +29,15 @@ const NAV_ITEMS: { id: Section; label: string }[] = [
   { id: 'security', label: 'Segurança' },
 ];
 
-function SectionCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function SectionCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-[10px] bg-surface-raised p-5" style={{ boxShadow: 'var(--shadow-sm)' }}>
       <h2 className="mb-1 text-sm font-semibold text-foreground">{title}</h2>
@@ -73,7 +81,9 @@ function WorkspaceSection() {
 function TeamSection() {
   return (
     <SectionCard title="Equipe & permissões">
-      <p className="text-sm text-muted-foreground">Disponível em breve. Aguardando implementação de multi-tenancy.</p>
+      <p className="text-sm text-muted-foreground">
+        Disponível em breve. Aguardando implementação de multi-tenancy.
+      </p>
     </SectionCard>
   );
 }
@@ -98,22 +108,33 @@ function IntegrationsSection() {
         </FormField>
       </div>
       <div className="mt-4 flex justify-end">
-        <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>Salvar</CustomButton>
+        <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>
+          Salvar
+        </CustomButton>
       </div>
     </SectionCard>
   );
 }
 
 function NotificationsSection() {
-  const { notificationsEnabled, setNotificationsEnabled, autoRefresh, setAutoRefresh } = useUiStore();
+  const { notificationsEnabled, setNotificationsEnabled, autoRefresh, setAutoRefresh } =
+    useUiStore();
 
   return (
     <SectionCard title="Notificações" subtitle="Alertas e atualizações automáticas.">
       <SettingRow label="Notificações ativas">
-        <Toggle checked={notificationsEnabled} onChange={setNotificationsEnabled} aria-label="Alternar notificações" />
+        <Toggle
+          checked={notificationsEnabled}
+          onChange={setNotificationsEnabled}
+          aria-label="Alternar notificações"
+        />
       </SettingRow>
       <SettingRow label="Atualização automática">
-        <Toggle checked={autoRefresh} onChange={setAutoRefresh} aria-label="Alternar atualização automática" />
+        <Toggle
+          checked={autoRefresh}
+          onChange={setAutoRefresh}
+          aria-label="Alternar atualização automática"
+        />
       </SettingRow>
     </SectionCard>
   );
@@ -146,7 +167,9 @@ function SecuritySection() {
         </FormField>
       </div>
       <div className="mt-4 flex justify-end">
-        <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>Alterar senha</CustomButton>
+        <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>
+          Alterar senha
+        </CustomButton>
       </div>
     </SectionCard>
   );
@@ -171,7 +194,10 @@ function SettingsPage() {
       <PageHeader title="Configurações" subtitle="Preferências do painel admin" />
 
       <div className="flex gap-6 items-start">
-        <nav className="w-[220px] shrink-0 rounded-[10px] bg-surface-raised p-2" style={{ boxShadow: 'var(--shadow-sm)' }}>
+        <nav
+          className="w-[220px] shrink-0 rounded-[10px] bg-surface-raised p-2"
+          style={{ boxShadow: 'var(--shadow-sm)' }}
+        >
           {NAV_ITEMS.map((item) => (
             <button
               key={item.id}

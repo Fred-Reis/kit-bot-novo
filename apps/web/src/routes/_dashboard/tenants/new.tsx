@@ -1,15 +1,15 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { Check } from 'lucide-react';
-import { fetchProperties } from '@/lib/queries';
-import { adminApi } from '@/lib/api';
-import { FormSection } from '@/components/form-section';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { FormField } from '@/components/form-field';
+import { FormSection } from '@/components/form-section';
+import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { CustomButton } from '@/components/ui/btn';
+import { adminApi } from '@/lib/api';
+import { fetchProperties } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/tenants/new')({ component: NewTenantPage });
 
@@ -31,9 +31,20 @@ interface TenantForm {
 }
 
 const INITIAL: TenantForm = {
-  name: '', cpf: '', birthDate: '', profession: '', income: '',
-  phone: '', email: '', address: '', neighborhood: '', zipCode: '',
-  propertyId: '', contractStart: '', contractEnd: '', dueDay: '',
+  name: '',
+  cpf: '',
+  birthDate: '',
+  profession: '',
+  income: '',
+  phone: '',
+  email: '',
+  address: '',
+  neighborhood: '',
+  zipCode: '',
+  propertyId: '',
+  contractStart: '',
+  contractEnd: '',
+  dueDay: '',
 };
 
 const STEPS = [
@@ -53,16 +64,24 @@ function Stepper({ current }: { current: number }) {
           <div key={step.id} className="flex flex-1 flex-col items-center gap-1">
             <div className="flex w-full items-center">
               {idx > 0 && <div className={`h-0.5 flex-1 ${done ? 'bg-primary' : 'bg-border'}`} />}
-              <div className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                done ? 'bg-primary text-primary-foreground'
-                : active ? 'border-2 border-primary bg-surface text-primary'
-                : 'border-2 border-border bg-surface text-muted-foreground'
-              }`}>
+              <div
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  done
+                    ? 'bg-primary text-primary-foreground'
+                    : active
+                      ? 'border-2 border-primary bg-surface text-primary'
+                      : 'border-2 border-border bg-surface text-muted-foreground'
+                }`}
+              >
                 {done ? <Check className="size-3.5" /> : step.id}
               </div>
-              {idx < STEPS.length - 1 && <div className={`h-0.5 flex-1 ${done ? 'bg-primary' : 'bg-border'}`} />}
+              {idx < STEPS.length - 1 && (
+                <div className={`h-0.5 flex-1 ${done ? 'bg-primary' : 'bg-border'}`} />
+              )}
             </div>
-            <span className={`text-center text-[10px] leading-tight ${active ? 'font-medium text-primary' : done ? 'text-foreground' : 'text-muted-foreground'}`}>
+            <span
+              className={`text-center text-[10px] leading-tight ${active ? 'font-medium text-primary' : done ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
               {step.label}
             </span>
           </div>
@@ -72,7 +91,9 @@ function Stepper({ current }: { current: number }) {
   );
 }
 
-type SetForm = (key: keyof TenantForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+type SetForm = (
+  key: keyof TenantForm,
+) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
 
 function Step1({ form, set }: { form: TenantForm; set: SetForm }) {
   return (
@@ -102,13 +123,28 @@ function Step2({ form, set }: { form: TenantForm; set: SetForm }) {
   return (
     <FormSection title="Contato & endereço" subtitle="Dados de contato e residência atual.">
       <FormField label="Telefone (WhatsApp)" required>
-        <Input type="tel" value={form.phone} onChange={set('phone')} placeholder="+55 11 99999-0000" mono />
+        <Input
+          type="tel"
+          value={form.phone}
+          onChange={set('phone')}
+          placeholder="+55 11 99999-0000"
+          mono
+        />
       </FormField>
       <FormField label="E-mail">
-        <Input type="email" value={form.email} onChange={set('email')} placeholder="email@exemplo.com" />
+        <Input
+          type="email"
+          value={form.email}
+          onChange={set('email')}
+          placeholder="email@exemplo.com"
+        />
       </FormField>
       <FormField label="Endereço atual" required>
-        <Input value={form.address} onChange={set('address')} placeholder="Rua, número, complemento" />
+        <Input
+          value={form.address}
+          onChange={set('address')}
+          placeholder="Rua, número, complemento"
+        />
       </FormField>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Bairro">
@@ -136,7 +172,11 @@ function Step3({ form, set }: { form: TenantForm; set: SetForm }) {
           <option value="">Selecionar imóvel...</option>
           {available.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} — {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.rent)}/mês
+              {p.name} —{' '}
+              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                p.rent,
+              )}
+              /mês
             </option>
           ))}
         </Select>
@@ -150,7 +190,15 @@ function Step3({ form, set }: { form: TenantForm; set: SetForm }) {
         </FormField>
       </div>
       <FormField label="Dia de vencimento" required>
-        <Input type="number" min={1} max={28} value={form.dueDay} onChange={set('dueDay')} placeholder="10" mono />
+        <Input
+          type="number"
+          min={1}
+          max={28}
+          value={form.dueDay}
+          onChange={set('dueDay')}
+          placeholder="10"
+          mono
+        />
       </FormField>
     </FormSection>
   );
@@ -245,12 +293,7 @@ function NewTenantPage() {
             Próximo
           </CustomButton>
         ) : (
-          <CustomButton
-            variant="primary"
-            size="sm"
-            disabled={isPending}
-            onClick={() => submit()}
-          >
+          <CustomButton variant="primary" size="sm" disabled={isPending} onClick={() => submit()}>
             {isPending ? 'Salvando...' : 'Concluir'}
           </CustomButton>
         )}

@@ -1,43 +1,43 @@
-import {
-  createFileRoute,
-  Outlet,
-  Link,
-  useNavigate,
-  useRouterState,
-  useLocation,
-} from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
-import type { ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  LayoutDashboard,
+  createFileRoute,
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useRouterState,
+} from '@tanstack/react-router';
+import {
+  Bell,
   Building2,
-  UserCheck,
-  MessageSquare,
-  ListChecks,
-  LayoutTemplate,
-  FileText,
-  Coins,
-  Settings,
   ChevronLeft,
   ChevronRight,
+  Coins,
+  FileText,
+  LayoutDashboard,
+  LayoutTemplate,
+  ListChecks,
   LogOut,
+  Menu,
+  MessageSquare,
   Moon,
-  Sun,
-  Bell,
   Plus,
   Search,
-  Menu,
+  Settings,
+  Sun,
+  UserCheck,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/auth';
-import { useUiStore } from '@/store/ui';
-import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
+import type { ComponentType } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { twMerge } from 'tailwind-merge';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CustomButton } from '@/components/ui/btn';
-import { toast } from 'sonner';
-import { twMerge } from 'tailwind-merge';
+import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/auth';
+import { useUiStore } from '@/store/ui';
 
 export const Route = createFileRoute('/_dashboard')({ component: DashboardLayout });
 
@@ -127,9 +127,13 @@ function NavLink({
     : location.pathname === item.href || location.pathname.startsWith(item.href + '/');
 
   const badgeCount =
-    item.href === '/leads' ? counts.leads :
-    item.href === '/properties' ? counts.properties :
-    item.href === '/tenants' ? counts.tenants : 0;
+    item.href === '/leads'
+      ? counts.leads
+      : item.href === '/properties'
+        ? counts.properties
+        : item.href === '/tenants'
+          ? counts.tenants
+          : 0;
 
   return (
     <Link
@@ -403,7 +407,10 @@ function DashboardLayout() {
                       <button
                         key={item.label}
                         type="button"
-                        onClick={() => { setQuickCreateOpen(false); toast.info('Em breve'); }}
+                        onClick={() => {
+                          setQuickCreateOpen(false);
+                          toast.info('Em breve');
+                        }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
                       >
                         <item.icon className="size-4" />

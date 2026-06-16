@@ -40,6 +40,6 @@ export const useUiStore = create<UiState>()(
           document.documentElement.dataset.dark = state.darkMode ? 'true' : '';
         }
       },
-    }
-  )
+    },
+  ),
 );
