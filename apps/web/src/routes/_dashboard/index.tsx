@@ -254,7 +254,7 @@ function DashboardPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {(isOverdue || isDueSoon) && (
                         <Pill tone={isOverdue ? 'bad' : 'warn'}>
-                          {isOverdue ? 'atraso' : 'prio'}
+                          {isOverdue ? 'atraso' : 'próximo'}
                         </Pill>
                       )}
                       <span className="font-mono text-xs font-medium text-foreground">
