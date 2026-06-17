@@ -28,6 +28,7 @@ const schema = z.object({
     .string()
     .transform((v) => v === 'true' || v === '1')
     .default('false'),
+  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
   // Google Cloud Vision (OCR) — optional
   GOOGLE_CREDENTIALS_JSON: z.string().optional(),

@@ -1,5 +1,6 @@
 import { config } from '@/config';
 import { redis } from '@/db/redis';
+import { logger } from '@/lib/logger';
 import { uploadLeadDocument } from '@/services/storage';
 
 const debounceHandles = new Map<string, NodeJS.Timeout>();
@@ -25,7 +26,7 @@ export async function bufferMessage(
   messageId: string | null = null,
 ): Promise<void> {
   if (await isDuplicateMessage(chatId, messageId)) {
-    console.warn(`[buffer] Duplicate message ignored for ${chatId}: ${messageId}`);
+    logger.warn({ chatId, messageId }, '[buffer] Duplicate message ignored');
     return;
   }
 
@@ -43,7 +44,7 @@ export async function bufferMedia(
   messageId?: string | null,
 ): Promise<void> {
   if (await isDuplicateMessage(chatId, messageId ?? null)) {
-    console.warn(`[buffer] Duplicate media ignored for ${chatId}: ${messageId}`);
+    logger.warn({ chatId, messageId }, '[buffer] Duplicate media ignored');
     return;
   }
 
@@ -55,7 +56,7 @@ export async function bufferMedia(
       // Keep type and mime but replace base64 with url
       resolvedMedia = { type: media.type, mime: media.mime, url, messageId: media.messageId };
     } catch (err) {
-      console.error(`[buffer] Failed to upload media to Storage for ${chatId}:`, err);
+      logger.error({ err, chatId }, '[buffer] Failed to upload media to Storage');
       // Proceed without URL — flow will handle missing url gracefully
       resolvedMedia = { type: media.type, mime: media.mime, messageId: media.messageId };
     }
@@ -103,7 +104,7 @@ async function flushAndProcess(chatId: string): Promise<void> {
 
   if (!text && mediaItems.length === 0) return;
 
-  console.info(`[buffer] Processing ${chatId} — text="${text}" media_count=${mediaItems.length}`);
+  logger.info({ chatId, mediaCount: mediaItems.length }, '[buffer] Processing');
 
   // Lazy import to avoid circular dependency at load time
   const { routeMessage } = await import('@/flows/router');

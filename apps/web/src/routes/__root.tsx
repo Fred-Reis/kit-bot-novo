@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, Outlet, redirect } from '@tanstack/react-router';
 import { useEffect } from 'react';
@@ -24,6 +25,20 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
 });
 
+function ErrorFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 p-8 text-[var(--color-foreground)]">
+      <p className="text-sm text-[var(--color-muted-foreground)]">Algo deu errado.</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="rounded-[7px] bg-[var(--color-primary)] px-4 py-2 text-sm text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]"
+      >
+        Recarregar
+      </button>
+    </div>
+  );
+}
+
 function RootComponent() {
   const setSession = useAuthStore((s) => s.setSession);
 
@@ -37,7 +52,9 @@ function RootComponent() {
 
   return (
     <>
-      <Outlet />
+      <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+        <Outlet />
+      </Sentry.ErrorBoundary>
       <Toaster position="bottom-right" richColors />
     </>
   );

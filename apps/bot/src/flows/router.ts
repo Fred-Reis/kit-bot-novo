@@ -2,6 +2,7 @@ import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { handleLeadMessage } from '@/flows/lead/index';
 import { handleTenantMessage } from '@/flows/tenant/index';
+import { logger } from '@/lib/logger';
 import { logActivity } from '@/services/activity';
 
 export async function routeMessage(
@@ -11,7 +12,7 @@ export async function routeMessage(
 ): Promise<void> {
   const owner = await prisma.owner.findFirst();
   if (!owner) {
-    console.error('[router] No owner record found — cannot route message');
+    logger.error('[router] No owner record found — cannot route message');
     return;
   }
 
@@ -27,7 +28,7 @@ export async function routeMessage(
   }
 
   if (conversation?.botPaused) {
-    console.log(`[router] Bot paused for ${chatId} — message suppressed`);
+    logger.info({ chatId }, '[router] Bot paused — message suppressed');
     return;
   }
 
@@ -46,7 +47,7 @@ export async function routeMessage(
       subjectType: 'lead',
       subjectId: lead.id,
       subject: chatId,
-    }).catch((err) => console.error('[router] logActivity lead_created failed:', err));
+    }).catch((err) => logger.error({ err }, '[router] logActivity lead_created failed'));
   }
 
   await handleLeadMessage(chatId, text, mediaItems, owner.id);

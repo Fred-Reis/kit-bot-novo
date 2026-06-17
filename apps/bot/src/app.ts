@@ -1,14 +1,12 @@
-import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import Fastify from 'fastify';
 import { config } from '@/config';
-import { evolutionWebhookPlugin } from '@/webhooks/evolution';
 import adminAuthPlugin from '@/plugins/admin-auth';
 import { adminRoutes } from '@/routes/admin';
+import { evolutionWebhookPlugin } from '@/webhooks/evolution';
 
 const fastify = Fastify({
-  logger: {
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-  },
+  logger: { level: config.LOG_LEVEL },
 });
 
 fastify.register(cors, {

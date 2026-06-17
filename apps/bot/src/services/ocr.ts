@@ -1,5 +1,6 @@
 import { GoogleAuth } from 'google-auth-library';
 import { config } from '@/config';
+import { logger } from '@/lib/logger';
 
 let _auth: GoogleAuth | null = null;
 
@@ -14,8 +15,8 @@ function getAuth(): GoogleAuth | null {
       scopes: ['https://www.googleapis.com/auth/cloud-vision'],
     });
     return _auth;
-  } catch {
-    console.warn('[ocr] Failed to parse GOOGLE_CREDENTIALS_JSON');
+  } catch (err) {
+    logger.warn({ err }, '[ocr] Failed to parse GOOGLE_CREDENTIALS_JSON');
     return null;
   }
 }
@@ -48,7 +49,7 @@ export async function extractTextFromImage(imageUrl: string): Promise<string> {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      console.warn(`[ocr] Vision API error: ${response.status} ${body}`);
+      logger.warn({ status: response.status, body }, '[ocr] Vision API error');
       return '';
     }
 
@@ -58,7 +59,7 @@ export async function extractTextFromImage(imageUrl: string): Promise<string> {
 
     return result.responses?.[0]?.fullTextAnnotation?.text ?? '';
   } catch (err) {
-    console.warn('[ocr] extractTextFromImage error:', err);
+    logger.warn({ err }, '[ocr] extractTextFromImage error');
     return '';
   }
 }

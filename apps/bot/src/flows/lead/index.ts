@@ -13,6 +13,7 @@ import {
   shouldSendMediaDeterministically,
 } from '@/flows/lead/media';
 import { resolveTargetAgent } from '@/flows/lead/rules';
+import { logger } from '@/lib/logger';
 import {
   findMatchingProperty,
   getPropertyByExternalId,
@@ -118,7 +119,7 @@ export async function handleLeadMessage(
   mediaItems: MediaItem[],
   ownerId: string,
 ): Promise<void> {
-  console.info(`[lead.flow] Message received for ${chatId}`);
+  logger.info({ chatId }, '[lead.flow] Message received');
 
   const messageText = text ?? '';
   let replyText: string | null = null;
@@ -128,7 +129,7 @@ export async function handleLeadMessage(
     // 1. Load lead + conversation
     const lead = await prisma.lead.findUnique({ where: { phone: chatId } });
     if (!lead) {
-      console.error(`[lead.flow] No lead record for ${chatId}`);
+      logger.error({ chatId }, '[lead.flow] No lead record');
       return;
     }
 
@@ -250,7 +251,7 @@ export async function handleLeadMessage(
       notifyOwner(lead.ownerId, 'kyc_pending', {
         leadName: lead.name ?? chatId,
         leadPhone: chatId,
-      }).catch((err) => console.error('[lead.flow] notifyOwner kyc_pending failed:', err));
+      }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
     }
 
     // 11. Check for deterministic media send
@@ -311,7 +312,7 @@ export async function handleLeadMessage(
         }
         context.lastRequestedMediaType = null;
       } catch (err) {
-        console.error('[lead.flow] Failed to send media:', err);
+        logger.error({ err }, '[lead.flow] Failed to send media');
         replyText = 'Não consegui enviar agora. Pode tentar de novo em instantes?';
       }
     }
@@ -321,6 +322,6 @@ export async function handleLeadMessage(
       await sendText(chatId, replyText);
     }
   } catch (err) {
-    console.error('[lead.flow] Unhandled error:', err);
+    logger.error({ err }, '[lead.flow] Unhandled error');
   }
 }

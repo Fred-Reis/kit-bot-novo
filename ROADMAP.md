@@ -251,11 +251,12 @@
 
 > Antes de ligar dados reais e operar de verdade.
 
-- [ ] **RLS reativar** — todas as tabelas com policies definidas em F0.3
-- [ ] **MSW dev-only** — confirmar que MSW handlers não vão pra prod build (env check)
+- [x] **Logs estruturados** — bot loga JSON via Pino; web captura erros via Sentry (ErrorBoundary + init)
+- [x] **MSW removido** — handlers estavam vazios, dependência eliminada
+- [x] **Variáveis env produção** — checklist em `docs/deploy.md`; ADR RLS em `docs/adrs/001-rls-strategy.md`
+- [ ] **Sentry completo** — source maps, `setUser` pós-login, router tracing (ver `docs/deploy.md` §Sentry)
+- [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
-- [ ] **Logs estruturados** — bot loga em JSON, web envia erros pra Sentry (?)
-- [ ] **Variáveis env produção** — checklist completo em `docs/deploy.md`
 - [ ] **Bot deploy** — Railway/Fly free tier
 - [ ] **Web deploy** — Vercel
 - [ ] **Evolution API deploy** — qual provider? (precisa de webhook público)

@@ -1,5 +1,6 @@
-import { prisma } from '../db/client';
-import { sendText } from './evolution';
+import { prisma } from '@/db/client';
+import { logger } from '@/lib/logger';
+import { sendText } from '@/services/evolution';
 
 type NotifyPayloadMap = {
   kyc_pending: { leadName: string; leadPhone: string };
@@ -45,12 +46,12 @@ export async function notifyOwner<T extends NotifyOwnerEventType>(
   try {
     const phone = await getOwnerPhone(ownerId);
     if (!phone) {
-      console.error(`notifyOwner: owner ${ownerId} not found`);
+      logger.error({ ownerId }, 'notifyOwner: owner not found');
       return;
     }
     const message = buildMessage({ eventType, payload } as NotifyArgs);
     await sendText(`${phone}@s.whatsapp.net`, message);
   } catch (err) {
-    console.error('notifyOwner failed (non-blocking):', err);
+    logger.error({ err }, 'notifyOwner failed (non-blocking)');
   }
 }

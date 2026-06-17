@@ -7,10 +7,10 @@ import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { config } from '@/config';
-
 import type { LeadContext, LeadResident } from '@/flows/lead/context';
 import { getDeterministicLeadUpdates } from '@/flows/lead/intents';
 import type { AgentName } from '@/flows/lead/rules';
+import { logger } from '@/lib/logger';
 
 // ─── Prompts (ported verbatim from prompts/lead_agents.py and prompts/lead_router.py) ──
 
@@ -227,7 +227,7 @@ export async function extractLeadUpdate(
       available: availablePropertiesSummary ?? 'nao informado',
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
-    console.error('[lead.agent] extractLeadUpdate failed:', err);
+    logger.error({ err }, '[lead.agent] extractLeadUpdate failed');
     return { extractedSource: null };
   }
 
@@ -285,7 +285,7 @@ export async function routeLeadMessage(question: string, leadContext: string): P
     const result = await chain.invoke({ question, lead_context: leadContext });
     return result.target_agent as AgentName;
   } catch (err) {
-    console.error('[lead.agent] routeLeadMessage failed:', err);
+    logger.error({ err }, '[lead.agent] routeLeadMessage failed');
     return 'info';
   }
 }
@@ -326,7 +326,7 @@ export async function runLeadAgent(
       chat_history: historyMessages,
     })) as string;
   } catch (err) {
-    console.error(`[lead.agent] runLeadAgent(${agent}) failed:`, err);
+    logger.error({ err, agent }, '[lead.agent] runLeadAgent failed');
     return 'Desculpe, tive um problema para processar sua mensagem. Pode tentar de novo?';
   }
 }
