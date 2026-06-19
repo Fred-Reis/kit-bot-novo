@@ -1,9 +1,9 @@
-import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest';
-import { computeMonthlyTotals } from '@/lib/finance';
 import type { Payment } from '@kit-manager/types';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { computeMonthlyTotals } from '@/lib/finance';
 
 function makePayment(overrides: Partial<Payment>): Payment {
-  return {
+  const base: Payment = {
     id: crypto.randomUUID(),
     ownerId: 'owner-1',
     tenantId: 'tenant-1',
@@ -13,9 +13,10 @@ function makePayment(overrides: Partial<Payment>): Payment {
     description: null,
     type: 'income',
     paidAt: null,
+    propertyId: null,
     createdAt: new Date().toISOString(),
-    ...overrides,
   };
+  return Object.assign(base, overrides);
 }
 
 describe('computeMonthlyTotals', () => {
@@ -68,9 +69,7 @@ describe('computeMonthlyTotals', () => {
   });
 
   test('ignores payments outside the window', () => {
-    const payments = [
-      makePayment({ status: 'paid', amount: 999, month: '2025-01' }),
-    ];
+    const payments = [makePayment({ status: 'paid', amount: 999, month: '2025-01' })];
     const result = computeMonthlyTotals(payments, 3);
     const total = result.reduce((s, r) => s + r.revenue, 0);
     expect(total).toBe(0);

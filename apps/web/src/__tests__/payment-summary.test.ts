@@ -6,7 +6,7 @@ const currentMonth = '2026-04';
 const prevMonth = '2026-03';
 
 function makePayment(overrides: Partial<Payment>): Payment {
-  return {
+  const base: Payment = {
     id: crypto.randomUUID(),
     ownerId: 'owner-1',
     tenantId: 'tenant-1',
@@ -16,9 +16,10 @@ function makePayment(overrides: Partial<Payment>): Payment {
     description: null,
     type: 'income',
     paidAt: null,
+    propertyId: null,
     createdAt: new Date().toISOString(),
-    ...overrides,
   };
+  return Object.assign(base, overrides);
 }
 
 describe('computePaymentsSummary', () => {
