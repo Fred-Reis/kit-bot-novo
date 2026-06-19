@@ -43,9 +43,13 @@ function RootComponent() {
   const setSession = useAuthStore((s) => s.setSession);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      if (data.session) Sentry.setUser({ id: data.session.user.id, email: data.session.user.email ?? undefined });
+    });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      Sentry.setUser(session ? { id: session.user.id, email: session.user.email ?? undefined } : null);
     });
     return () => listener.subscription.unsubscribe();
   }, [setSession]);

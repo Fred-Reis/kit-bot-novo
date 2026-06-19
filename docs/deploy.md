@@ -43,6 +43,18 @@
 | `VITE_BOT_API_URL` | ✅ | URL base da API do bot sem trailing slash (ex: `https://bot.seudominio.com`) |
 | `VITE_SENTRY_DSN` | Não | Sentry → Project → Settings → Client Keys → DSN. Se ausente, Sentry não inicializa. |
 
+### Variáveis de build do Sentry (não runtime)
+
+Usadas apenas durante `bun run build` para upload de source maps. Não são `VITE_*` — não vão pro bundle.
+
+| Variável | Onde obter |
+|---|---|
+| `SENTRY_AUTH_TOKEN` | sentry.io → Settings → Auth Tokens → Create token (escopo `project:releases`) |
+| `SENTRY_ORG` | sentry.io → Settings → General → Organization Slug |
+| `SENTRY_PROJECT` | sentry.io → Projects → nome do projeto |
+
+> `SENTRY_AUTH_TOKEN` é secret — setar apenas no Vercel (Settings → Environment Variables), nunca commitar.
+
 ### Notas
 
 - Variáveis `VITE_*` são embutidas no bundle em build time. Não use para secrets.
@@ -70,9 +82,10 @@
 ### Sentry (completar antes do deploy de produção)
 
 - [ ] Criar projeto no [sentry.io](https://sentry.io) e obter DSN → setar `VITE_SENTRY_DSN` no Vercel
-- [ ] Instalar `@sentry/vite-plugin` e configurar upload de source maps no `vite.config.ts` (sem source maps, stack traces em prod são ilegíveis)
-- [ ] Adicionar `Sentry.setUser({ email })` após login em `__root.tsx` (erros chegam sem identificar o usuário logado sem isso)
-- [ ] Opcional: integração TanStack Router para rastrear rota ativa no erro (`Sentry.tanstackRouterBrowserTracingIntegration`)
+- [x] `@sentry/vite-plugin` instalado e configurado no `vite.config.ts` — source maps sobem automaticamente no build de produção
+- [x] `Sentry.setUser({ email })` adicionado em `__root.tsx` no login; `Sentry.setUser(null)` no logout
+- [x] `tanstackRouterBrowserTracingIntegration` adicionado em `main.tsx` — rota ativa aparece em cada erro
+- [ ] Setar `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` no Vercel (ver tabela acima)
 
 ### Banco
 - [ ] Supabase backups automáticos habilitados (Supabase Pro ou via pg_dump cron)

@@ -6,18 +6,6 @@ import { createRoot } from 'react-dom/client';
 import { routeTree } from './routeTree.gen';
 import './index.css';
 
-if (import.meta.env.VITE_SENTRY_DSN) {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    environment: import.meta.env.MODE,
-    tracesSampleRate: 0.1,
-    beforeSend(event) {
-      if (event.request) delete event.request.data;
-      return event;
-    },
-  });
-}
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { refetchInterval: 5000, staleTime: 2000 },
@@ -28,6 +16,19 @@ const router = createRouter({
   routeTree,
   context: { queryClient },
 });
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 0.1,
+    integrations: [Sentry.tanstackRouterBrowserTracingIntegration({ router })],
+    beforeSend(event) {
+      if (event.request) delete event.request.data;
+      return event;
+    },
+  });
+}
 
 declare module '@tanstack/react-router' {
   interface Register {

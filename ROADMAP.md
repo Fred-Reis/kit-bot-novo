@@ -254,7 +254,7 @@
 - [x] **Logs estruturados** — bot loga JSON via Pino; web captura erros via Sentry (ErrorBoundary + init)
 - [x] **MSW removido** — handlers estavam vazios, dependência eliminada
 - [x] **Variáveis env produção** — checklist em `docs/deploy.md`; ADR RLS em `docs/adrs/001-rls-strategy.md`
-- [ ] **Sentry completo** — source maps, `setUser` pós-login, router tracing (ver `docs/deploy.md` §Sentry)
+- [x] **Sentry completo** — source maps, `setUser` pós-login, router tracing (ver `docs/deploy.md` §Sentry)
 - [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
 - [ ] **Bot deploy** — Railway/Fly free tier
