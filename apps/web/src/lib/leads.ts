@@ -8,7 +8,7 @@ export function formatPhone(phone: string): string {
 }
 
 export const SOURCE_LABELS: Record<LeadSource, string> = {
-  whatsapp: 'ZAP',
+  whatsapp: 'WhatsApp',
   olx: 'OLX',
   zap: 'ZAP',
   site: 'Site',

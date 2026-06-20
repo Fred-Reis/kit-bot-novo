@@ -265,7 +265,7 @@ function LeadDetailPage() {
           >
             <option value="">— origem —</option>
             {(Object.entries(SOURCE_LABELS) as [string, string][])
-              .filter(([key]) => !['whatsapp', 'other', 'desconhecido'].includes(key))
+              .filter(([key]) => !['zap', 'other', 'desconhecido'].includes(key))
               .map(([key, label]) => (
                 <option key={key} value={key}>
                   {label}
