@@ -257,12 +257,12 @@
 - [x] **Sentry completo** — source maps, `setUser` pós-login, router tracing (ver `docs/deploy.md` §Sentry)
 - [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
-- [ ] **Bot deploy** — Railway/Fly free tier
-- [ ] **Web deploy** — Vercel
-- [ ] **Evolution API deploy** — qual provider? (precisa de webhook público)
-- [ ] **Domínio + SSL**
+- [x] **Bot deploy** — Railway (`kit-bot-novo-production.up.railway.app`)
+- [x] **Web deploy** — Vercel (login + dashboard funcionando)
+- [x] **Evolution API deploy** — Railway (`evolution-api-production-c037.up.railway.app`)
+- [ ] **Domínio + SSL** — usando subdomínios Railway/Vercel por ora
 - [ ] **Onboarding dos próprios imóveis** — cadastrar você como Owner, importar imóveis existentes
-- [ ] **Conectar bot ao número de WhatsApp real**
+- [x] **Conectar bot ao número de WhatsApp real** — instância `halugar` conectada
 
 ---
 
