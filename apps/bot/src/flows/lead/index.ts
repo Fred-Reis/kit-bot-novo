@@ -13,6 +13,7 @@ import {
   shouldSendMediaDeterministically,
 } from '@/flows/lead/media';
 import { resolveTargetAgent } from '@/flows/lead/rules';
+import { fsmStateToLeadStage } from '@/flows/lead/stage-map';
 import { logger } from '@/lib/logger';
 import {
   findMatchingProperty,
@@ -207,7 +208,7 @@ export async function handleLeadMessage(
     }
 
     // 9. Derive visit_requested flag
-    if (context.visitedProperty === false && context.wantsSchedule && context.name) {
+    if (context.visitedProperty === false && context.wantsSchedule) {
       context.visitRequested = true;
     } else if (context.visitedProperty !== false) {
       context.visitRequested = false;
@@ -231,6 +232,17 @@ export async function handleLeadMessage(
 
     if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
       leadPatch.propertyId = snapshot.propertyInFocus.id;
+    }
+
+    // Persistir nome extraído pelo LLM
+    if (context.name && context.name !== lead.name) {
+      leadPatch.name = context.name;
+    }
+
+    // Sincronizar Lead.stage com o estado da conversa
+    const mappedStage = fsmStateToLeadStage(snapshot.state, lead.stage);
+    if (mappedStage && mappedStage !== lead.stage) {
+      leadPatch.stage = mappedStage;
     }
 
     const kycTransition = shouldTransitionToKyc(

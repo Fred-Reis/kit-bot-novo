@@ -1,9 +1,10 @@
 import type { LeadDocument } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmButton } from '@/components/confirm-button';
 import { CustomButton } from '@/components/ui/btn';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { SOURCE_LABELS, STAGES } from '@/lib/leads';
@@ -210,9 +211,22 @@ function LeadDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
 
+  const archiveMutation = useMutation({
+    mutationFn: (archived: boolean) => adminApi.archiveLead(leadId, archived),
+    onSuccess: (_, archived) => {
+      toast.success(archived ? 'Lead arquivado.' : 'Lead reativado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      void qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao arquivar lead.')),
+  });
+
   if (isLoading) return <div className="h-96 animate-pulse rounded-xl bg-muted" />;
 
   if (!lead) return <p className="text-sm text-muted-foreground">Lead não encontrado.</p>;
+
+  const isArchived = !!lead.archivedAt;
+  const archiveLabel = isArchived ? 'Reativar lead' : 'Arquivar lead';
 
   return (
     <div className="space-y-6">
@@ -265,6 +279,22 @@ function LeadDetailPage() {
           >
             {lead.botPaused ? 'Retomar bot' : 'Pausar bot'}
           </CustomButton>
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Zona de risco
+          </p>
+          <ConfirmButton
+            label={archiveLabel}
+            confirmLabel={isArchived ? 'Reativar' : 'Arquivar'}
+            onConfirm={() => archiveMutation.mutate(!isArchived)}
+            disabled={archiveMutation.isPending}
+            className={isArchived ? undefined : 'text-destructive hover:bg-destructive/10'}
+          >
+            <Archive className="mr-1.5 size-3.5" />
+            {archiveLabel}
+          </ConfirmButton>
         </div>
       </div>
 

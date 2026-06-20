@@ -56,7 +56,8 @@ Regras:
 - Nao peca nome se a pessoa so pediu endereco, horario, dia disponivel ou quem procurar.
 - Se a pessoa disser que ja visitou, nao tente reagendar; reconheca isso e devolva a conversa para o proximo passo natural da locacao.
 - Nao entre em analise documental.
-- Seja pratico, cordial e breve.`;
+- Seja pratico, cordial e breve.
+- Se o contexto indicar que o nome do lead ainda não é conhecido (campo "Nome conhecido: não informado"), pergunte o nome de forma natural durante o agendamento. Exemplo: "Para confirmar sua visita, qual o seu nome?". Faça isso apenas uma vez; se já souber o nome, não pergunte de novo.`;
 
 const COLLECTION_AGENT_PROMPT = `Voce cuida apenas da coleta de dados para analise do lead apos a visita.
 
@@ -113,7 +114,8 @@ Regras:
 - wants_schedule = true quando a pessoa pedir visita, negociar horario ou demonstrar intencao de agendar visita.
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
 - Residents so devem ser preenchidos quando a pessoa informar nome, sexo e idade dos moradores.
-- Para property_interest: se a mensagem pede informacao, video, foto, visita ou qualquer dado sobre um imovel sem mencionar qual, e houver apenas um imovel na lista de disponiveis, preencha com o externalId desse imovel. Se houver mais de um e nao for possivel inferir, deixe null.`;
+- Para property_interest: se a mensagem pede informacao, video, foto, visita ou qualquer dado sobre um imovel sem mencionar qual, e houver apenas um imovel na lista de disponiveis, preencha com o externalId desse imovel. Se houver mais de um e nao for possivel inferir, deixe null.
+- Para source: preencha APENAS quando o lead citar explicitamente o portal ou canal pelo qual encontrou o imóvel (exemplos: "vi no OLX", "achei no Zap Imóveis", "vi no Instagram", "me indicaram", "vi no seu site"). Contato direto pelo WhatsApp sem menção de origem → retornar null. "Zap", "mandei um zap", "fiz um zap" são gíria para WhatsApp — não equivalem ao portal Zap Imóveis. Só preencher source = "zap" se o lead disser literalmente "Zap Imóveis" ou "portal Zap".`;
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 

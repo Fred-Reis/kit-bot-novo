@@ -156,6 +156,89 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  // ─── archive / unarchive lead ─────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { archived: boolean } }>(
+    '/admin/leads/:id/archive',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { archived } = request.body;
+
+      if (typeof archived !== 'boolean') {
+        return reply.status(400).send({ error: 'archived must be a boolean' });
+      }
+
+      const { count } = await prisma.lead.updateMany({
+        where: { id, archivedAt: archived ? null : { not: null } },
+        data: { archivedAt: archived ? new Date() : null },
+      });
+
+      if (count === 0) {
+        const exists = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
+        if (!exists) return reply.status(404).send({ error: 'Lead not found' });
+        return reply.status(409).send({ error: archived ? 'Lead already archived' : 'Lead not archived' });
+      }
+
+      const updated = await prisma.lead.findUnique({ where: { id } });
+      if (!updated) return reply.status(404).send({ error: 'Lead not found' });
+
+      const action = archived ? 'lead_archived' : 'lead_unarchived';
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: updated.ownerId,
+        action,
+        subject: updated.name ?? updated.phone,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send(updated);
+    },
+  );
+
+  // ─── manual stage override ─────────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { stage: string } }>(
+    '/admin/leads/:id/stage',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { stage } = request.body;
+
+      const MANUAL_STAGES = new Set(['interest', 'visiting', 'collection', 'review_submitted']);
+      if (!MANUAL_STAGES.has(stage)) {
+        return reply.status(400).send({ error: `Stage '${stage}' cannot be set manually` });
+      }
+
+      const { count } = await prisma.lead.updateMany({
+        where: { id, stage: { not: stage } },
+        data: { stage: stage as never },
+      });
+
+      if (count === 0) {
+        const exists = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
+        if (!exists) return reply.status(404).send({ error: 'Lead not found' });
+        return reply.status(409).send({ error: 'Lead already in that stage' });
+      }
+
+      const updated = await prisma.lead.findUnique({ where: { id } });
+      if (!updated) return reply.status(404).send({ error: 'Lead not found' });
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: updated.ownerId,
+        action: 'lead_stage_changed',
+        subject: updated.name ?? updated.phone,
+        subjectId: id,
+        subjectType: 'lead',
+        metadata: { stage },
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send(updated);
+    },
+  );
+
   // ─── approve-kyc ──────────────────────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>(
     '/admin/leads/:id/approve-kyc',

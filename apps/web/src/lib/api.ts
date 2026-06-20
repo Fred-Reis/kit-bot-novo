@@ -1,4 +1,4 @@
-import type { ContractPreview } from '@kit-manager/types';
+import type { ContractPreview, LeadStage } from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
@@ -93,8 +93,12 @@ export const adminApi = {
   deleteContractTemplate: (id: string) => botApi.delete(`/admin/contract-templates/${id}`),
   pauseLead: (leadId: string, paused: boolean) =>
     botApi.patch(`/admin/leads/${leadId}/pause-bot`, { paused }),
+  archiveLead: (leadId: string, archived: boolean) =>
+    botApi.patch(`/admin/leads/${leadId}/archive`, { archived }),
   updateLeadSource: (leadId: string, source: string) =>
     botApi.patch(`/admin/leads/${leadId}`, { source }),
+  updateLeadStage: (leadId: string, stage: LeadStage) =>
+    botApi.patch(`/admin/leads/${leadId}/stage`, { stage }),
   createPayment: (
     data:
       | {

@@ -33,6 +33,7 @@ export async function fetchLeads(): Promise<Lead[]> {
   const { data, error } = await supabase
     .from('Lead')
     .select('*, property:Property(externalId)')
+    .is('archivedAt', null)
     .order('updatedAt', { ascending: false })
     .limit(100);
   if (error) throw error;

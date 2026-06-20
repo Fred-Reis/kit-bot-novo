@@ -14,8 +14,11 @@ export type ActivityLogSubjectType =
 
 export type ActivityLogAction =
   | 'lead_created'
+  | 'lead_reactivated'
   | 'lead_stage_changed'
   | 'lead_source_corrected'
+  | 'lead_archived'
+  | 'lead_unarchived'
   | 'bot_paused'
   | 'bot_resumed'
   | 'kyc_approved'

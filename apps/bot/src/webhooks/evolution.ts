@@ -112,10 +112,10 @@ export async function evolutionWebhookPlugin(fastify: FastifyInstance) {
 }
 
 async function dispatch(inbound: InboundMessage): Promise<void> {
-  const { chatId, messageId, messageType, text, mediaMime, mediaBase64 } = inbound;
+  const { chatId, messageId, messageType, text, mediaMime, mediaBase64, senderName } = inbound;
 
   if (messageType === 'text' && text) {
-    await bufferMessage(chatId, text, messageId);
+    await bufferMessage(chatId, text, messageId, senderName);
     return;
   }
 
@@ -125,6 +125,7 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
       { type: 'audio', mime: mediaMime ?? undefined, messageId: messageId ?? undefined },
       text ?? undefined,
       messageId,
+      senderName,
     );
     return;
   }
@@ -140,6 +141,7 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
       },
       text ?? undefined,
       messageId,
+      senderName,
     );
     return;
   }

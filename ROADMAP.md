@@ -276,6 +276,34 @@
 - [ ] Rules — aba Campos estruturados
 - [ ] Finance — aba Relatórios exportáveis
 
+### Calendário de visitas
+
+- [ ] **V1 — Agenda interna:** página `/visits` com visualização de visitas agendadas (futuras) e passadas; criadas automaticamente quando `Lead.stage = visiting`; card com lead, imóvel, horário/dia acordado na conversa.
+- [ ] **V2 — Disponibilidade configurável:** proprietário define blocos de horário disponíveis para visita no painel; bot consulta esses blocos e só oferece datas/horários dentro da disponibilidade cadastrada (em vez de deixar o lead sugerir qualquer horário).
+- [ ] **V2 — Google Calendar sync:** sincronização bidirecional com Google Calendar (OAuth); visitas agendadas aparecem na agenda do proprietário; confirmações/cancelamentos refletem no painel.
+
+### Histórico e reativação de leads
+
+- [ ] **Card "Reativado":** badge no card kanban quando `Lead.reactivatedAt != null` (implementado na Slice Funil — ver spec `2026-06-20`); badge adicional "KYC negado" quando histórico de `ActivityLog` registra rejeição.
+- [ ] **Timeline do lead:** seção de histórico completo no detalhe do lead — todas as tentativas, stages percorridos, reativações e rejeições, em ordem cronológica.
+
+### Sanitização de armazenamento
+
+- [ ] **Cron de limpeza de `Event`:** deletar rows da tabela `Event` (histórico de conversa) com mais de N meses para leads em estágio terminal (`converted`, `archived`) — N a definir com base no custo real de armazenamento Supabase.
+- [ ] **Política documentada:** definir regra de retenção por tipo de dado (Event, LeadDocument, ActivityLog) antes de implementar o cron.
+
+### Bot — features pendentes
+
+- [ ] Tenant flow Phase 2 — `handleTenantMessage` real: manutenção → recomenda prestador
+- [ ] Model `ServiceProvider` (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot
+- [ ] Geração de contrato pelo bot na conversa (templates já existem; bot ainda não acessa)
+- [ ] OCR avançado — extração estruturada de CNH/RG/CPF pro KYC
+
+### Infraestrutura e observabilidade
+
+- [ ] Sentry no bot (`apps/bot`) — hoje só Pino; rastreamento de erros em produção
+- [ ] Responsivo mobile do painel — diversas quebras identificadas em uso real
+
 ---
 
 ## Fase 3 — Dogfooding (uso próprio real)

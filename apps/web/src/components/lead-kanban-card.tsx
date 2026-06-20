@@ -1,5 +1,6 @@
 import type { Lead } from '@kit-manager/types';
 import { twMerge } from 'tailwind-merge';
+import { Pill } from '@/components/ui/pill';
 import { formatPhone, SOURCE_LABELS } from '@/lib/leads';
 import { relativeTime } from '@/lib/utils';
 
@@ -37,6 +38,11 @@ export function LeadKanbanCard({ lead, className }: LeadKanbanCardProps) {
       )}
 
       <div className="mt-2 flex flex-wrap gap-1">
+        {lead.reactivatedAt && (
+          <Pill tone="warn" title={`Reativado em ${new Date(lead.reactivatedAt).toLocaleDateString('pt-BR')}`}>
+            Reativado
+          </Pill>
+        )}
         {lead.source && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
             {SOURCE_LABELS[lead.source]}

@@ -5,6 +5,11 @@ import { uploadLeadDocument } from '@/services/storage';
 
 const debounceHandles = new Map<string, NodeJS.Timeout>();
 
+async function storeSenderName(chatId: string, name: string | null | undefined): Promise<void> {
+  if (!name) return;
+  await redis.set(`sender:${chatId}`, name, 'EX', config.BUFFER_TTL_SECONDS, 'NX');
+}
+
 export interface MediaItem {
   type: string;
   mime?: string;
@@ -24,6 +29,7 @@ export async function bufferMessage(
   chatId: string,
   message: string,
   messageId: string | null = null,
+  senderName?: string | null,
 ): Promise<void> {
   if (await isDuplicateMessage(chatId, messageId)) {
     logger.warn({ chatId, messageId }, '[buffer] Duplicate message ignored');
@@ -34,6 +40,8 @@ export async function bufferMessage(
   await redis.rpush(bufferKey, message);
   await redis.expire(bufferKey, config.BUFFER_TTL_SECONDS);
 
+  await storeSenderName(chatId, senderName);
+
   resetDebounce(chatId);
 }
 
@@ -42,6 +50,7 @@ export async function bufferMedia(
   media: MediaItem,
   message?: string,
   messageId?: string | null,
+  senderName?: string | null,
 ): Promise<void> {
   if (await isDuplicateMessage(chatId, messageId ?? null)) {
     logger.warn({ chatId, messageId }, '[buffer] Duplicate media ignored');
@@ -72,6 +81,8 @@ export async function bufferMedia(
   await redis.rpush(mediaKey, JSON.stringify(resolvedMedia));
   await redis.expire(mediaKey, config.BUFFER_TTL_SECONDS);
 
+  await storeSenderName(chatId, senderName);
+
   resetDebounce(chatId);
 }
 
@@ -92,9 +103,10 @@ async function flushAndProcess(chatId: string): Promise<void> {
   const bufferKey = `msg_buffer:${chatId}`;
   const mediaKey = `media_buffer:${chatId}`;
 
-  const [messages, mediaRows] = await Promise.all([
+  const [messages, mediaRows, senderName] = await Promise.all([
     redis.lrange(bufferKey, 0, -1),
     redis.lrange(mediaKey, 0, -1),
+    redis.get(`sender:${chatId}`),
   ]);
 
   await Promise.all([redis.del(bufferKey), redis.del(mediaKey)]);
@@ -108,5 +120,5 @@ async function flushAndProcess(chatId: string): Promise<void> {
 
   // Lazy import to avoid circular dependency at load time
   const { routeMessage } = await import('@/flows/router');
-  await routeMessage(chatId, text, mediaItems);
+  await routeMessage(chatId, text, mediaItems, senderName ?? null);
 }

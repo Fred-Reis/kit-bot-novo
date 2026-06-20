@@ -36,6 +36,8 @@ export interface Lead {
   visitedAt: string | null;
   docsSentAt: string | null;
   contractSignedAt: string | null;
+  archivedAt: string | null;
+  reactivatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

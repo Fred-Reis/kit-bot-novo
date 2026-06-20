@@ -9,6 +9,7 @@ export async function routeMessage(
   chatId: string,
   text: string | null,
   mediaItems: MediaItem[],
+  senderName?: string | null,
 ): Promise<void> {
   const owner = await prisma.owner.findFirst();
   if (!owner) {
@@ -16,8 +17,11 @@ export async function routeMessage(
     return;
   }
 
-  const [existing, tenant, conversation] = await Promise.all([
-    prisma.lead.findUnique({ where: { phone: chatId }, select: { id: true } }),
+  const [existingLead, tenant, conversation] = await Promise.all([
+    prisma.lead.findUnique({
+      where: { phone: chatId },
+      select: { id: true, name: true, archivedAt: true },
+    }),
     prisma.tenant.findUnique({ where: { phone: chatId } }),
     prisma.conversation.findUnique({ where: { chatId }, select: { botPaused: true } }),
   ]);
@@ -32,13 +36,14 @@ export async function routeMessage(
     return;
   }
 
-  const lead = await prisma.lead.upsert({
-    where: { phone: chatId },
-    update: {},
-    create: { phone: chatId, stage: 'interest', source: 'whatsapp', ownerId: owner.id },
-  });
+  const isNew = !existingLead;
+  const isReactivation = !!existingLead?.archivedAt;
 
-  if (!existing) {
+  let lead: { id: string; name: string | null };
+  if (isNew) {
+    lead = await prisma.lead.create({
+      data: { phone: chatId, stage: 'interest', source: 'whatsapp', ownerId: owner.id, name: senderName ?? null },
+    });
     logActivity({
       ownerId: owner.id,
       actorType: 'bot',
@@ -48,6 +53,22 @@ export async function routeMessage(
       subjectId: lead.id,
       subject: chatId,
     }).catch((err) => logger.error({ err }, '[router] logActivity lead_created failed'));
+  } else if (isReactivation) {
+    lead = await prisma.lead.update({
+      where: { phone: chatId },
+      data: { archivedAt: null, reactivatedAt: new Date() },
+    });
+    logActivity({
+      ownerId: owner.id,
+      actorType: 'bot',
+      actorLabel: 'Bot',
+      action: 'lead_reactivated',
+      subjectType: 'lead',
+      subjectId: lead.id,
+      subject: lead.name ?? chatId,
+    }).catch((err) => logger.error({ err }, '[router] logActivity lead_reactivated failed'));
+  } else {
+    lead = existingLead;
   }
 
   await handleLeadMessage(chatId, text, mediaItems, owner.id);
