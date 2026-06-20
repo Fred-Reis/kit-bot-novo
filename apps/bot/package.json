@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun --watch src/app.ts",
     "build": "bun run typecheck && bun build src/app.ts --outdir dist --target node",
-    "start": "bun dist/app.js",
+    "start": "bunx prisma migrate deploy && bun dist/app.js",
     "typecheck": "tsc",
     "lint": "oxlint --config ../../.oxlintrc.json --tsconfig tsconfig.json src/",
     "format": "biome format --write src/",
