@@ -1,22 +1,21 @@
 import {
   DndContext,
+  type DragEndEvent,
   DragOverlay,
   PointerSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import type { Lead } from '@kit-manager/types';
+import type { Lead, LeadStage } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, LayoutGrid, List, Plus, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/empty-state';
-import { cn } from '@/lib/utils';
 import { LeadKanbanCard } from '@/components/lead-kanban-card';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
@@ -24,6 +23,7 @@ import { Pill } from '@/components/ui/pill';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { formatPhone, SOURCE_LABELS, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 import { fetchLeads } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/leads/')({ component: LeadsPage });
 
@@ -33,31 +33,46 @@ const dateFormatted = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
 const KANBAN_COLUMNS = [
   { key: 'novo', label: 'Novo', stages: ['interest'], droppable: true },
-  { key: 'qualificacao', label: 'Qualificação', stages: ['collection', 'review_submitted'], droppable: true },
+  {
+    key: 'qualificacao',
+    label: 'Qualificação',
+    stages: ['collection', 'review_submitted'],
+    droppable: true,
+  },
   { key: 'visita', label: 'Visita agendada', stages: ['visiting'], droppable: true },
   {
     key: 'proposta',
     label: 'Proposta',
-    stages: ['kyc_pending', 'kyc_approved', 'residents_docs_complete', 'contract_pending', 'contract_signed'],
+    stages: [
+      'kyc_pending',
+      'kyc_approved',
+      'residents_docs_complete',
+      'contract_pending',
+      'contract_signed',
+    ],
     droppable: false,
   },
   { key: 'ganho', label: 'Ganho', stages: ['converted'], droppable: false },
 ];
 
-const COL_DROP_STAGE = Object.fromEntries(
-  KANBAN_COLUMNS.filter((col) => col.droppable).map((col) => [col.key, col.stages[0]]),
+const COL_DROP_STAGE: Record<string, LeadStage> = Object.fromEntries(
+  KANBAN_COLUMNS.filter((col) => col.droppable).map((col) => [col.key, col.stages[0] as LeadStage]),
 );
 const DROPPABLE_COLS = new Set(Object.keys(COL_DROP_STAGE));
 
 // ─── Draggable card wrapper ────────────────────────────────────────────────
-function DraggableLeadCard({ lead }: { lead: Lead }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: lead.id,
-  });
+function DraggableLeadCard({
+  lead,
+  isBeingDragged,
+  disabled,
+}: {
+  lead: Lead;
+  isBeingDragged: boolean;
+  disabled: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: lead.id, disabled });
 
-  const style = transform
-    ? { transform: CSS.Transform.toString(transform) }
-    : undefined;
+  const style = transform ? { transform: CSS.Transform.toString(transform) } : undefined;
 
   return (
     <div
@@ -65,7 +80,9 @@ function DraggableLeadCard({ lead }: { lead: Lead }) {
       style={style}
       {...listeners}
       {...attributes}
-      className={isDragging ? 'opacity-50' : undefined}
+      className={
+        isBeingDragged ? 'opacity-0' : disabled ? 'opacity-50 cursor-not-allowed' : undefined
+      }
     >
       <Link to="/leads/$leadId" params={{ leadId: lead.id }}>
         <LeadKanbanCard lead={lead} />
@@ -90,10 +107,7 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={cn(
-        className,
-        isDroppable && isOver ? 'ring-2 ring-primary/50' : undefined,
-      )}
+      className={cn(className, isDroppable && isOver ? 'ring-2 ring-primary/50' : undefined)}
     >
       {children}
     </div>
@@ -106,15 +120,15 @@ function KanbanView({
   onDragStart,
   onDragEnd,
   draggingId,
+  isMutating,
 }: {
   leads: Lead[];
   onDragStart: (id: string | null) => void;
   onDragEnd: (event: DragEndEvent) => void;
   draggingId: string | null;
+  isMutating: boolean;
 }) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const draggingLead = draggingId ? leads.find((l) => l.id === draggingId) : null;
 
@@ -139,7 +153,12 @@ function KanbanView({
                 className="flex flex-col gap-2 rounded-b-lg border border-t-0 border-border bg-muted/20 p-2 min-h-[120px]"
               >
                 {cards.map((lead) => (
-                  <DraggableLeadCard key={lead.id} lead={lead} />
+                  <DraggableLeadCard
+                    key={lead.id}
+                    lead={lead}
+                    isBeingDragged={lead.id === draggingId}
+                    disabled={isMutating}
+                  />
                 ))}
                 {cards.length === 0 && (
                   <p className="py-4 text-center text-[11px] text-muted-foreground/50">—</p>
@@ -150,7 +169,7 @@ function KanbanView({
         })}
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {draggingLead ? (
           <div className="rotate-1 opacity-90">
             <LeadKanbanCard lead={draggingLead} />
@@ -267,25 +286,40 @@ function LeadsPage() {
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ leadId, stage }: { leadId: string; stage: string }) =>
+    mutationFn: ({ leadId, stage }: { leadId: string; stage: LeadStage }) =>
       adminApi.updateLeadStage(leadId, stage),
+    onMutate: async ({ leadId, stage }) => {
+      await qc.cancelQueries({ queryKey: ['leads'] });
+      const snapshot = qc.getQueryData<Lead[]>(['leads']);
+      qc.setQueryData<Lead[]>(
+        ['leads'],
+        (old) =>
+          old?.map((l) => (l.id === leadId ? { ...l, stage: stage as Lead['stage'] } : l)) ?? [],
+      );
+      return { snapshot };
+    },
     onSuccess: () => {
+      toast.success('Lead movido.');
+    },
+    onError: (err, _, context) => {
+      if (context?.snapshot) qc.setQueryData(['leads'], context.snapshot);
+      toast.error(apiErrorMessage(err, 'Erro ao mover lead.'));
+    },
+    onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['leads'] });
     },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao mover lead.')),
   });
 
   function handleDragEnd({ active, over }: DragEndEvent) {
+    if (over && DROPPABLE_COLS.has(over.id as string)) {
+      const leadId = active.id as string;
+      const stage = COL_DROP_STAGE[over.id as string];
+      const lead = leads.find((l) => l.id === leadId);
+      if (lead && lead.stage !== stage) {
+        stageMutation.mutate({ leadId, stage });
+      }
+    }
     setDraggingId(null);
-    if (!over) return;
-    const colKey = over.id as string;
-    if (!DROPPABLE_COLS.has(colKey)) return;
-    const leadId = active.id as string;
-    const stage = COL_DROP_STAGE[colKey];
-    // Skip if already in that stage
-    const lead = leads.find((l) => l.id === leadId);
-    if (!lead || lead.stage === stage) return;
-    stageMutation.mutate({ leadId, stage });
   }
 
   return (
@@ -356,6 +390,7 @@ function LeadsPage() {
           onDragStart={setDraggingId}
           onDragEnd={handleDragEnd}
           draggingId={draggingId}
+          isMutating={stageMutation.isPending}
         />
       ) : (
         <TableView leads={leads} />
