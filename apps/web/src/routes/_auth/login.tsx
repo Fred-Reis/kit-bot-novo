@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { useUiStore } from '@/store/ui';
 
 export const Route = createFileRoute('/_auth/login')({ component: LoginPage });
 
@@ -9,6 +10,7 @@ function LoginPage() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { darkMode } = useUiStore();
 
   async function handleMagicLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,6 +43,11 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-surface">
       <div className="w-full max-w-sm space-y-6 rounded-xl border border-border bg-surface-raised p-8 shadow-sm">
         <div>
+          <img
+            src={darkMode ? '/icon-tile-light.svg' : '/icon-tile-dark.svg'}
+            alt="kit-manager"
+            className="mb-4 size-12 rounded-xl"
+          />
           <h1 className="text-xl font-semibold text-foreground">kit-manager</h1>
           <p className="mt-1 text-sm text-muted-foreground">Painel do proprietário</p>
         </div>

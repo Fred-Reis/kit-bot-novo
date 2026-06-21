@@ -170,6 +170,7 @@ interface SidebarContentProps {
 }
 
 function SidebarContent({ collapsed, counts, userName, userEmail, onLogout }: SidebarContentProps) {
+  const { darkMode } = useUiStore();
   return (
     <>
       {/* Logo block */}
@@ -179,9 +180,11 @@ function SidebarContent({ collapsed, counts, userName, userEmail, onLogout }: Si
           collapsed && 'justify-center px-2',
         )}
       >
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-surface-raised">
-          KM
-        </div>
+        <img
+          src={darkMode ? '/icon-tile-light.svg' : '/icon-tile-dark.svg'}
+          alt="kit-manager"
+          className="size-8 shrink-0 rounded-lg"
+        />
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">kit-manager</p>
