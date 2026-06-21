@@ -107,9 +107,10 @@ model Lead {
   visitedAt        DateTime?
   docsSentAt       DateTime?
   contractSignedAt DateTime?
-  archivedAt       DateTime?
-  reactivatedAt    DateTime?
-  documents        LeadDocument[]
+  archivedAt         DateTime?
+  reactivatedAt      DateTime?
+  scheduledVisitAt   DateTime?
+  documents          LeadDocument[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 

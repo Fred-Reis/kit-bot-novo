@@ -38,6 +38,7 @@ export interface Lead {
   contractSignedAt: string | null;
   archivedAt: string | null;
   reactivatedAt: string | null;
+  scheduledVisitAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

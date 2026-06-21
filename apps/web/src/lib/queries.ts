@@ -378,3 +378,28 @@ export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLe
   if (error) throw error;
   return (data ?? []) as PropertyLeadSummary[];
 }
+
+export interface VisitEntry {
+  id: string;
+  externalId: string | null;
+  name: string | null;
+  phone: string;
+  stage: LeadStage;
+  scheduledVisitAt: string | null;
+  propertyId: string | null;
+  property: { externalId: string | null; address: string; neighborhood: string } | null;
+}
+
+export async function fetchVisits(): Promise<VisitEntry[]> {
+  const { data, error } = await supabase
+    .from('Lead')
+    .select(
+      'id, externalId, name, phone, stage, scheduledVisitAt, propertyId, property:propertyId(externalId, address, neighborhood)',
+    )
+    .eq('stage', 'visiting')
+    .is('archivedAt', null)
+    .is('visitedAt', null)
+    .order('scheduledVisitAt', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as VisitEntry[];
+}

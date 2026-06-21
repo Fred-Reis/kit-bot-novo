@@ -160,6 +160,15 @@ export const LeadExtractionSchema = z.object({
     .enum(['olx', 'zap', 'site', 'instagram', 'indicacao', 'outro', 'desconhecido'])
     .nullable()
     .default(null),
+  scheduled_visit_at: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe(
+      "ISO 8601 date-time da visita confirmada na conversa, ex: '2026-06-25T14:00:00-03:00'. " +
+        'Preencher APENAS quando lead e bot confirmaram explicitamente DIA e HORA especificos. ' +
+        "Mencao vaga ('qualquer dia', 'essa semana') → null.",
+    ),
 });
 
 const RouterSchema = z.object({
@@ -208,7 +217,7 @@ export async function extractLeadUpdate(
   message: string,
   context: LeadContext,
   availablePropertiesSummary?: string,
-): Promise<Partial<LeadContext> & { extractedSource: string | null }> {
+): Promise<Partial<LeadContext> & { extractedSource: string | null; scheduledVisitAt: string | null }> {
   const extractor = makeLLM(400).withStructuredOutput(LeadExtractionSchema);
 
   const prompt = ChatPromptTemplate.fromMessages([
@@ -230,7 +239,7 @@ export async function extractLeadUpdate(
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
     logger.error({ err }, '[lead.agent] extractLeadUpdate failed');
-    return { extractedSource: null };
+    return { extractedSource: null, scheduledVisitAt: null };
   }
 
   const updates: Partial<LeadContext> = { currentIntent: raw.intent };
@@ -268,7 +277,7 @@ export async function extractLeadUpdate(
   const deterministic = getDeterministicLeadUpdates(message);
   Object.assign(updates, deterministic);
 
-  return { ...updates, extractedSource: raw.source };
+  return { ...updates, extractedSource: raw.source, scheduledVisitAt: raw.scheduled_visit_at ?? null };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

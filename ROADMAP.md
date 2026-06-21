@@ -1,7 +1,7 @@
 # ROADMAP — kit-manager
 
 > Sequência priorizada de entrega via vertical slices.
-> Atualizado: 2026-05-22
+> Atualizado: 2026-06-20
 > Visão de produto: [PRD.md](./PRD.md) · Decisões: [BRAINSTORM.md](./BRAINSTORM.md)
 
 ---
@@ -95,31 +95,49 @@
 - [x] Migration: adicionar `Lead.name text`, `Lead.source text`, `Lead.propertyId uuid FK` (pré-existente)
 - [x] Migration: `Lead.externalId` via `lead_external_seq` (pré-existente, F0.6)
 - [x] Migration: `Conversation.botPaused boolean default false` (migration 20260523000001)
+- [x] Migration: `Lead.archivedAt DateTime?`, `Lead.reactivatedAt DateTime?` (migration 20260620000001)
 - [x] Atualizar tipos `Lead`, `Conversation` em `packages/types`
 
 #### Bot
 - [x] Extrator LLM: adicionar campo `source` no schema Zod (B11) — valores `olx | zap | site | instagram | indicacao | outro | desconhecido`
 - [x] Bot: persistir `source` extraído em `Lead.source` (1ª detecção; não sobrescreve depois)
+- [x] Bot: `source` preenchido **apenas** com menção explícita de portal ("vi no OLX", "Zap Imóveis") — contato direto pelo WhatsApp → `null`
 - [x] Bot: setar `propertyId` quando lead foca em imóvel (`flows/lead/index.ts`)
 - [x] Bot: no router de webhook, se `conversation.botPaused === true`, ignora mensagem (sem LLM, sem resposta)
+- [x] Bot: `pushName` pipeline — `senderName` → Redis `sender:{chatId}` (NX, write-once) → `Lead.name` na criação
+- [x] Bot: FSM→stage sync — `fsmStateToLeadStage()` em `flows/lead/stage-map.ts` sincroniza `Lead.stage` a cada turno; não regride stages terminais (`kyc_pending` em diante)
+- [x] Bot: `Lead.name` persistido quando LLM extrai explicitamente (não sobrescreve se já preenchido via pushName)
+- [x] Bot: `visitRequested` desacoplado de `context.name` (não depende mais de ter nome para marcar visita)
+- [x] Bot: reativação de lead arquivado — quando lead arquivado manda mensagem, `archivedAt → null`, `reactivatedAt → now()`, log `lead_reactivated`
 - [x] Bot endpoint: `PATCH /admin/leads/:id/pause-bot` — body `{paused: boolean}` → atualiza `Conversation.botPaused`
+- [x] Bot endpoint: `PATCH /admin/leads/:id/archive` — body `{archived: boolean}` → soft-delete com `archivedAt`; `updateMany` + precondition para idempotência
+- [x] Bot endpoint: `PATCH /admin/leads/:id/stage` — body `{stage: LeadStage}` → movimentação manual; validado contra `MANUAL_STAGES`
 - [x] Bot: notificação WhatsApp ao owner quando `stage` muda pra `kyc_pending` (via `notifyOwner`)
+- [x] Scheduling agent pede nome quando desconhecido, de forma natural, uma única vez
 
 #### Web (admin)
 - [x] `fetchLead(id)` retorna `botPaused: boolean` + `documents` (via `Conversation` join)
+- [x] `fetchLeads()` filtra `archivedAt IS NULL` — leads arquivados não aparecem no kanban
 - [x] Kanban card rico: `externalId` mono muted, source chip, relative time, propertyRef
+- [x] Kanban card: badge "Reativado" quando `reactivatedAt != null`
+- [x] Kanban DnD: arrastar cards entre colunas droppable (Novo / Qualificação / Visita agendada); usa `@dnd-kit/core`
+- [x] Kanban DnD: optimistic update — card fica na coluna destino imediatamente; rollback + toast de erro se falhar; toast de sucesso
+- [x] Kanban DnD: bloqueio durante mutation — `useDraggable({ disabled })` + opacity-50 enquanto request processa
 - [x] Mapeamento FSM → coluna (B6) — `stageToColumn()` em `lib/lead-utils.ts`
-- [x] `SOURCE_LABELS` cobre `olx`, `outro`, `desconhecido`
-- [x] `api.ts`: `pauseLead()` e `updateLeadSource()`
-- [x] Detalhe lead: dropdown manual de source para correção
+- [x] `SOURCE_LABELS`: WhatsApp com label "WhatsApp" (não "ZAP"); `zap` filtrado do select como legado
+- [x] `api.ts`: `pauseLead()`, `updateLeadSource()`, `archiveLead()`, `updateLeadStage()`
+- [x] Detalhe lead: dropdown manual de source para correção (inclui WhatsApp; exclui `zap`, `other`, `desconhecido`)
 - [x] Detalhe lead: toggle "Pausar bot / Retomar bot"
 - [x] Detalhe lead: badge "Bot pausado — você assume" quando `botPaused === true`
+- [x] Detalhe lead: botão "Arquivar / Reativar lead" com `ConfirmButton` (sem `confirm()` nativo)
 - [x] Labels corretas das colunas kanban: Novo / Qualificação / Visita agendada / Proposta / Ganho
 - [x] Tabela: colunas nome + source + property + stage + updatedAt
 - [x] Header: botões Filtros (stub) + Novo lead (stub)
 
 #### Activity log
 - [x] `lead_created` (bot escreve na 1ª criação)
+- [x] `lead_reactivated` (bot escreve na reativação de lead arquivado)
+- [x] `lead_archived`, `lead_unarchived` (web escreve junto ao PATCH /archive)
 - [x] `lead_source_corrected` (web escreve quando owner muda dropdown)
 - [x] `bot_paused`, `bot_resumed` (web escreve junto ao PATCH)
 - [x] `kyc_approved`, `contract_generated`, `payment_confirmed` (pré-existentes em admin.ts)
@@ -258,8 +276,10 @@
 - [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
 - [x] **Bot deploy** — Railway (`kit-bot-novo-production.up.railway.app`)
-- [x] **Web deploy** — Vercel (login + dashboard funcionando)
+- [x] **Web deploy** — Vercel (`kit-bot-novo-web.vercel.app`; `vercel.json` com rewrite SPA para corrigir 404 no refresh)
 - [x] **Evolution API deploy** — Railway (`evolution-api-production-c037.up.railway.app`)
+- [x] **CORS em prod** — `ADMIN_ORIGIN` env var no Railway + strip de trailing slash em `app.ts`
+- [x] **Migration em prod** — `prisma migrate deploy` no start script (`apps/bot/package.json`); `railway.toml` com build/start commands versionados
 - [ ] **Domínio + SSL** — usando subdomínios Railway/Vercel por ora
 - [ ] **Onboarding dos próprios imóveis** — cadastrar você como Owner, importar imóveis existentes
 - [x] **Conectar bot ao número de WhatsApp real** — instância `halugar` conectada
@@ -284,7 +304,8 @@
 
 ### Histórico e reativação de leads
 
-- [ ] **Card "Reativado":** badge no card kanban quando `Lead.reactivatedAt != null` (implementado na Slice Funil — ver spec `2026-06-20`); badge adicional "KYC negado" quando histórico de `ActivityLog` registra rejeição.
+- [x] **Card "Reativado":** badge no card kanban quando `Lead.reactivatedAt != null` — implementado 2026-06-20 (spec `2026-06-20-funil-lead-sincroniza-conversa`)
+- [ ] **Badge "KYC negado":** badge no card quando `ActivityLog` registra rejeição — pendente: ação `lead_kyc_rejected` ainda não existe no fluxo
 - [ ] **Timeline do lead:** seção de histórico completo no detalhe do lead — todas as tentativas, stages percorridos, reativações e rejeições, em ordem cronológica.
 
 ### Sanitização de armazenamento

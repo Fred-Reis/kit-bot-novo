@@ -167,7 +167,7 @@ export async function handleLeadMessage(
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
-      const { extractedSource, ...updates } = await extractLeadUpdate(
+      const { extractedSource, scheduledVisitAt: extractedVisitAt, ...updates } = await extractLeadUpdate(
         messageText,
         context,
         availableSummary,
@@ -177,6 +177,17 @@ export async function handleLeadMessage(
       // Don't overwrite manual source corrections made in the admin panel
       if (shouldUpdateLeadSource(lead.source, extractedSource)) {
         leadPatch.source = extractedSource;
+      }
+
+      // Persist confirmed visit date — only advance, never regress
+      if (extractedVisitAt) {
+        const proposedDate = new Date(extractedVisitAt);
+        if (
+          !isNaN(proposedDate.getTime()) &&
+          (lead.scheduledVisitAt === null || proposedDate > new Date(lead.scheduledVisitAt))
+        ) {
+          leadPatch.scheduledVisitAt = proposedDate;
+        }
       }
     }
 

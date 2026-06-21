@@ -13,6 +13,7 @@ import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
+import { Route as DashboardVisitsIndexRouteImport } from './routes/_dashboard/visits/index'
 import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
 import { Route as DashboardTemplatesIndexRouteImport } from './routes/_dashboard/templates/index'
 import { Route as DashboardRulesIndexRouteImport } from './routes/_dashboard/rules/index'
@@ -46,6 +47,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => AuthRoute,
+} as any)
+const DashboardVisitsIndexRoute = DashboardVisitsIndexRouteImport.update({
+  id: '/visits/',
+  path: '/visits/',
+  getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardTenantsIndexRoute = DashboardTenantsIndexRouteImport.update({
   id: '/tenants/',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/rules/': typeof DashboardRulesIndexRoute
   '/templates/': typeof DashboardTemplatesIndexRoute
   '/tenants/': typeof DashboardTenantsIndexRoute
+  '/visits/': typeof DashboardVisitsIndexRoute
   '/properties/$propertyId/edit': typeof DashboardPropertiesPropertyIdEditRoute
   '/properties/$propertyId/': typeof DashboardPropertiesPropertyIdIndexRoute
 }
@@ -163,6 +170,7 @@ export interface FileRoutesByTo {
   '/rules': typeof DashboardRulesIndexRoute
   '/templates': typeof DashboardTemplatesIndexRoute
   '/tenants': typeof DashboardTenantsIndexRoute
+  '/visits': typeof DashboardVisitsIndexRoute
   '/properties/$propertyId/edit': typeof DashboardPropertiesPropertyIdEditRoute
   '/properties/$propertyId': typeof DashboardPropertiesPropertyIdIndexRoute
 }
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/_dashboard/rules/': typeof DashboardRulesIndexRoute
   '/_dashboard/templates/': typeof DashboardTemplatesIndexRoute
   '/_dashboard/tenants/': typeof DashboardTenantsIndexRoute
+  '/_dashboard/visits/': typeof DashboardVisitsIndexRoute
   '/_dashboard/properties/$propertyId/edit': typeof DashboardPropertiesPropertyIdEditRoute
   '/_dashboard/properties/$propertyId/': typeof DashboardPropertiesPropertyIdIndexRoute
 }
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/rules/'
     | '/templates/'
     | '/tenants/'
+    | '/visits/'
     | '/properties/$propertyId/edit'
     | '/properties/$propertyId/'
   fileRoutesByTo: FileRoutesByTo
@@ -225,6 +235,7 @@ export interface FileRouteTypes {
     | '/rules'
     | '/templates'
     | '/tenants'
+    | '/visits'
     | '/properties/$propertyId/edit'
     | '/properties/$propertyId'
   id:
@@ -246,6 +257,7 @@ export interface FileRouteTypes {
     | '/_dashboard/rules/'
     | '/_dashboard/templates/'
     | '/_dashboard/tenants/'
+    | '/_dashboard/visits/'
     | '/_dashboard/properties/$propertyId/edit'
     | '/_dashboard/properties/$propertyId/'
   fileRoutesById: FileRoutesById
@@ -284,6 +296,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/_dashboard/visits/': {
+      id: '/_dashboard/visits/'
+      path: '/visits'
+      fullPath: '/visits/'
+      preLoaderRoute: typeof DashboardVisitsIndexRouteImport
+      parentRoute: typeof DashboardRoute
     }
     '/_dashboard/tenants/': {
       id: '/_dashboard/tenants/'
@@ -418,6 +437,7 @@ interface DashboardRouteChildren {
   DashboardRulesIndexRoute: typeof DashboardRulesIndexRoute
   DashboardTemplatesIndexRoute: typeof DashboardTemplatesIndexRoute
   DashboardTenantsIndexRoute: typeof DashboardTenantsIndexRoute
+  DashboardVisitsIndexRoute: typeof DashboardVisitsIndexRoute
   DashboardPropertiesPropertyIdEditRoute: typeof DashboardPropertiesPropertyIdEditRoute
   DashboardPropertiesPropertyIdIndexRoute: typeof DashboardPropertiesPropertyIdIndexRoute
 }
@@ -437,6 +457,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardRulesIndexRoute: DashboardRulesIndexRoute,
   DashboardTemplatesIndexRoute: DashboardTemplatesIndexRoute,
   DashboardTenantsIndexRoute: DashboardTenantsIndexRoute,
+  DashboardVisitsIndexRoute: DashboardVisitsIndexRoute,
   DashboardPropertiesPropertyIdEditRoute:
     DashboardPropertiesPropertyIdEditRoute,
   DashboardPropertiesPropertyIdIndexRoute:

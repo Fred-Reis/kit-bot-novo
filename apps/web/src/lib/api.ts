@@ -118,6 +118,15 @@ export const adminApi = {
           status?: string;
         },
   ) => botApi.post('/admin/payments', data),
+
+  createVisit: (data: {
+    leadId: string;
+    propertyId: string;
+    scheduledVisitAt: string;
+    note?: string;
+  }) => botApi.post('/admin/visits', data),
+
+  completeVisit: (leadId: string) => botApi.patch(`/admin/leads/${leadId}/complete-visit`),
 };
 
 export function apiErrorMessage(err: unknown, fallback: string): string {

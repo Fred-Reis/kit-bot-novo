@@ -10,6 +10,7 @@ import {
 import {
   Bell,
   Building2,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Coins,
@@ -72,6 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Principal',
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+      { href: '/visits', label: 'Visitas', icon: CalendarDays },
       { href: '/properties', label: 'Imóveis', icon: Building2 },
       { href: '/tenants', label: 'Inquilinos', icon: UserCheck },
       { href: '/leads', label: 'Leads', icon: MessageSquare, badge: true },

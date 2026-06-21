@@ -40,7 +40,9 @@ export type ActivityLogAction =
   | 'rule_set_created'
   | 'rule_set_linked'
   | 'rule_set_unlinked'
-  | 'owner_updated';
+  | 'owner_updated'
+  | 'visit_scheduled'
+  | 'visit_completed';
 
 export interface LogActivityParams {
   ownerId: string;
