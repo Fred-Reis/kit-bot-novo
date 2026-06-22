@@ -52,12 +52,15 @@ const SCHEDULING_AGENT_PROMPT = `Voce cuida apenas do agendamento de visita.
 
 Regras:
 - Foque em visita, horario e disponibilidade.
+- Se a pessoa quiser reagendar, confirme a nova data e horario sem resistencia. Reagendamento e sempre permitido.
+- Nunca diga que nao e possivel reagendar. Nunca bloqueie mudanca de data ou horario.
+- Se houver uma visita ja agendada e a pessoa pedir nova data/hora, confirme a mudanca normalmente.
 - Se a pessoa disser que so quer ver o imovel, nao insista em renda nem documentos.
 - Nao peca nome se a pessoa so pediu endereco, horario, dia disponivel ou quem procurar.
 - Se a pessoa disser que ja visitou, nao tente reagendar; reconheca isso e devolva a conversa para o proximo passo natural da locacao.
 - Nao entre em analise documental.
 - Seja pratico, cordial e breve.
-- Se o contexto indicar que o nome do lead ainda não é conhecido (campo "Nome conhecido: não informado"), pergunte o nome de forma natural durante o agendamento. Exemplo: "Para confirmar sua visita, qual o seu nome?". Faça isso apenas uma vez; se já souber o nome, não pergunte de novo.`;
+- Se o contexto indicar que o nome do lead ainda nao e conhecido (campo "Nome conhecido: nao informado"), pergunte o nome de forma natural durante o agendamento. Exemplo: "Para confirmar sua visita, qual o seu nome?". Faca isso apenas uma vez; se ja souber o nome, nao pergunte de novo.`;
 
 const COLLECTION_AGENT_PROMPT = `Voce cuida apenas da coleta de dados para analise do lead apos a visita.
 
@@ -165,9 +168,10 @@ export const LeadExtractionSchema = z.object({
     .nullable()
     .default(null)
     .describe(
-      "ISO 8601 date-time da visita confirmada na conversa, ex: '2026-06-25T14:00:00-03:00'. " +
-        'Preencher APENAS quando lead e bot confirmaram explicitamente DIA e HORA especificos. ' +
-        "Mencao vaga ('qualquer dia', 'essa semana') → null.",
+      "ISO 8601 date-time da visita, ex: '2026-06-25T14:00:00-03:00'. " +
+        'Preencher quando o lead mencionar ou confirmar DIA e HORA especificos, mesmo sem confirmacao bilateral. ' +
+        "Mencao vaga ('qualquer dia', 'essa semana', 'amanha') sem horario → null. " +
+        'Assumir fuso -03:00 (Brasilia) quando nao informado.',
     ),
 });
 
@@ -224,11 +228,17 @@ export async function extractLeadUpdate(
     ['system', EXTRACTOR_SYSTEM_PROMPT],
     [
       'human',
-      'Contexto atual (JSON):\n{context}\n\nImóveis disponíveis no sistema:\n{available}\n\nMensagem do usuario:\n{message}',
+      'Data e hora atual (use como referencia para datas relativas como "amanha", "terca", "semana que vem"): {hoje}\n\nContexto atual (JSON):\n{context}\n\nImoveis disponiveis no sistema:\n{available}\n\nMensagem do usuario:\n{message}',
     ],
   ]);
 
   const chain = prompt.pipe(extractor);
+
+  const hoje = new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
 
   let raw: z.infer<typeof LeadExtractionSchema>;
   try {
@@ -236,6 +246,7 @@ export async function extractLeadUpdate(
       message,
       context: JSON.stringify(context),
       available: availablePropertiesSummary ?? 'nao informado',
+      hoje,
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
     logger.error({ err }, '[lead.agent] extractLeadUpdate failed');

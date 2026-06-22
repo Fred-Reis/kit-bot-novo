@@ -182,10 +182,7 @@ export async function handleLeadMessage(
       // Persist confirmed visit date — only advance, never regress
       if (extractedVisitAt) {
         const proposedDate = new Date(extractedVisitAt);
-        if (
-          !isNaN(proposedDate.getTime()) &&
-          (lead.scheduledVisitAt === null || proposedDate > new Date(lead.scheduledVisitAt))
-        ) {
+        if (!isNaN(proposedDate.getTime()) && proposedDate > new Date()) {
           leadPatch.scheduledVisitAt = proposedDate;
         }
       }
