@@ -1,5 +1,6 @@
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
+import { redis } from '@/db/redis';
 import { handleLeadMessage } from '@/flows/lead/index';
 import { handleTenantMessage } from '@/flows/tenant/index';
 import { logger } from '@/lib/logger';
@@ -14,6 +15,21 @@ export async function routeMessage(
   const owner = await prisma.owner.findFirst();
   if (!owner) {
     logger.error('[router] No owner record found — cannot route message');
+    return;
+  }
+
+  // Check global bot enabled flag (cached 60s in Redis)
+  const cacheKey = `bot:enabled:${owner.id}`;
+  const cached = await redis.get(cacheKey);
+  let botEnabled: boolean;
+  if (cached !== null) {
+    botEnabled = cached === '1';
+  } else {
+    botEnabled = owner.botEnabled;
+    await redis.set(cacheKey, botEnabled ? '1' : '0', 'EX', 60);
+  }
+  if (!botEnabled) {
+    logger.info({ chatId }, '[router] Bot globally disabled — message suppressed');
     return;
   }
 

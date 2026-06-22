@@ -13,6 +13,7 @@ model Owner {
   email             String?            @unique
   notificationPhone String?
   notificationEmail String?
+  botEnabled        Boolean            @default(true)
   properties        Property[]
   tenants           Tenant[]
   leads             Lead[]

@@ -1,0 +1,1 @@
+ALTER TABLE "Owner" ADD COLUMN "botEnabled" BOOLEAN NOT NULL DEFAULT true;

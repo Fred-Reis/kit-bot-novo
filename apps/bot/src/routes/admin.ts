@@ -57,6 +57,36 @@ const PROPERTY_PATCH_FIELDS = new Set([
 ]);
 
 export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
+  // ─── bot global toggle ────────────────────────────────────────────────────
+  fastify.patch<{ Body: { enabled: boolean } }>(
+    '/admin/workspace/bot-enabled',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { enabled } = request.body;
+      if (typeof enabled !== 'boolean') {
+        return reply.status(400).send({ error: 'enabled must be a boolean' });
+      }
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(404).send({ error: 'Owner not found' });
+
+      await prisma.owner.update({ where: { id: owner.id }, data: { botEnabled: enabled } });
+
+      await redis.del(`bot:enabled:${owner.id}`);
+
+      logActivityHelper({
+        ownerId: owner.id,
+        actorType: 'owner',
+        actorLabel: request.adminUserId ?? 'Admin',
+        action: enabled ? 'bot_globally_resumed' : 'bot_globally_paused',
+        subjectType: 'workspace',
+        subjectId: owner.id,
+        subject: 'Bot WhatsApp',
+      }).catch(() => {});
+
+      return reply.send({ enabled });
+    },
+  );
+
   // ─── update lead ──────────────────────────────────────────────────────────
   const VALID_LEAD_SOURCES = new Set([
     'whatsapp',
@@ -1472,6 +1502,106 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       }).catch(fastify.log.warn.bind(fastify.log));
 
       return reply.send({ leadId: id, visitedAt: updated.visitedAt, stage: updated.stage });
+    },
+  );
+
+  // ─── update visit status ─────────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { status: string } }>(
+    '/admin/leads/:id/visit-status',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { status } = request.body;
+
+      if (!['upcoming', 'completed', 'cancelled'].includes(status)) {
+        return reply.status(400).send({ error: 'status must be upcoming | completed | cancelled' });
+      }
+
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+
+      const lead = await prisma.lead.findUnique({ where: { id } });
+      if (!lead || lead.ownerId !== owner.id) {
+        return reply.status(404).send({ error: 'Lead not found' });
+      }
+
+      let data: Prisma.LeadUpdateInput;
+      let action: 'visit_completed' | 'visit_cancelled' | 'visit_scheduled';
+
+      if (status === 'completed') {
+        data = { visitedAt: new Date(), archivedAt: null, stage: 'post_visit_decision' };
+        action = 'visit_completed';
+      } else if (status === 'cancelled') {
+        data = { archivedAt: new Date(), visitedAt: null };
+        action = 'visit_cancelled';
+      } else {
+        data = { visitedAt: null, archivedAt: null, stage: 'visiting' };
+        action = 'visit_scheduled';
+      }
+
+      await prisma.lead.update({ where: { id }, data });
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'Admin',
+        ownerId: owner.id,
+        action,
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+        metadata: { status },
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send({ leadId: id, status });
+    },
+  );
+
+  // ─── reschedule visit ─────────────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { scheduledVisitAt: string } }>(
+    '/admin/leads/:id/scheduled-visit',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { scheduledVisitAt } = request.body;
+
+      if (!scheduledVisitAt) {
+        return reply.status(400).send({ error: 'scheduledVisitAt is required' });
+      }
+
+      const visitDate = new Date(scheduledVisitAt);
+      if (isNaN(visitDate.getTime())) {
+        return reply.status(400).send({ error: 'Invalid scheduledVisitAt date' });
+      }
+
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(400).send({ error: 'No owner found' });
+
+      const lead = await prisma.lead.findUnique({ where: { id } });
+      if (!lead || lead.ownerId !== owner.id) {
+        return reply.status(404).send({ error: 'Lead not found' });
+      }
+
+      if (lead.archivedAt) {
+        return reply.status(409).send({ error: 'Cannot reschedule visit for archived lead' });
+      }
+
+      const updated = await prisma.lead.update({
+        where: { id },
+        data: { scheduledVisitAt: visitDate },
+      });
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'Admin',
+        ownerId: owner.id,
+        action: 'visit_scheduled',
+        subject: lead.name ?? lead.phone,
+        subjectId: id,
+        subjectType: 'lead',
+        metadata: { scheduledVisitAt },
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send({ leadId: id, scheduledVisitAt: updated.scheduledVisitAt });
     },
   );
 }
