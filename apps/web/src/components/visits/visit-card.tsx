@@ -1,7 +1,7 @@
 import { twMerge } from 'tailwind-merge';
 import type { VisitEntry } from '@/lib/queries';
-import { visitStatus } from '@/lib/visit-utils';
 import type { VisitStatus } from '@/lib/visit-utils';
+import { parseDbDate, visitStatus } from '@/lib/visit-utils';
 
 interface VisitCardProps {
   visit: VisitEntry;
@@ -10,9 +10,8 @@ interface VisitCardProps {
 }
 
 function formatVisitTime(iso: string | null): string {
-  if (!iso) return 'Hora a confirmar';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'Hora a confirmar';
+  const d = parseDbDate(iso);
+  if (!d) return 'Hora a confirmar';
   return d.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',

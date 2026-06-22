@@ -163,15 +163,24 @@ export const LeadExtractionSchema = z.object({
     .enum(['olx', 'zap', 'site', 'instagram', 'indicacao', 'outro', 'desconhecido'])
     .nullable()
     .default(null),
-  scheduled_visit_at: z
+  visit_date: z
     .string()
     .nullable()
     .default(null)
     .describe(
-      "ISO 8601 date-time da visita, ex: '2026-06-25T14:00:00-03:00'. " +
-        'Preencher quando o lead mencionar ou confirmar DIA e HORA especificos, mesmo sem confirmacao bilateral. ' +
-        "Mencao vaga ('qualquer dia', 'essa semana', 'amanha') sem horario → null. " +
-        'Assumir fuso -03:00 (Brasilia) quando nao informado.',
+      "Data da visita no formato YYYY-MM-DD, ex: '2026-06-25'. " +
+        'Preencher quando o lead mencionar um dia especifico. ' +
+        'Usar a data atual de referencia para resolver "amanha", "terca-feira", "semana que vem", etc. ' +
+        'Sem dia especifico → null.',
+    ),
+  visit_time: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe(
+      "Hora da visita no formato HH:MM (24h), ex: '14:00'. " +
+        "Se lead disse '14h', retornar '14:00'. Se disse '9h', retornar '09:00'. " +
+        'Sem hora especifica → null.',
     ),
 });
 
@@ -288,7 +297,10 @@ export async function extractLeadUpdate(
   const deterministic = getDeterministicLeadUpdates(message);
   Object.assign(updates, deterministic);
 
-  return { ...updates, extractedSource: raw.source, scheduledVisitAt: raw.scheduled_visit_at ?? null };
+  const scheduledVisitAt =
+    raw.visit_date && raw.visit_time ? `${raw.visit_date}T${raw.visit_time}:00-03:00` : null;
+
+  return { ...updates, extractedSource: raw.source, scheduledVisitAt };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

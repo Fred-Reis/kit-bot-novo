@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import type { VisitEntry } from '@/lib/queries';
-import { visitStatus } from '@/lib/visit-utils';
+import { parseDbDate, visitStatus } from '@/lib/visit-utils';
 
 interface EditVisitModalProps {
   visit: VisitEntry;
@@ -22,12 +22,14 @@ const STATUS_OPTIONS: { value: EditableStatus; label: string }[] = [
   { value: 'cancelled', label: 'Cancelada' },
 ];
 
+const TZ = 'America/Sao_Paulo';
+
 function toLocalInputs(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' };
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return { date: '', time: '' };
-  const brt = new Date(d.getTime() - 3 * 60 * 60 * 1000);
-  return { date: brt.toISOString().slice(0, 10), time: brt.toISOString().slice(11, 16) };
+  const d = parseDbDate(iso);
+  if (!d) return { date: '', time: '' };
+  const date = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, dateStyle: 'short' }).format(d);
+  const time = new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, timeStyle: 'short' }).format(d);
+  return { date, time };
 }
 
 function derivedToEditable(status: ReturnType<typeof visitStatus>): EditableStatus {
