@@ -1,7 +1,7 @@
 # PRD — kit-manager
 
 > Product Requirements Document. Fonte da verdade do produto.
-> Última atualização: 2026-05-22
+> Última atualização: 2026-06-21
 
 ---
 
@@ -68,6 +68,7 @@ Dois módulos integrados compartilhando o mesmo banco:
 - Coleta documentos (CNH ou RG+CPF) com OCR via Google Cloud Vision
 - Comportamentos determinísticos: saudações, envio de mídia, áudio
 - Notifica proprietário em momentos-chave (KYC pronto, pagamento, etc)
+- **Toggle global de pausa** — proprietário desliga o bot pelo painel; Evolution permanece conectado; WhatsApp funciona normalmente para atendimento manual
 - **Atua como intermediário formal** — proprietário não precisa responder cada mensagem
 
 ### 4.2. Painel Admin (`apps/web`)
@@ -78,6 +79,10 @@ Dois módulos integrados compartilhando o mesmo banco:
 - Templates de contrato (foundation para automação futura)
 - Financeiro: visualização + lançamento manual
 - Regras de locação reutilizáveis (rule sets)
+- Calendário de visitas com histórico completo (agendadas, concluídas, canceladas, não realizadas) e filtros de status
+- **Responsável por visita por imóvel** — cada imóvel pode ter um ou mais responsáveis (nome + WhatsApp) para acompanhar visitas; proprietário não precisa ser o acompanhante
+- **Lembretes automáticos de visita** — cron horário envia WhatsApp ao responsável e ao lead com antecedência configurável pelo proprietário (múltiplos offsets: ex. 1h antes, 24h antes)
+- **Instalável como PWA** — proprietário adiciona o painel à tela inicial do celular ou desktop sem app store
 
 ---
 
@@ -98,7 +103,7 @@ Dois módulos integrados compartilhando o mesmo banco:
 | **Regras** | Rule sets com políticas Sim/Não/Cond, vincular a imóveis |
 | **Financeiro** | KPIs reais + tabela "últimos movimentos" + lançamento manual de pagamento |
 | **Dashboard** | KPIs reais + ocupação + activity feed + próximos vencimentos |
-| **Configurações** | Sidebar 7 seções: Workspace (read-only), Integrações (Evolution config), Notificações, Aparência (dark mode wired), Segurança (stub), Equipe (stub), Plano (stub) |
+| **Configurações** | Sidebar 7 seções: Workspace (read-only), Integrações (Evolution config + toggle global do bot), Notificações, Aparência (dark mode wired), Segurança (stub), Equipe (stub), Plano (stub) |
 | **Activity Log** | Tabela `activity_log` escrita por bot **e** web em todos os pontos relevantes |
 | **RLS** | Reativar antes de subir para produção real |
 

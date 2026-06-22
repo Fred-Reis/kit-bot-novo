@@ -386,6 +386,8 @@ export interface VisitEntry {
   phone: string;
   stage: LeadStage;
   scheduledVisitAt: string | null;
+  visitedAt: string | null;
+  archivedAt: string | null;
   propertyId: string | null;
   property: { externalId: string | null; address: string; neighborhood: string } | null;
 }
@@ -394,12 +396,21 @@ export async function fetchVisits(): Promise<VisitEntry[]> {
   const { data, error } = await supabase
     .from('Lead')
     .select(
-      'id, externalId, name, phone, stage, scheduledVisitAt, propertyId, property:propertyId(externalId, address, neighborhood)',
+      'id, externalId, name, phone, stage, scheduledVisitAt, visitedAt, archivedAt, propertyId, property:propertyId(externalId, address, neighborhood)',
     )
-    .eq('stage', 'visiting')
-    .is('archivedAt', null)
-    .is('visitedAt', null)
+    .not('scheduledVisitAt', 'is', null)
     .order('scheduledVisitAt', { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data ?? []) as unknown as VisitEntry[];
+}
+
+export interface OwnerSettings {
+  id: string;
+  botEnabled: boolean;
+}
+
+export async function fetchOwner(): Promise<OwnerSettings> {
+  const { data, error } = await supabase.from('Owner').select('id, botEnabled').single();
+  if (error) throw error;
+  return data as OwnerSettings;
 }

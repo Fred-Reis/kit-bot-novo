@@ -126,7 +126,11 @@ export const adminApi = {
     note?: string;
   }) => botApi.post('/admin/visits', data),
 
-  completeVisit: (leadId: string) => botApi.patch(`/admin/leads/${leadId}/complete-visit`),
+  updateVisitSchedule: (leadId: string, scheduledVisitAt: string) =>
+    botApi.patch(`/admin/leads/${leadId}/scheduled-visit`, { scheduledVisitAt }),
+  updateVisitStatus: (leadId: string, status: 'upcoming' | 'completed' | 'cancelled') =>
+    botApi.patch(`/admin/leads/${leadId}/visit-status`, { status }),
+  updateBotEnabled: (enabled: boolean) => botApi.patch('/admin/workspace/bot-enabled', { enabled }),
 };
 
 export function apiErrorMessage(err: unknown, fallback: string): string {

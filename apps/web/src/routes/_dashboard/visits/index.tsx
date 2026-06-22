@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
+import { EditVisitModal } from '@/components/visits/edit-visit-modal';
 import { NewVisitModal } from '@/components/visits/new-visit-modal';
 import { VisitCard } from '@/components/visits/visit-card';
 import { fetchVisits, type VisitEntry } from '@/lib/queries';
+import { visitStatus, type VisitStatus } from '@/lib/visit-utils';
 
 export const Route = createFileRoute('/_dashboard/visits/')({
   component: VisitsPage,
@@ -33,10 +36,23 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+const ALL_STATUSES = new Set<VisitStatus>(['upcoming', 'unscheduled', 'completed', 'cancelled', 'past']);
+const DEFAULT_FILTERS = new Set<VisitStatus>(['upcoming', 'unscheduled']);
+
+const FILTER_OPTIONS: { value: VisitStatus | 'all'; label: string }[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'upcoming', label: 'Agendadas' },
+  { value: 'unscheduled', label: 'Sem horário' },
+  { value: 'completed', label: 'Concluídas' },
+  { value: 'cancelled', label: 'Canceladas' },
+  { value: 'past', label: 'Não realizadas' },
+];
+
 function VisitsPage() {
-  const qc = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
-  const [showModal, setShowModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [editingVisit, setEditingVisit] = useState<VisitEntry | null>(null);
+  const [activeFilters, setActiveFilters] = useState<Set<VisitStatus>>(DEFAULT_FILTERS);
 
   const { data: visits = [], isLoading, isError } = useQuery({
     queryKey: ['visits'],
@@ -44,10 +60,29 @@ function VisitsPage() {
     refetchInterval: 30_000,
   });
 
-  function handleCompleted(leadId: string) {
-    qc.setQueryData<VisitEntry[]>(['visits'], (prev) => prev?.filter((v) => v.id !== leadId) ?? []);
-    void qc.invalidateQueries({ queryKey: ['visits'] });
+  function toggleFilter(value: VisitStatus | 'all') {
+    if (value === 'all') {
+      setActiveFilters((prev) => (prev.size === ALL_STATUSES.size ? DEFAULT_FILTERS : new Set(ALL_STATUSES)));
+      return;
+    }
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) {
+        next.delete(value);
+        if (next.size === 0) return DEFAULT_FILTERS;
+      } else {
+        next.add(value);
+      }
+      return next;
+    });
   }
+
+  const allActive = activeFilters.size === ALL_STATUSES.size;
+
+  const filteredVisits = useMemo(
+    () => visits.filter((v) => activeFilters.has(visitStatus(v))),
+    [visits, activeFilters],
+  );
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -57,10 +92,9 @@ function VisitsPage() {
   const end = addDays(weekStart, 6);
   const weekLabel = `${weekStart.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
-  // Pre-bucket visits by Sao Paulo date — O(n) once instead of O(n×7) per render
   const visitsByDay = useMemo(() => {
     const map = new Map<string, VisitEntry[]>();
-    for (const v of visits) {
+    for (const v of filteredVisits) {
       if (!v.scheduledVisitAt) continue;
       const key = new Date(v.scheduledVisitAt).toLocaleDateString('pt-BR', {
         timeZone: 'America/Sao_Paulo',
@@ -70,9 +104,12 @@ function VisitsPage() {
       map.set(key, bucket);
     }
     return map;
-  }, [visits]);
+  }, [filteredVisits]);
 
-  const unscheduled = useMemo(() => visits.filter((v) => !v.scheduledVisitAt), [visits]);
+  const unscheduled = useMemo(
+    () => filteredVisits.filter((v) => !v.scheduledVisitAt),
+    [filteredVisits],
+  );
 
   const today = new Date();
 
@@ -108,13 +145,35 @@ function VisitsPage() {
           </button>
           <button
             type="button"
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowNewModal(true)}
             className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <Plus className="size-3.5" />
             Nova visita
           </button>
         </div>
+      </div>
+
+      {/* Filter chips */}
+      <div className="flex flex-wrap gap-2">
+        {FILTER_OPTIONS.map(({ value, label }) => {
+          const isActive = value === 'all' ? allActive : activeFilters.has(value as VisitStatus);
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => toggleFilter(value)}
+              className={twMerge(
+                'rounded-full px-3 py-1 text-xs font-medium border transition-colors',
+                isActive
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30',
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Week grid */}
@@ -126,22 +185,22 @@ function VisitsPage() {
         <div className="grid grid-cols-7 gap-2">
           {weekDays.map((day) => {
             const isToday = isSameDay(day, today);
-            const dayVisits =
-            visitsByDay.get(
-              day.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
-            ) ?? [];
+            const key = day.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            const dayVisits = visitsByDay.get(key) ?? [];
             return (
               <div key={day.toISOString()} className="flex flex-col gap-1.5 min-h-[120px]">
                 <div
-                  className={`pb-1 text-center text-xs font-medium ${
-                    isToday ? 'text-primary' : 'text-muted-foreground'
-                  }`}
+                  className={twMerge(
+                    'pb-1 text-center text-xs font-medium',
+                    isToday ? 'text-primary' : 'text-muted-foreground',
+                  )}
                 >
                   <span>{DAY_NAMES[day.getDay()]}</span>
                   <span
-                    className={`ml-1 inline-flex size-5 items-center justify-center rounded-full text-xs ${
-                      isToday ? 'bg-primary text-primary-foreground' : ''
-                    }`}
+                    className={twMerge(
+                      'ml-1 inline-flex size-5 items-center justify-center rounded-full text-xs',
+                      isToday && 'bg-primary text-primary-foreground',
+                    )}
                   >
                     {day.getDate()}
                   </span>
@@ -150,7 +209,11 @@ function VisitsPage() {
                   <div className="flex-1 rounded border border-dashed border-border/40" />
                 ) : (
                   dayVisits.map((v) => (
-                    <VisitCard key={v.id} visit={v} onCompleted={handleCompleted} />
+                    <VisitCard
+                      key={v.id}
+                      visit={v}
+                      onEdit={setEditingVisit}
+                    />
                   ))
                 )}
               </div>
@@ -170,7 +233,7 @@ function VisitsPage() {
               <VisitCard
                 key={v.id}
                 visit={v}
-                onCompleted={handleCompleted}
+                onEdit={setEditingVisit}
                 className="w-48"
               />
             ))}
@@ -182,7 +245,10 @@ function VisitsPage() {
         <p className="text-sm text-muted-foreground">Nenhuma visita agendada.</p>
       )}
 
-      <NewVisitModal open={showModal} onClose={() => setShowModal(false)} />
+      <NewVisitModal open={showNewModal} onClose={() => setShowNewModal(false)} />
+      {editingVisit && (
+        <EditVisitModal visit={editingVisit} onClose={() => setEditingVisit(null)} />
+      )}
     </div>
   );
 }

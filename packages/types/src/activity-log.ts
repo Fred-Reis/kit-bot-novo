@@ -1,6 +1,6 @@
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
 
-export type ActivityLogActorType = 'system' | 'bot' | 'user';
+export type ActivityLogActorType = 'system' | 'bot' | 'user' | 'owner';
 
 export type ActivityLogSubjectType =
   | 'lead'
@@ -10,7 +10,8 @@ export type ActivityLogSubjectType =
   | 'payment'
   | 'template'
   | 'rule_set'
-  | 'owner';
+  | 'owner'
+  | 'workspace';
 
 export type ActivityLogAction =
   | 'lead_created'
@@ -42,7 +43,10 @@ export type ActivityLogAction =
   | 'rule_set_unlinked'
   | 'owner_updated'
   | 'visit_scheduled'
-  | 'visit_completed';
+  | 'visit_completed'
+  | 'visit_cancelled'
+  | 'bot_globally_paused'
+  | 'bot_globally_resumed';
 
 export interface LogActivityParams {
   ownerId: string;

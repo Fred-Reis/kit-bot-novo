@@ -1,11 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { twMerge } from 'tailwind-merge';
 import { FormField } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { Toggle } from '@/components/ui/toggle';
+import { adminApi, apiErrorMessage } from '@/lib/api';
+import { fetchOwner } from '@/lib/queries';
 import { useUiStore } from '@/store/ui';
 
 export const Route = createFileRoute('/_dashboard/config/')({ component: SettingsPage });
@@ -96,23 +100,69 @@ function BillingSection() {
   );
 }
 
+function BotToggleCard() {
+  const qc = useQueryClient();
+  const { data: owner } = useQuery({ queryKey: ['owner'], queryFn: fetchOwner });
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+
+  const enabled = optimistic ?? owner?.botEnabled ?? true;
+
+  async function handleToggle() {
+    const next = !enabled;
+    setOptimistic(next);
+    try {
+      await adminApi.updateBotEnabled(next);
+      void qc.invalidateQueries({ queryKey: ['owner'] });
+    } catch (err) {
+      setOptimistic(null);
+      toast.error(apiErrorMessage(err, 'Erro ao atualizar configuração do bot.'));
+    }
+  }
+
+  return (
+    <SectionCard title="Bot WhatsApp" subtitle="Controle global do bot de atendimento.">
+      <SettingRow label="Bot ativo">
+        <div className="flex items-center gap-2">
+          <span
+            className={twMerge(
+              'text-xs font-medium px-2 py-0.5 rounded-full',
+              enabled ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning',
+            )}
+          >
+            {enabled ? 'Ativo' : 'Pausado'}
+          </span>
+          <Toggle checked={enabled} onChange={handleToggle} aria-label={enabled ? 'Desativar bot' : 'Ativar bot'} />
+        </div>
+      </SettingRow>
+      {!enabled && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Mensagens chegam normalmente no seu WhatsApp. Você responde manualmente.
+        </p>
+      )}
+    </SectionCard>
+  );
+}
+
 function IntegrationsSection() {
   return (
-    <SectionCard title="Integrações" subtitle="Configurações do bot de atendimento.">
-      <div className="space-y-3">
-        <FormField label="URL da API">
-          <Input placeholder="https://bot.exemplo.com" type="url" />
-        </FormField>
-        <FormField label="Instância Evolution">
-          <Input placeholder="kit-manager" />
-        </FormField>
-      </div>
-      <div className="mt-4 flex justify-end">
-        <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>
-          Salvar
-        </CustomButton>
-      </div>
-    </SectionCard>
+    <div className="space-y-4">
+      <BotToggleCard />
+      <SectionCard title="Integrações" subtitle="Configurações do bot de atendimento.">
+        <div className="space-y-3">
+          <FormField label="URL da API">
+            <Input placeholder="https://bot.exemplo.com" type="url" />
+          </FormField>
+          <FormField label="Instância Evolution">
+            <Input placeholder="kit-manager" />
+          </FormField>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <CustomButton variant="primary" size="sm" onClick={() => toast.info('Em breve')}>
+            Salvar
+          </CustomButton>
+        </div>
+      </SectionCard>
+    </div>
   );
 }
 

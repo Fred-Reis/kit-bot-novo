@@ -1,7 +1,7 @@
 # ROADMAP — kit-manager
 
 > Sequência priorizada de entrega via vertical slices.
-> Atualizado: 2026-06-20
+> Atualizado: 2026-06-21
 > Visão de produto: [PRD.md](./PRD.md) · Decisões: [BRAINSTORM.md](./BRAINSTORM.md)
 
 ---
@@ -276,10 +276,8 @@
 - [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
 - [x] **Bot deploy** — Railway (`kit-bot-novo-production.up.railway.app`)
-- [x] **Web deploy** — Vercel (`kit-bot-novo-web.vercel.app`; `vercel.json` com rewrite SPA para corrigir 404 no refresh)
+- [x] **Web deploy** — Vercel (login + dashboard funcionando)
 - [x] **Evolution API deploy** — Railway (`evolution-api-production-c037.up.railway.app`)
-- [x] **CORS em prod** — `ADMIN_ORIGIN` env var no Railway + strip de trailing slash em `app.ts`
-- [x] **Migration em prod** — `prisma migrate deploy` no start script (`apps/bot/package.json`); `railway.toml` com build/start commands versionados
 - [ ] **Domínio + SSL** — usando subdomínios Railway/Vercel por ora
 - [ ] **Onboarding dos próprios imóveis** — cadastrar você como Owner, importar imóveis existentes
 - [x] **Conectar bot ao número de WhatsApp real** — instância `halugar` conectada
@@ -298,14 +296,15 @@
 
 ### Calendário de visitas
 
-- [ ] **V1 — Agenda interna:** página `/visits` com visualização de visitas agendadas (futuras) e passadas; criadas automaticamente quando `Lead.stage = visiting`; card com lead, imóvel, horário/dia acordado na conversa.
-- [ ] **V2 — Disponibilidade configurável:** proprietário define blocos de horário disponíveis para visita no painel; bot consulta esses blocos e só oferece datas/horários dentro da disponibilidade cadastrada (em vez de deixar o lead sugerir qualquer horário).
-- [ ] **V2 — Google Calendar sync:** sincronização bidirecional com Google Calendar (OAuth); visitas agendadas aparecem na agenda do proprietário; confirmações/cancelamentos refletem no painel.
+- [x] **V1 — Agenda interna + histórico:** filter chips de status; status derivado client-side; modal de edição/reagendamento com select de status ao clicar no card. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
+- [ ] **V2 — Responsável por visita por imóvel:** model `PropertyCoordinator` (nome + telefone WhatsApp) vinculado a `Property`; um imóvel pode ter múltiplos responsáveis; CRUD no detalhe do imóvel; cron de lembrete usa o responsável do imóvel em vez do proprietário quando configurado.
+- [ ] **V3 — Lembretes automáticos de visita (cron):** cron job que roda a cada hora no bot; proprietário configura em Configurações quais offsets de antecedência quer (ex: 60 min, 24h, 48h — múltiplos, livre escolha); para cada visita futura, envia WhatsApp ao responsável (`PropertyCoordinator` do imóvel, ou `Owner.notificationPhone` se não houver) e ao lead (`Lead.phone`) em cada offset configurado; deduplicação via tabela `VisitReminderLog` (leadId + offsetMinutes + scheduledVisitAt) para não reenviar na próxima hora; se `Owner.botEnabled = false`, lembrete ao lead é suprimido mas lembrete ao responsável é enviado mesmo assim (é operacional).
+- [ ] **V4 — Disponibilidade configurável:** proprietário define blocos de horário disponíveis para visita no painel; bot consulta esses blocos e só oferece datas/horários dentro da disponibilidade cadastrada (em vez de deixar o lead sugerir qualquer horário).
+- [ ] **V5 — Google Calendar sync:** sincronização bidirecional com Google Calendar (OAuth); visitas agendadas aparecem na agenda do proprietário; confirmações/cancelamentos refletem no painel.
 
 ### Histórico e reativação de leads
 
-- [x] **Card "Reativado":** badge no card kanban quando `Lead.reactivatedAt != null` — implementado 2026-06-20 (spec `2026-06-20-funil-lead-sincroniza-conversa`)
-- [ ] **Badge "KYC negado":** badge no card quando `ActivityLog` registra rejeição — pendente: ação `lead_kyc_rejected` ainda não existe no fluxo
+- [ ] **Card "Reativado":** badge no card kanban quando `Lead.reactivatedAt != null` (implementado na Slice Funil — ver spec `2026-06-20`); badge adicional "KYC negado" quando histórico de `ActivityLog` registra rejeição.
 - [ ] **Timeline do lead:** seção de histórico completo no detalhe do lead — todas as tentativas, stages percorridos, reativações e rejeições, em ordem cronológica.
 
 ### Sanitização de armazenamento
@@ -315,6 +314,7 @@
 
 ### Bot — features pendentes
 
+- [ ] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
 - [ ] Tenant flow Phase 2 — `handleTenantMessage` real: manutenção → recomenda prestador
 - [ ] Model `ServiceProvider` (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot
 - [ ] Geração de contrato pelo bot na conversa (templates já existem; bot ainda não acessa)
@@ -324,6 +324,7 @@
 
 - [ ] Sentry no bot (`apps/bot`) — hoje só Pino; rastreamento de erros em produção
 - [ ] Responsivo mobile do painel — diversas quebras identificadas em uso real
+- [ ] **PWA install-only:** `vite-plugin-pwa` com manifest + service worker mínimo; ícones gerados via `@vite-pwa/assets-generator`; instalável no Android (prompt nativo), iOS (Compartilhar → Add to Home) e desktop Chrome/Edge. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
 
 ---
 
