@@ -32,6 +32,9 @@ const schema = z.object({
 
   // Google Cloud Vision (OCR) — optional
   GOOGLE_CREDENTIALS_JSON: z.string().optional(),
+
+  // Sentry — optional
+  SENTRY_DSN: z.string().url().optional(),
 });
 
 export const config = schema.parse(process.env);

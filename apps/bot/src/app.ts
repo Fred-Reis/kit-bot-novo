@@ -1,9 +1,17 @@
 import cors from '@fastify/cors';
+import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import { config } from '@/config';
 import adminAuthPlugin from '@/plugins/admin-auth';
 import { adminRoutes } from '@/routes/admin';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
+
+if (config.SENTRY_DSN) {
+  Sentry.init({
+    dsn: config.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'production',
+  });
+}
 
 const fastify = Fastify({
   logger: { level: config.LOG_LEVEL },
@@ -19,6 +27,8 @@ fastify.register(evolutionWebhookPlugin);
 fastify.register(adminRoutes);
 
 fastify.get('/health', async () => ({ status: 'ok' }));
+
+Sentry.setupFastifyErrorHandler(fastify);
 
 const start = async () => {
   try {

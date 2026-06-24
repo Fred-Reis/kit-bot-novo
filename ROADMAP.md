@@ -314,7 +314,7 @@
 
 ### Bot — features pendentes
 
-- [ ] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
+- [x] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
 - [ ] Tenant flow Phase 2 — `handleTenantMessage` real: manutenção → recomenda prestador
 - [ ] Model `ServiceProvider` (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot
 - [ ] Geração de contrato pelo bot na conversa (templates já existem; bot ainda não acessa)
@@ -324,7 +324,7 @@
 
 - [ ] Sentry no bot (`apps/bot`) — hoje só Pino; rastreamento de erros em produção
 - [ ] Responsivo mobile do painel — diversas quebras identificadas em uso real
-- [ ] **PWA install-only:** `vite-plugin-pwa` com manifest + service worker mínimo; ícones gerados via `@vite-pwa/assets-generator`; instalável no Android (prompt nativo), iOS (Compartilhar → Add to Home) e desktop Chrome/Edge. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
+- [x] **PWA install-only:** `vite-plugin-pwa` com manifest + service worker mínimo; ícones gerados via `@vite-pwa/assets-generator`; instalável no Android (prompt nativo), iOS (Compartilhar → Add to Home) e desktop Chrome/Edge. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
 
 ---
 

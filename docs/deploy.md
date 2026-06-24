@@ -24,6 +24,7 @@
 | `LOG_PAYLOADS` | Não | `false` | `true` para logar payloads de webhook (apenas debug) |
 | `LOG_LEVEL` | Não | `info` | Nível do Pino: `debug` \| `info` \| `warn` \| `error` |
 | `GOOGLE_CREDENTIALS_JSON` | Não | — | JSON completo da service account do Google Cloud Vision (OCR de documentos). Se ausente, OCR retorna string vazia. |
+| `SENTRY_DSN` | Não | — | sentry.io → Project → Settings → Client Keys → DSN. Se ausente, Sentry não inicializa (bot sobe normalmente). |
 
 ### Notas
 
@@ -72,6 +73,7 @@ Usadas apenas durante `bun run build` para upload de source maps. Não são `VIT
 - [ ] Redis acessível pela URL configurada
 - [ ] Evolution API acessível e instância conectada ao WhatsApp
 - [ ] Webhook Evolution configurado para `POST https://bot.seudominio.com/webhook`
+- [ ] Criar projeto no [sentry.io](https://sentry.io) (plataforma: Node.js) e obter DSN → setar `SENTRY_DSN` no Railway
 
 ### Painel
 - [ ] Todas as variáveis obrigatórias preenchidas
