@@ -35,6 +35,9 @@ const schema = z.object({
 
   // Sentry — optional
   SENTRY_DSN: z.string().url().optional(),
+
+  // Resend (email notifications) — optional
+  RESEND_API_KEY: z.string().min(1).optional(),
 });
 
 export const config = schema.parse(process.env);

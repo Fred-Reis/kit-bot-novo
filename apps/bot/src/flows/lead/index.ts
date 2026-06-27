@@ -271,6 +271,7 @@ export async function handleLeadMessage(
       notifyOwner(lead.ownerId, 'kyc_pending', {
         leadName: lead.name ?? chatId,
         leadPhone: chatId,
+        cpf: null,
       }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
     }
 

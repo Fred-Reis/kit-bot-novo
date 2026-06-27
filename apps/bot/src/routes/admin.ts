@@ -415,10 +415,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         subjectType: 'lead',
       }).catch(fastify.log.warn.bind(fastify.log));
 
-      notifyOwner(lead.ownerId, 'contract_signed', { leadName: lead.name ?? lead.phone }).catch(
-        (err: unknown) => fastify.log.warn({ err }, 'Failed to notify owner on contract_signed'),
-      );
-
       return reply.send({ success: true, stage: 'contract_signed' });
     },
   );

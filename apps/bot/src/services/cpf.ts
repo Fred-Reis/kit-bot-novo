@@ -6,6 +6,10 @@ function normalizeCpf(raw: string): string {
   return raw.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
+export function maskCpf(cpf: string): string {
+  return cpf.replace(/(\d{3})\.\d{3}\.\d{3}-\d{2}/, '$1.***.***-**');
+}
+
 export function extractCpfFromDocs(docs: { ocrText: string | null }[]): string | null {
   for (const d of docs) {
     const match = CPF_LABEL_REGEX.exec(d.ocrText ?? '');
