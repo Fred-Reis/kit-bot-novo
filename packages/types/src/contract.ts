@@ -1,14 +1,17 @@
+export type ContractStatus = 'active' | 'terminated' | 'renewal' | 'draft';
+
 export interface Contract {
   id: string;
   ownerId: string;
   code: string;
   templateId: string;
-  tenantId: string;
+  tenantId: string | null;
+  leadId: string | null;
   propertyId: string;
   body: string;
-  status: 'active' | 'terminated' | 'renewal';
+  status: ContractStatus;
   pdfUrl: string | null;
-  startDate: string;
+  startDate: string | null;
   endDate: string | null;
   monthlyRent: number;
   createdAt: string;
@@ -35,10 +38,10 @@ export interface ContractDetail extends Contract {
 export interface ContractSummary {
   id: string;
   code: string;
-  status: 'active' | 'terminated' | 'renewal';
-  startDate: string;
+  status: ContractStatus;
+  startDate: string | null;
   endDate: string | null;
   monthlyRent: number;
-  tenant: { name: string | null };
+  tenant: { name: string | null } | null;
   property: { name: string };
 }

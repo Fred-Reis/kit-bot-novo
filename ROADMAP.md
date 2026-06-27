@@ -1,7 +1,7 @@
 # ROADMAP — kit-manager
 
 > Sequência priorizada de entrega via vertical slices.
-> Atualizado: 2026-06-21
+> Atualizado: 2026-06-26
 > Visão de produto: [PRD.md](./PRD.md) · Decisões: [BRAINSTORM.md](./BRAINSTORM.md)
 
 ---
@@ -205,6 +205,48 @@
 - [x] Notif: bot avisa owner em `contract_signed`
 - [ ] Commit
 
+### Slice 10 — Funil completo lead → inquilino (V1 closure) 🔄 EM PROGRESSO
+
+> Fecha os gaps do funil ponta-a-ponta. Torna o fluxo lead→tenant operável sem intervenção manual.
+
+#### Schema & migration
+- [ ] Migration: `Contract.tenantId` → nullable; `Contract.leadId String?` (FK Lead)
+- [ ] Migration: `Lead.contracts Contract[]` (relação inversa)
+- [ ] Atualizar schema Prisma + tipos compartilhados (`packages/types`)
+
+#### Config & notificações
+- [ ] `config.ts`: adicionar `RESEND_API_KEY` opcional
+- [ ] `notify.ts`: canal email via Resend (envia quando `RESEND_API_KEY` presente); CPF incluído no payload `kyc_pending`
+
+#### Bot — FSM data_confirmation
+- [ ] `context.ts`: adicionar `dataConfirmed?: boolean` a `LeadContext`; novo estado `lead.data_confirmation` em `STATE_GUIDANCE` e `deriveState()`
+- [ ] `kyc.ts`: `shouldTransitionToKyc()` requer `dataConfirmed === true`
+- [ ] `index.ts`: ao entrar em `data_confirmation` pela primeira vez, extrair CPF do `ocrText` e enviar mensagem de confirmação ao lead; ao receber confirmação → `dataConfirmed = true`
+
+#### Bot — visit confirmation
+- [ ] `index.ts`: quando `leadPatch.scheduledVisitAt` é definido nessa interação, enviar mensagem ao lead: data, hora e nome do imóvel
+
+#### Bot — approve-kyc (auto-contrato + PDF)
+- [ ] `admin.ts` `approve-kyc`: busca último template publicado (409 se nenhum); auto-resolve variáveis; cria `Contract` com `leadId` (sem `tenantId`); gera PDF; `sendMedia` ao lead; stage `kyc_pending → contract_pending`
+- [ ] `notify.ts`: payload `kyc_pending` inclui CPF extraído
+
+#### Bot — mark-signed (auto-tenant)
+- [ ] `admin.ts` `mark-signed`: extrai CPF do `ocrText`; cria `Tenant` (phone, name, CPF, propertyId, contractStart=now); atualiza `Contract.tenantId`; `property.status = rented`; stage `contract_pending → converted`
+- [ ] Remover endpoint `confirm-payment` do funil de lead (mantém endpoint mas sem botão na UI)
+
+#### Web (admin)
+- [ ] Stage stepper atualizado: `Interesse → Visita → Documentos → KYC → Contrato → Convertido`
+- [ ] `kyc_pending`: botão "Aprovar KYC" (agora auto-gera contrato + envia PDF — sem modal de dia de pagamento)
+- [ ] `contract_pending`: botão "Marcar assinado" (agora auto-cria tenant)
+- [ ] Remover botão "Gerar Contrato" separado + botão "Confirmar Pagamento" do stepper
+
+#### Activity log
+- [ ] `contract_auto_created` (approve-kyc)
+- [ ] `contract_pdf_sent` (sendMedia ao lead)
+- [ ] `tenant_auto_created` (mark-signed)
+
+- [ ] Commit
+
 ### Slice 6 — Rules (UI refinement) ✅ DONE
 
 **Por quê:** policies vinculadas a imóvel são usadas pelo bot e referenciadas no contrato.
@@ -315,10 +357,11 @@
 ### Bot — features pendentes
 
 - [x] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
-- [ ] Tenant flow Phase 2 — `handleTenantMessage` real: manutenção → recomenda prestador
-- [ ] Model `ServiceProvider` (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot
-- [ ] Geração de contrato pelo bot na conversa (templates já existem; bot ainda não acessa)
-- [ ] OCR avançado — extração estruturada de CNH/RG/CPF pro KYC
+- [~] **Funil completo lead → inquilino** — ver Slice 10 (em progresso): data_confirmation, email via Resend, auto-contrato + PDF, auto-tenant
+- [ ] **Tenant flow Phase 2** — `handleTenantMessage` real: manutenção → classifica responsabilidade owner vs tenant → recomenda prestador ou vídeo
+- [ ] **Model `ServiceProvider`** (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot para recomendação
+- [ ] **Boleto mensal automático** — integração com provedor (Asaas, Efí, etc.); cron mensal; inquilino notificado via WhatsApp
+- [ ] OCR avançado — extração estruturada de CNH/RG/CPF (Slice 10 usa regex simples no ocrText existente)
 
 ### Infraestrutura e observabilidade
 
@@ -421,9 +464,10 @@
 
 | Fase | Slices completas | % MVP |
 |---|---|---|
-| F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend + in-app pendentes) | 60% |
-| F1 — Vertical slices | 9/9 (Slice 1 ✓, Slice 2 ✓, Slice 3 ✓, Slice 4 ✓, Slice 5 ✓, Slice 6 ✓, Slice 7 ✓, Slice 8 ✓, Slice 9 ✓) | 100% 🎉 |
-| F2 — Hardening | 0 | — |
+| F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend incluído no Slice 10) | 65% |
+| F1 — Vertical slices | 9/9 (Slice 1–9 ✓) | 100% 🎉 |
+| Slice 10 — Funil completo | 0/8 checklist groups — **EM PROGRESSO** | — |
+| F2 — Hardening | parcial (logs, MSW, Sentry, deploy ✓) — RLS + backups pendentes | 70% |
 | F3 — Dogfooding | — | — |
 
 > Atualizar ao concluir slices.

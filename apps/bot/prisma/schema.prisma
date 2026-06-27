@@ -112,6 +112,7 @@ model Lead {
   reactivatedAt      DateTime?
   scheduledVisitAt   DateTime?
   documents          LeadDocument[]
+  contracts          Contract[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
@@ -275,18 +276,21 @@ model Contract {
   code        String           @unique
   templateId  String
   template    ContractTemplate @relation(fields: [templateId], references: [id])
-  tenantId    String
-  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  tenantId    String?
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id])
+  leadId      String?
+  lead        Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
   propertyId  String
   property    Property         @relation(fields: [propertyId], references: [id])
   body        String
   status      String           @default("active")
   pdfUrl      String?
-  startDate   DateTime
+  startDate   DateTime?
   endDate     DateTime?
   monthlyRent Decimal
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
   @@index([ownerId])
+  @@index([leadId])
 }

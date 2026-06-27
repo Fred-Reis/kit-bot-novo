@@ -67,7 +67,10 @@ Dois módulos integrados compartilhando o mesmo banco:
 - 4 agentes: `options`, `info`, `scheduling`, `collection`
 - Coleta documentos (CNH ou RG+CPF) com OCR via Google Cloud Vision
 - Comportamentos determinísticos: saudações, envio de mídia, áudio
-- Notifica proprietário em momentos-chave (KYC pronto, pagamento, etc)
+- **Confirmação de visita** — ao agendar visita, envia mensagem formal ao lead com data, hora e imóvel
+- **Confirmação de dados antes do KYC** — bot pede ao lead que confirme nome e CPF extraído via OCR antes de enviar para análise
+- Notifica proprietário em momentos-chave via **WhatsApp + email** (KYC pendente com CPF, contrato assinado)
+- **Envio automático de contrato** — ao aprovar KYC, bot gera PDF do contrato e envia ao lead via WhatsApp
 - **Toggle global de pausa** — proprietário desliga o bot pelo painel; Evolution permanece conectado; WhatsApp funciona normalmente para atendimento manual
 - **Atua como intermediário formal** — proprietário não precisa responder cada mensagem
 
@@ -94,12 +97,12 @@ Dois módulos integrados compartilhando o mesmo banco:
 ### Dentro do MVP
 | Área | Escopo |
 |---|---|
-| **Bot WhatsApp** | Atual + notificações multi-canal ao proprietário (WhatsApp, email, in-app) |
-| **Leads** | Kanban + tabela + detalhe + ações (KYC, gerar contrato, confirmar pagamento). Schema adicional: `name`, `source`, `propertyId` |
+| **Bot WhatsApp** | Atual + confirmação de visita ao lead + confirmação de dados (nome/CPF via OCR) antes do KYC + envio automático de contrato PDF ao lead na aprovação do KYC + notificações ao proprietário via WhatsApp + email |
+| **Leads** | Kanban + tabela + detalhe. Fluxo: `interest → visiting → collection → data_confirmation → kyc_pending → contract_pending → converted`. Aprovação KYC auto-gera contrato + envia PDF. "Marcar assinado" auto-cria Tenant. Schema adicional: `name`, `source`, `propertyId` |
 | **Imóveis** | CRUD completo + mídia + regras vinculadas + `area` (m²) |
-| **Inquilinos** | Lista + detalhe + STATUS pill + `externalId` (IQ-XXX) |
-| **Contratos** | Lista + detalhe + criação a partir de template. Geração de Word/PDF baixável (assinatura **fora do sistema**) |
-| **Templates** | Editor com variáveis. Source-of-truth para contratos. Bot envia link ou texto do contrato gerado |
+| **Inquilinos** | Lista + detalhe + STATUS pill + `externalId` (IQ-XXX). Criado automaticamente ao marcar contrato assinado |
+| **Contratos** | Lista + detalhe + criação automática a partir do template publicado padrão. PDF gerado e enviado ao lead via WhatsApp. Assinatura manual (fora do sistema) na V1 |
+| **Templates** | Editor com variáveis. Template publicado = padrão para contratos automáticos. Novo proprietário deve publicar template antes de usar fluxo de contrato |
 | **Regras** | Rule sets com políticas Sim/Não/Cond, vincular a imóveis |
 | **Financeiro** | KPIs reais + tabela "últimos movimentos" + lançamento manual de pagamento |
 | **Dashboard** | KPIs reais + ocupação + activity feed + próximos vencimentos |
@@ -107,17 +110,18 @@ Dois módulos integrados compartilhando o mesmo banco:
 | **Activity Log** | Tabela `activity_log` escrita por bot **e** web em todos os pontos relevantes |
 | **RLS** | Reativar antes de subir para produção real |
 
-### Fora do MVP
-- **Autentique** (assinatura digital): contrato é manual (Word/PDF assinado em papel)
+### Fora do MVP (V1)
+- **Autentique / assinatura digital**: contrato assinado em papel na V1; webhook automático na V2
+- **Notificação in-app** (badge sidebar): WhatsApp + email na V1; in-app na V2
 - **Multi-tenancy / RBAC**: schema preparado mas não implementado
 - **Repasses a proprietários terceiros**: aba do Financeiro fica como placeholder
 - **Conciliação bancária** (Pluggy/Belvo)
 - **OCR retry com foto melhor**
 - **Transcrição de áudio** (Whisper)
-- **PDF de contrato com geração avançada**: MVP gera Word baseado em template
 - **Importar .docx em templates**
-- **Validação automática de CPF** (Receita)
+- **Validação automática de CPF** (Receita/Serpro)
 - **Filtros avançados / bulk actions** em listas
+- **Fluxo de tenant** (manutenção, ServiceProvider, boleto mensal): V2
 
 ### Critério "pronto para uso real"
 1. Proprietário consegue operar **seus próprios 5–15 imóveis** de ponta a ponta via sistema

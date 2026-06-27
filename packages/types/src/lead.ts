@@ -1,8 +1,9 @@
 export type LeadStage =
   | 'interest'
-  | 'collection'
-  | 'review_submitted'
   | 'visiting'
+  | 'collection'
+  | 'data_confirmation'
+  | 'review_submitted'
   | 'kyc_pending'
   | 'kyc_approved'
   | 'residents_docs_complete'
