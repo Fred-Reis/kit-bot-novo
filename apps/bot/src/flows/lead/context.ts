@@ -40,6 +40,9 @@ export interface LeadContext {
   residentsComplete?: boolean | null;
   analysisSubmitted?: boolean;
   docsReceivedCount?: number;
+  visitConfirmationSent?: boolean;
+  dataConfirmed?: boolean;
+  dataConfirmationSent?: boolean;
   lastUserMessage?: string;
   lastRoutedAgent?: string;
   lastRequestedMediaType?: string | null;
@@ -93,6 +96,8 @@ const STATE_GUIDANCE: Record<string, string> = {
   'lead.post_visit_decision':
     'Confirme se o lead quer seguir com a locacao agora que ja visitou o imovel.',
   'lead.collect_application': 'Colete apenas o proximo item pendente para a analise.',
+  'lead.data_confirmation':
+    'Confirme com o lead o nome e CPF extraídos dos documentos antes de enviar para análise.',
   'lead.review_submitted':
     'Confirme que os dados seguiram para analise e que depois havera contato.',
 };
@@ -118,6 +123,8 @@ function currentProcessStep(state: string): string {
   if (['lead.visit_scheduling', 'lead.visit_requested'].includes(state)) return 'visita';
   if (['lead.post_visit_decision', 'lead.collect_application'].includes(state))
     return 'envio de documentacao para analise';
+  if (state === 'lead.data_confirmation')
+    return 'confirmacao de dados antes da analise';
   if (state === 'lead.review_submitted') return 'envio de documentacao para analise concluido';
   return 'interesse';
 }
@@ -243,6 +250,7 @@ function deriveState(
   if (applicationMissingItems.length > 0) return 'lead.collect_application';
   if (docsStage !== 'complete') return 'lead.collect_application';
   if (!residentsComplete) return 'lead.collect_application';
+  if (!context.dataConfirmed) return 'lead.data_confirmation';
 
   return 'lead.review_submitted';
 }

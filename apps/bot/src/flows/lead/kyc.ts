@@ -1,4 +1,4 @@
-const TERMINAL_STAGES = new Set([
+export const KYC_BLOCKER_STAGES = new Set([
   'kyc_pending',
   'kyc_approved',
   'residents_docs_complete',
@@ -7,17 +7,23 @@ const TERMINAL_STAGES = new Set([
   'converted',
 ]);
 
+// TERMINAL_STAGES includes data_confirmation to prevent FSM stage regression.
+// KYC_BLOCKER_STAGES excludes data_confirmation so KYC transition can fire once dataConfirmed=true.
+export const TERMINAL_STAGES = new Set([...KYC_BLOCKER_STAGES, 'data_confirmation']);
+
 export function shouldTransitionToKyc(
   docsStage: string,
   residentsCount: number,
   residentsComplete: boolean,
   leadStage: string,
+  dataConfirmed: boolean,
 ): boolean {
   return (
     docsStage === 'complete' &&
     residentsCount > 0 &&
     residentsComplete &&
-    !TERMINAL_STAGES.has(leadStage)
+    dataConfirmed &&
+    !KYC_BLOCKER_STAGES.has(leadStage)
   );
 }
 
@@ -28,5 +34,3 @@ export function shouldUpdateLeadSource(
   if (!extractedSource || extractedSource === 'desconhecido') return false;
   return !currentSource || currentSource === 'whatsapp';
 }
-
-export { TERMINAL_STAGES };

@@ -10,6 +10,7 @@ const FSM_TO_STAGE: Partial<Record<string, LeadStage>> = {
   'lead.visit_requested': 'visiting',
   'lead.post_visit_decision': 'collection',
   'lead.collect_application': 'collection',
+  'lead.data_confirmation': 'data_confirmation',
   'lead.review_submitted': 'review_submitted',
 };
 

@@ -258,6 +258,7 @@ export async function handleLeadMessage(
       (context.residents ?? []).length,
       snapshot.residentsComplete,
       lead.stage,
+      context.dataConfirmed ?? false,
     );
     if (kycTransition) {
       leadPatch.stage = 'kyc_pending';
