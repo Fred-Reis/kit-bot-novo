@@ -276,6 +276,29 @@ export async function handleLeadMessage(
       }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
     }
 
+    // Visit confirmation: fire on every new/changed visit date
+    const newVisitAt = leadPatch.scheduledVisitAt as Date | undefined;
+    const visitDateChanged =
+      newVisitAt != null &&
+      (lead.scheduledVisitAt == null || newVisitAt.getTime() !== lead.scheduledVisitAt.getTime());
+
+    if (visitDateChanged) {
+      const dateStr = newVisitAt.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+      const timeStr = newVisitAt.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const propertyName = snapshot.propertyInFocus?.name ?? 'o imóvel';
+      sendText(
+        chatId,
+        `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`,
+      ).catch((err) => logger.error({ err }, '[lead.flow] Failed to send visit confirmation'));
+    }
+
     // 11. Check for deterministic media send
     const propertyInFocus = snapshot.propertyInFocus;
     const outboundMedia = findPropertyMedia(propertyInFocus, requestedMediaType);
