@@ -1214,7 +1214,7 @@ git commit -m "feat(bot): approve-kyc auto-generates contract from template and 
 - Consumes: `notifyOwner(ownerId, 'contract_signed', { leadName, tenantExternalId })` from Task 3
 - No request body change — `POST /admin/leads/:id/mark-signed` with no body
 
-- [ ] **Step 1: Rewrite the `mark-signed` endpoint**
+- [x] **Step 1: Rewrite the `mark-signed` endpoint**
 
 Find the `// ─── mark-contract-signed` block (approx lines 385–424). Replace it entirely:
 
@@ -1336,7 +1336,7 @@ Find the `// ─── mark-contract-signed` block (approx lines 385–424). Rep
   );
 ```
 
-- [ ] **Step 2: Verify types compile**
+- [x] **Step 2: Verify types compile**
 
 ```bash
 cd apps/bot && bunx tsc --noEmit
@@ -1344,7 +1344,7 @@ cd apps/bot && bunx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/bot/src/routes/admin.ts

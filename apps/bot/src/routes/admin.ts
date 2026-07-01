@@ -17,6 +17,8 @@ const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
 const MONTH_REGEX = /^\d{4}-\d{2}$/;
 const TEMPLATE_VAR_RE = /\{\{([^}]+)\}\}/g;
+const formatDatePtBR = (d: Date): string =>
+  d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
 
 function uniquePlaceholders(text: string): string[] {
   return [...new Set([...text.matchAll(TEMPLATE_VAR_RE)].map((m) => m[0]))];
@@ -42,7 +44,7 @@ function buildLeadAutoMap(
     bairro: property.neighborhood,
     aluguel: fmt(property.rent),
     deposito: fmt(property.deposit),
-    data_hoje: today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    data_hoje: formatDatePtBR(today),
     data_assinatura: 'A ser preenchida na assinatura',
     vencimento: String(paymentDayOfMonth),
   };
@@ -527,18 +529,83 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const lead = await prisma.lead.findUnique({
         where: { id },
-        select: { name: true, phone: true, ownerId: true, stage: true },
+        select: {
+          name: true, phone: true, ownerId: true, stage: true, propertyId: true,
+          documents: { select: { ocrText: true } },
+        },
       });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
-
-      const { count } = await prisma.lead.updateMany({
-        where: { id, stage: 'contract_pending' },
-        data: { stage: 'contract_signed' },
-      });
-      if (count === 0) {
+      if (lead.stage !== 'contract_pending') {
         return reply.status(409).send({
           error: `Lead is in stage '${lead.stage}', expected 'contract_pending'`,
         });
+      }
+      if (!lead.propertyId) {
+        return reply.status(409).send({ error: 'Lead has no associated property' });
+      }
+
+      // Atomically claim the stage — prevents duplicate tenants on retries or concurrent requests
+      const { count } = await prisma.lead.updateMany({
+        where: { id, stage: 'contract_pending' },
+        data: { stage: 'converted' },
+      });
+      if (count === 0) {
+        return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
+      }
+
+      const contract = await prisma.contract.findFirst({
+        where: { leadId: id, status: 'draft' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!contract) {
+        return reply.status(404).send({ error: 'No draft contract found for this lead' });
+      }
+
+      const cpf = extractCpfFromDocs(lead.documents);
+      const tenantExternalId = await nextExternalId('tenant');
+      const today = new Date();
+      const leadLabel = lead.name ?? lead.phone;
+
+      const tenant = await prisma.tenant.create({
+        data: {
+          phone: lead.phone,
+          name: lead.name,
+          cpf,
+          propertyId: lead.propertyId,
+          contractStart: today,
+          externalId: tenantExternalId,
+          ownerId: lead.ownerId,
+        },
+      });
+
+      const finalBody = contract.body.replace(
+        /A ser preenchida na assinatura/g,
+        formatDatePtBR(today),
+      );
+
+      const pdfPath = await generateAndUploadPdf(contract.id, finalBody, contract.code);
+
+      const [, , , signedUrlResult] = await Promise.all([
+        prisma.contract.update({
+          where: { id: contract.id },
+          data: { tenantId: tenant.id, startDate: today, status: 'active', body: finalBody, pdfUrl: pdfPath },
+        }),
+        prisma.property.update({ where: { id: lead.propertyId }, data: { status: 'rented', active: false } }),
+        redis.del(`property:${lead.propertyId}`),
+        supabase.storage.from('contracts').createSignedUrl(pdfPath, 3600),
+      ]);
+
+      if (signedUrlResult.error) {
+        fastify.log.warn({ err: signedUrlResult.error }, 'Failed to sign completed contract PDF URL');
+      }
+      const pdfUrl = signedUrlResult.data?.signedUrl ?? null;
+      if (pdfUrl) {
+        sendMedia(lead.phone, 'document', pdfUrl,
+          '✅ Contrato assinado! Aqui está sua cópia com a data de início preenchida.',
+        ).catch((err) => fastify.log.warn({ err }, 'Failed to send signed contract to lead'));
+      } else {
+        sendText(lead.phone, '✅ Contrato assinado! Em breve você receberá sua cópia.')
+          .catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract signing'));
       }
 
       logActivityHelper({
@@ -546,12 +613,29 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: lead.ownerId,
         action: 'contract_signed',
-        subject: lead.name ?? lead.phone,
+        subject: leadLabel,
         subjectId: id,
         subjectType: 'lead',
       }).catch(fastify.log.warn.bind(fastify.log));
 
-      return reply.send({ success: true, stage: 'contract_signed' });
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'tenant_created',
+        subject: tenantExternalId,
+        subjectId: tenant.id,
+        subjectType: 'tenant',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      notifyOwner(lead.ownerId, 'contract_signed', {
+        leadName: leadLabel,
+        tenantExternalId,
+      }).catch((err: unknown) =>
+        fastify.log.warn({ err }, 'Failed to notify owner on contract_signed'),
+      );
+
+      return reply.send({ success: true, tenantId: tenant.id, stage: 'converted' });
     },
   );
 
