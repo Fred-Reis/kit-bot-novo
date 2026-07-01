@@ -28,10 +28,15 @@ botApi.interceptors.response.use(undefined, async (error: unknown) => {
 });
 
 export const adminApi = {
-  approveKyc: (leadId: string) => botApi.post(`/admin/leads/${leadId}/approve-kyc`),
-  generateContract: (leadId: string, paymentDayOfMonth: number) =>
-    botApi.post(`/admin/leads/${leadId}/generate-contract`, { paymentDayOfMonth }),
-  confirmPayment: (leadId: string) => botApi.post(`/admin/leads/${leadId}/confirm-payment`),
+  approveKyc: (
+    leadId: string,
+    body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> },
+  ) => botApi.post(`/admin/leads/${leadId}/approve-kyc`, body),
+  getContractVariables: (leadId: string, paymentDayOfMonth: number) =>
+    botApi.get<{ unresolved: string[]; hasTemplate: boolean }>(
+      `/admin/leads/${leadId}/contract-variables`,
+      { params: { paymentDayOfMonth } },
+    ),
   invalidatePropertyCache: (propertyId: string) =>
     botApi.put(`/admin/properties/${propertyId}/invalidate-cache`),
   createProperty: (data: Record<string, unknown>) => botApi.post('/admin/properties', data),

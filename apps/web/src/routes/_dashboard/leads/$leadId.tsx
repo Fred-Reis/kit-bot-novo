@@ -1,19 +1,21 @@
 import type { LeadDocument } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, Archive, CheckCircle, ChevronLeft, FileText } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
 import { CustomButton } from '@/components/ui/btn';
+import { Input } from '@/components/ui/input';
 import { adminApi, apiErrorMessage } from '@/lib/api';
-import { SOURCE_LABELS, STAGES } from '@/lib/leads';
-import { fetchLead, fetchPublishedTemplates } from '@/lib/queries';
+import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
+import { fetchLead } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
 function StageStepper({ current }: { current: string }) {
-  const currentIdx = STAGES.findIndex((s) => s.key === current);
+  const stepKey = stageToStepKey(current);
+  const currentIdx = STAGES.findIndex((s) => s.key === stepKey);
   return (
     <div data-slot="stage-stepper" className="flex items-start gap-0">
       {STAGES.map((stage, idx) => {
@@ -73,30 +75,66 @@ function DocGrid({ docs }: { docs: LeadDocument[] }) {
   );
 }
 
-function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
+type ManualVarAction = 'fill' | 'remove' | 'ignore';
+
+interface ManualVarState {
+  action: ManualVarAction;
+  value: string;
+}
+
+function defaultVarStates(keys: string[]): Record<string, ManualVarState> {
+  return Object.fromEntries(keys.map((p) => [p, { action: 'ignore' as ManualVarAction, value: '' }]));
+}
+
+function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
+  const [step, setStep] = useState<1 | 2>(1);
   const [day, setDay] = useState(10);
+  const [unresolved, setUnresolved] = useState<string[]>([]);
+  const [varStates, setVarStates] = useState<Record<string, ManualVarState>>({});
+  const [loadingVars, setLoadingVars] = useState(false);
+  const [hasTemplate, setHasTemplate] = useState(true);
   const qc = useQueryClient();
 
-  const {
-    data: templates = [],
-    isLoading: loadingTemplates,
-    isError: templatesError,
-  } = useQuery({
-    queryKey: ['published-templates'],
-    queryFn: fetchPublishedTemplates,
-  });
-
-  const hasTemplates = !templatesError && templates.length > 0;
+  const clampedDay = Math.min(28, Math.max(1, day));
 
   const mutation = useMutation({
-    mutationFn: () => adminApi.generateContract(leadId, Math.min(28, Math.max(1, day))),
+    mutationFn: (overrideVarStates?: Record<string, ManualVarState>) => {
+      const stateToUse = overrideVarStates ?? varStates;
+      const manualVariables: Record<string, string | null> = {};
+      for (const [placeholder, state] of Object.entries(stateToUse)) {
+        if (state.action === 'fill' && state.value.trim()) manualVariables[placeholder] = state.value;
+        else if (state.action === 'remove') manualVariables[placeholder] = null;
+        // 'ignore' or empty fill → omit; backend replaces with N/A
+      }
+      return adminApi.approveKyc(leadId, { paymentDayOfMonth: clampedDay, manualVariables });
+    },
     onSuccess: () => {
-      toast.success('Contrato gerado.');
+      toast.success('KYC aprovado. Contrato gerado e enviado ao lead.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       onClose();
     },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao gerar contrato.')),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao aprovar KYC.')),
   });
+
+  async function goToStep2() {
+    setLoadingVars(true);
+    try {
+      const { data } = await adminApi.getContractVariables(leadId, clampedDay);
+      setHasTemplate(data.hasTemplate);
+      if (!data.hasTemplate) return;
+      if (data.unresolved.length === 0) {
+        mutation.mutate(undefined);
+        return;
+      }
+      setVarStates(defaultVarStates(data.unresolved));
+      setUnresolved(data.unresolved);
+      setStep(2);
+    } catch {
+      toast.error('Erro ao verificar variáveis do contrato.');
+    } finally {
+      setLoadingVars(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
@@ -104,53 +142,115 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
         data-slot="modal"
         className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-6 shadow-lg"
       >
-        <h2 className="text-base font-semibold text-foreground">Gerar Contrato</h2>
-
-        {loadingTemplates ? (
-          <p className="mt-3 text-sm text-muted-foreground">Verificando templates…</p>
-        ) : templatesError ? (
-          <p className="mt-3 text-sm text-destructive">Erro ao verificar templates.</p>
-        ) : !hasTemplates ? (
-          <div className="mt-3 space-y-3">
-            <p className="text-sm text-destructive">
-              Nenhum template publicado. Crie e publique um template antes de continuar.
-            </p>
-            <Link
-              to="/templates"
-              onClick={onClose}
-              className="inline-flex items-center text-sm font-medium text-primary hover:underline"
-            >
-              Ir para Templates →
-            </Link>
-          </div>
-        ) : (
+        {step === 1 ? (
           <>
+            <h2 className="text-base font-semibold text-foreground">Aprovar KYC</h2>
             <p className="mt-1 text-sm text-muted-foreground">Dia de vencimento do aluguel</p>
-            <input
+            <Input
               type="number"
               min={1}
               max={28}
               value={day}
               onChange={(e) => setDay(Number(e.target.value))}
-              className="mt-3 w-full rounded-lg border border-input bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mt-3"
             />
+            {!hasTemplate && (
+              <p className="mt-2 text-sm text-destructive">
+                Nenhum template publicado.{' '}
+                <Link to="/templates" onClick={onClose} className="font-medium underline">
+                  Publicar template →
+                </Link>
+              </p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <CustomButton variant="secondary" onClick={onClose}>
+                Cancelar
+              </CustomButton>
+              <CustomButton
+                variant="primary"
+                onClick={() => void goToStep2()}
+                disabled={loadingVars}
+              >
+                {loadingVars ? 'Verificando...' : 'Próximo →'}
+              </CustomButton>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-base font-semibold text-foreground">Variáveis pendentes</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              As seguintes variáveis não foram preenchidas automaticamente:
+            </p>
+            <div className="mt-3 space-y-4">
+              {unresolved.map((placeholder) => {
+                const state = varStates[placeholder] ?? { action: 'ignore' as ManualVarAction, value: '' };
+                return (
+                  <div key={placeholder} className="space-y-1.5">
+                    <p className="font-mono text-sm text-foreground">{placeholder}</p>
+                    <div className="flex gap-2">
+                      <CustomButton
+                        variant={state.action === 'fill' ? 'primary' : 'secondary'}
+                        onClick={() =>
+                          setVarStates((prev) => ({
+                            ...prev,
+                            [placeholder]: { action: 'fill', value: state.value },
+                          }))
+                        }
+                      >
+                        Preencher
+                      </CustomButton>
+                      <CustomButton
+                        variant={state.action === 'remove' ? 'primary' : 'secondary'}
+                        onClick={() =>
+                          setVarStates((prev) => ({
+                            ...prev,
+                            [placeholder]: { action: 'remove', value: '' },
+                          }))
+                        }
+                      >
+                        Remover
+                      </CustomButton>
+                    </div>
+                    {state.action === 'fill' && (
+                      <Input
+                        type="text"
+                        placeholder="Valor"
+                        value={state.value}
+                        onChange={(e) =>
+                          setVarStates((prev) => ({
+                            ...prev,
+                            [placeholder]: { action: 'fill', value: e.target.value },
+                          }))
+                        }
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <CustomButton
+                variant="secondary"
+                onClick={() => mutation.mutate(defaultVarStates(unresolved))}
+                disabled={mutation.isPending}
+              >
+                Ignorar todas
+              </CustomButton>
+              <div className="flex gap-2">
+                <CustomButton variant="secondary" onClick={() => setStep(1)}>
+                  ← Voltar
+                </CustomButton>
+                <CustomButton
+                  variant="primary"
+                  onClick={() => mutation.mutate(undefined)}
+                  disabled={mutation.isPending}
+                >
+                  {mutation.isPending ? 'Aprovando...' : 'Confirmar e aprovar'}
+                </CustomButton>
+              </div>
+            </div>
           </>
         )}
-
-        <div className="mt-4 flex justify-end gap-2">
-          <CustomButton variant="secondary" onClick={onClose}>
-            Cancelar
-          </CustomButton>
-          {hasTemplates && (
-            <CustomButton
-              variant="primary"
-              onClick={() => mutation.mutate()}
-              disabled={mutation.isPending}
-            >
-              {mutation.isPending ? 'Gerando...' : 'Gerar contrato'}
-            </CustomButton>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -159,7 +259,7 @@ function GenerateContractModal({ leadId, onClose }: { leadId: string; onClose: (
 function LeadDetailPage() {
   const { leadId } = Route.useParams();
   const qc = useQueryClient();
-  const [showContractModal, setShowContractModal] = useState(false);
+  const [showApproveKycModal, setShowApproveKycModal] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', leadId],
@@ -182,24 +282,6 @@ function LeadDetailPage() {
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar origem.')),
-  });
-
-  const approveKyc = useMutation({
-    mutationFn: () => adminApi.approveKyc(leadId),
-    onSuccess: () => {
-      toast.success('KYC aprovado.');
-      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
-    },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao aprovar KYC.')),
-  });
-
-  const confirmPayment = useMutation({
-    mutationFn: () => adminApi.confirmPayment(leadId),
-    onSuccess: () => {
-      toast.success('Pagamento confirmado.');
-      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
-    },
-    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao confirmar pagamento.')),
   });
 
   const markSigned = useMutation({
@@ -306,21 +388,9 @@ function LeadDetailPage() {
       {/* Action buttons */}
       {lead.stage === 'kyc_pending' && (
         <div className="flex gap-2">
-          <CustomButton
-            variant="primary"
-            onClick={() => approveKyc.mutate()}
-            disabled={approveKyc.isPending}
-          >
+          <CustomButton variant="primary" onClick={() => setShowApproveKycModal(true)}>
             <CheckCircle className="size-4" />
-            {approveKyc.isPending ? 'Aprovando...' : 'Aprovar KYC'}
-          </CustomButton>
-        </div>
-      )}
-      {lead.stage === 'residents_docs_complete' && (
-        <div className="flex gap-2">
-          <CustomButton variant="primary" onClick={() => setShowContractModal(true)}>
-            <FileText className="size-4" />
-            Gerar Contrato
+            Aprovar KYC
           </CustomButton>
         </div>
       )}
@@ -336,17 +406,9 @@ function LeadDetailPage() {
           </CustomButton>
         </div>
       )}
-      {lead.stage === 'contract_signed' && (
-        <div className="flex gap-2">
-          <CustomButton
-            variant="primary"
-            onClick={() => confirmPayment.mutate()}
-            disabled={confirmPayment.isPending}
-          >
-            <CheckCircle className="size-4" />
-            {confirmPayment.isPending ? 'Confirmando...' : 'Confirmar Pagamento'}
-          </CustomButton>
-        </div>
+
+      {showApproveKycModal && (
+        <ApproveKycModal leadId={leadId} onClose={() => setShowApproveKycModal(false)} />
       )}
 
       {/* Documents */}
@@ -354,10 +416,6 @@ function LeadDetailPage() {
         <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
         <DocGrid docs={lead.documents ?? []} />
       </div>
-
-      {showContractModal && (
-        <GenerateContractModal leadId={leadId} onClose={() => setShowContractModal(false)} />
-      )}
     </div>
   );
 }

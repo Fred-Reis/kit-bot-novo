@@ -1366,7 +1366,7 @@ git commit -m "feat(bot): mark-signed auto-creates tenant, regenerates PDF, move
 - Consumes: `adminApi.markContractSigned(leadId)` (unchanged)
 - Consumes: `stageToStepKey(stage: string): string` from `@/lib/leads`
 
-- [ ] **Step 1: Update `apps/web/src/lib/leads.ts`**
+- [x] **Step 1: Update `apps/web/src/lib/leads.ts`**
 
 Replace the entire file:
 ```ts
@@ -1447,7 +1447,7 @@ export const STAGE_TONE: Record<string, StageTone> = {
 };
 ```
 
-- [ ] **Step 2: Update `apps/web/src/lib/api.ts`**
+- [x] **Step 2: Update `apps/web/src/lib/api.ts`**
 
 Replace:
 ```ts
@@ -1469,7 +1469,7 @@ With:
     ),
 ```
 
-- [ ] **Step 3: Update `$leadId.tsx` — imports**
+- [x] **Step 3: Update `$leadId.tsx` — imports**
 
 Add `stageToStepKey` to the import from `@/lib/leads`:
 ```ts
@@ -1478,7 +1478,7 @@ import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
 
 Remove the `fetchPublishedTemplates` import from `@/lib/queries` (no longer needed — replaced by `getContractVariables`).
 
-- [ ] **Step 4: Update `StageStepper` to use `stageToStepKey`**
+- [x] **Step 4: Update `StageStepper` to use `stageToStepKey`**
 
 Find:
 ```ts
@@ -1493,7 +1493,7 @@ function StageStepper({ current }: { current: string }) {
   const currentIdx = STAGES.findIndex((s) => s.key === stepKey);
 ```
 
-- [ ] **Step 5: Replace `GenerateContractModal` with `ApproveKycModal`**
+- [x] **Step 5: Replace `GenerateContractModal` with `ApproveKycModal`**
 
 Delete the entire `GenerateContractModal` function (lines 76–157). Replace with:
 
@@ -1684,7 +1684,7 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
 }
 ```
 
-- [ ] **Step 6: Update `LeadDetailPage` state + mutations**
+- [x] **Step 6: Update `LeadDetailPage` state + mutations**
 
 Find:
 ```ts
@@ -1698,7 +1698,7 @@ const [showApproveKycModal, setShowApproveKycModal] = useState(false);
 
 Remove the `approveKyc` and `confirmPayment` mutations (lines ~187–203). Keep `markSigned` as-is.
 
-- [ ] **Step 7: Update the action buttons section**
+- [x] **Step 7: Update the action buttons section**
 
 Find the action buttons block (from `{/* Action buttons */}` to the end of the modal render). Replace all stage-conditional buttons with:
 
@@ -1732,7 +1732,7 @@ Find the action buttons block (from `{/* Action buttons */}` to the end of the m
 
 Also remove the old modal render `{showContractModal && <GenerateContractModal ... />}`.
 
-- [ ] **Step 8: Verify types compile**
+- [x] **Step 8: Verify types compile**
 
 ```bash
 cd apps/web && bunx tsc --noEmit
@@ -1740,7 +1740,7 @@ cd apps/web && bunx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/web/src/lib/leads.ts apps/web/src/lib/api.ts \
