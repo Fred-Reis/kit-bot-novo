@@ -964,7 +964,7 @@ git commit -m "feat(bot): add data_confirmation flow — CPF extraction, lead da
 
 Note: `lead.documents` is available via the `documents LeadDocument[]` relation already present on the `Lead` model in `schema.prisma` (verified at line 114).
 
-- [ ] **Step 1: Add missing imports to `admin.ts`**
+- [x] **Step 1: Add missing imports to `admin.ts`**
 
 Find the imports at the top of `apps/bot/src/routes/admin.ts`. Ensure these are present:
 ```ts
@@ -974,7 +974,7 @@ import { sendMedia, sendText } from '@/services/evolution';  // add sendMedia
 
 (`sendText` is already imported — just add `sendMedia` to the same import.)
 
-- [ ] **Step 2: Add `GET /admin/leads/:id/contract-variables` endpoint**
+- [x] **Step 2: Add `GET /admin/leads/:id/contract-variables` endpoint**
 
 Insert this NEW endpoint BEFORE the `// ─── approve-kyc` block (around line 272):
 
@@ -1036,7 +1036,7 @@ Insert this NEW endpoint BEFORE the `// ─── approve-kyc` block (around lin
   });
 ```
 
-- [ ] **Step 3: Rewrite the `approve-kyc` endpoint**
+- [x] **Step 3: Rewrite the `approve-kyc` endpoint**
 
 Find the block starting at `// ─── approve-kyc` (approx line 272) through the closing `);` of that `fastify.post(...)` call (approx line 323). Replace it entirely:
 
@@ -1184,7 +1184,7 @@ Find the block starting at `// ─── approve-kyc` (approx line 272) through 
   );
 ```
 
-- [ ] **Step 4: Verify types compile**
+- [x] **Step 4: Verify types compile**
 
 ```bash
 cd apps/bot && bunx tsc --noEmit
@@ -1192,7 +1192,7 @@ cd apps/bot && bunx tsc --noEmit
 
 Expected: no errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/bot/src/routes/admin.ts

@@ -4,11 +4,11 @@ import type { FastifyInstance } from 'fastify';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
-import type { LeadContext } from '@/flows/lead/context';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
-import { sendText } from '@/services/evolution';
+import { extractCpfFromDocs } from '@/services/cpf';
+import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { notifyOwner } from '@/services/notify';
 import { generateAndUploadPdf } from '@/services/pdf';
@@ -16,6 +16,37 @@ import { generateAndUploadPdf } from '@/services/pdf';
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
 const MONTH_REGEX = /^\d{4}-\d{2}$/;
+const TEMPLATE_VAR_RE = /\{\{([^}]+)\}\}/g;
+
+function uniquePlaceholders(text: string): string[] {
+  return [...new Set([...text.matchAll(TEMPLATE_VAR_RE)].map((m) => m[0]))];
+}
+
+const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(v ?? 10)));
+
+function buildLeadAutoMap(
+  lead: { name: string | null; phone: string },
+  property: { name: string; address: string; complement: string | null; neighborhood: string; rent: unknown; deposit: unknown; owner?: { name: string } | null },
+  paymentDayOfMonth: number,
+  cpf: string | null,
+): Record<string, string> {
+  const fmt = (n: unknown) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const today = new Date();
+  return {
+    locatario: lead.name ?? lead.phone,
+    ...(cpf !== null ? { cpf_locatario: cpf } : {}),
+    telefone_locatario: lead.phone,
+    locador: property.owner?.name ?? '',
+    imovel: property.name,
+    endereco: [property.address, property.complement].filter(Boolean).join(', '),
+    bairro: property.neighborhood,
+    aluguel: fmt(property.rent),
+    deposito: fmt(property.deposit),
+    data_hoje: today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    data_assinatura: 'A ser preenchida na assinatura',
+    vencimento: String(paymentDayOfMonth),
+  };
+}
 
 const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg',
@@ -269,44 +300,139 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  // ─── contract-variables preview ──────────────────────────────────────────
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { paymentDayOfMonth?: string };
+  }>('/admin/leads/:id/contract-variables', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const paymentDayOfMonth = clampPaymentDay(request.query.paymentDayOfMonth);
+
+    const lead = await prisma.lead.findUnique({
+      where: { id },
+      select: { phone: true, name: true, propertyId: true, documents: { select: { ocrText: true } } },
+    });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+    if (!lead.propertyId) return reply.status(409).send({ error: 'Lead has no associated property' });
+
+    const [property, template] = await Promise.all([
+      prisma.property.findUnique({
+        where: { id: lead.propertyId },
+        include: { owner: true },
+      }),
+      prisma.contractTemplate.findFirst({
+        where: { status: 'published' },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+
+    if (!template) return reply.send({ unresolved: [], hasTemplate: false });
+    if (!property) return reply.send({ unresolved: [], hasTemplate: true });
+
+    const cpf = extractCpfFromDocs(lead.documents);
+    const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf);
+    const unresolved = uniquePlaceholders(template.body).filter(
+      (p) => !(normalizeLookupText(p.slice(2, -2)) in autoMap),
+    );
+
+    return reply.send({ unresolved, hasTemplate: true });
+  });
+
   // ─── approve-kyc ──────────────────────────────────────────────────────────
-  fastify.post<{ Params: { id: string } }>(
+  fastify.post<{
+    Params: { id: string };
+    Body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> };
+  }>(
     '/admin/leads/:id/approve-kyc',
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
+      const { paymentDayOfMonth, manualVariables = {} } = request.body;
+
+      if (!Number.isInteger(paymentDayOfMonth) || paymentDayOfMonth < 1 || paymentDayOfMonth > 28) {
+        return reply.status(400).send({ error: 'paymentDayOfMonth must be an integer between 1 and 28' });
+      }
 
       const lead = await prisma.lead.findUnique({
         where: { id },
-        select: { phone: true, name: true, stage: true, ownerId: true },
+        select: {
+          phone: true, name: true, stage: true, ownerId: true, propertyId: true,
+          documents: { select: { ocrText: true } },
+        },
       });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+      if (lead.stage !== 'kyc_pending') {
+        return reply.status(409).send({ error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'` });
+      }
+      if (!lead.propertyId) {
+        return reply.status(409).send({ error: 'Lead has no associated property' });
+      }
 
-      const conv = await prisma.conversation.findUnique({ where: { chatId: lead.phone } });
-      const ctx = (conv?.data ?? {}) as LeadContext;
-      const extraResidents = ctx.residents?.length ?? 0;
-      const nextStage = extraResidents > 0 ? 'kyc_approved' : 'residents_docs_complete';
-
-      // Atomic update — only succeeds if stage is still 'kyc_pending'
-      const { count } = await prisma.lead.updateMany({
-        where: { id, stage: 'kyc_pending' },
-        data: { stage: nextStage },
-      });
-
-      if (count === 0) {
+      const [property, template] = await Promise.all([
+        prisma.property.findUnique({ where: { id: lead.propertyId }, include: { owner: true } }),
+        prisma.contractTemplate.findFirst({ where: { status: 'published' }, orderBy: { updatedAt: 'desc' } }),
+      ]);
+      if (!property) return reply.status(404).send({ error: 'Property not found' });
+      if (!template) {
         return reply.status(409).send({
-          error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'`,
+          error: 'No published contract template found. Publish a template before approving KYC.',
         });
       }
 
-      const message =
-        nextStage === 'residents_docs_complete'
-          ? '✅ Seu KYC foi aprovado! Em breve entraremos em contato sobre o próximo passo.'
-          : '✅ Seu KYC foi aprovado! Para prosseguir, precisamos dos documentos dos demais moradores.';
-
-      await sendText(lead.phone, message).catch((err) => {
-        fastify.log.warn({ err }, 'Failed to notify lead after KYC approval');
+      // Atomically claim the stage — prevents duplicate contracts on retries or concurrent requests
+      const { count } = await prisma.lead.updateMany({
+        where: { id, stage: 'kyc_pending' },
+        data: { stage: 'contract_pending' },
       });
+      if (count === 0) {
+        return reply.status(409).send({ error: `Lead is already past 'kyc_pending' stage` });
+      }
+
+      const cpf = extractCpfFromDocs(lead.documents);
+      const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf);
+
+      let body = template.body;
+      for (const placeholder of uniquePlaceholders(template.body)) {
+        const key = normalizeLookupText(placeholder.slice(2, -2));
+        if (key in autoMap) body = body.replaceAll(placeholder, autoMap[key]);
+      }
+      for (const [placeholder, value] of Object.entries(manualVariables)) {
+        body = body.replaceAll(placeholder, value === null ? '' : value);
+      }
+      body = body.replace(/\{\{[^}]+\}\}/g, 'N/A');
+
+      const contractCode = await nextExternalId('contract');
+
+      const contract = await prisma.contract.create({
+        data: {
+          code: contractCode,
+          ownerId: lead.ownerId,
+          templateId: template.id,
+          leadId: id,
+          propertyId: lead.propertyId,
+          body,
+          status: 'draft',
+          monthlyRent: property.rent,
+        },
+      });
+
+      const pdfPath = await generateAndUploadPdf(contract.id, body, contractCode);
+
+      const [, { data: signedUrlData }] = await Promise.all([
+        prisma.contract.update({ where: { id: contract.id }, data: { pdfUrl: pdfPath } }),
+        supabase.storage.from('contracts').createSignedUrl(pdfPath, 3600),
+      ]);
+
+      const pdfUrl = signedUrlData?.signedUrl ?? null;
+      if (pdfUrl) {
+        sendMedia(lead.phone, 'document', pdfUrl,
+          'Segue seu contrato para revisão. Qualquer dúvida, é só chamar!',
+        ).catch((err) => fastify.log.warn({ err }, 'Failed to send contract PDF to lead'));
+      } else {
+        sendText(lead.phone,
+          '✅ Contrato gerado! Em breve você receberá o arquivo. Qualquer dúvida, é só chamar.',
+        ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after KYC approval'));
+      }
 
       logActivityHelper({
         actorType: 'user',
@@ -318,7 +444,17 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         subjectType: 'lead',
       }).catch(fastify.log.warn.bind(fastify.log));
 
-      return reply.send({ success: true, stage: nextStage });
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: lead.ownerId,
+        action: 'contract_created',
+        subject: contractCode,
+        subjectId: contract.id,
+        subjectType: 'contract',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send({ success: true, contractId: contract.id, stage: 'contract_pending' });
     },
   );
 
