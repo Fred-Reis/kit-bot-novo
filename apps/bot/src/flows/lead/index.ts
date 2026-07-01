@@ -4,7 +4,7 @@ import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
-import { getSimpleGreetingReply } from '@/flows/lead/intents';
+import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -21,14 +21,33 @@ import {
   listAvailableProperties,
   summarizeProperty,
 } from '@/services/catalog';
+import { extractCpfFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
 import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
 
+const CONFIRMATION_WORDS = [
+  'sim', 'correto', 'certo', 'ok', 'isso', 'exato', 'perfeito', 'confirmo', 'pode',
+];
+
+const REJECTION_WORDS = ['nao', 'errado', 'incorreto'];
+
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
+}
+
+function isDocMedia(item: MediaItem): boolean {
+  if (!item.url) return false;
+  const type = item.type ?? '';
+  const mime = item.mime ?? '';
+  return (
+    type === 'image' ||
+    type === 'document' ||
+    mime.startsWith('image/') ||
+    mime === 'application/pdf'
+  );
 }
 
 async function loadChatHistory(
@@ -43,6 +62,14 @@ async function loadChatHistory(
     .reverse()
     .filter((event) => event.role === 'user' || event.role === 'assistant')
     .map((event) => ({ role: event.role as 'user' | 'assistant', content: event.content }));
+}
+
+async function loadLeadDocuments(leadId: string): Promise<Array<{ ocrText: string | null }>> {
+  return prisma.leadDocument.findMany({
+    where: { leadId },
+    select: { ocrText: true },
+    orderBy: { createdAt: 'desc' },
+  });
 }
 
 async function loadOrCreateConversation(chatId: string): Promise<LeadContext> {
@@ -93,7 +120,7 @@ async function persistLeadDocuments(
   docsPreference: 'cnh' | 'rg_cpf' | null,
   ownerId: string,
 ): Promise<void> {
-  const docItems = mediaItems.filter((m) => !isAudioMedia(m) && m.url);
+  const docItems = mediaItems.filter(isDocMedia);
   if (docItems.length === 0) return;
 
   const docType = docsPreference ?? 'image';
@@ -195,6 +222,12 @@ export async function handleLeadMessage(
     // 7. Persist document images
     await persistLeadDocuments(lead.id, mediaItems, context.docsPreference ?? null, ownerId);
 
+    // Reset data confirmation if new documents were submitted this turn
+    if (mediaItems.some(isDocMedia) && (context.dataConfirmed || context.dataConfirmationSent)) {
+      context.dataConfirmed = false;
+      context.dataConfirmationSent = false;
+    }
+
     // 8. Resolve property in focus
     const propertyReference = (context.propertyReference ?? '').trim();
     const propertyInterest = (context.propertyInterest ?? '').trim();
@@ -269,10 +302,11 @@ export async function handleLeadMessage(
     }
 
     if (kycTransition) {
+      const kycDocs = await loadLeadDocuments(lead.id);
       notifyOwner(lead.ownerId, 'kyc_pending', {
         leadName: lead.name ?? chatId,
         leadPhone: chatId,
-        cpf: null,
+        cpf: extractCpfFromDocs(kycDocs),
       }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
     }
 
@@ -297,6 +331,65 @@ export async function handleLeadMessage(
         chatId,
         `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`,
       ).catch((err) => logger.error({ err }, '[lead.flow] Failed to send visit confirmation'));
+    }
+
+    // Data confirmation gate — deterministic flow, always returns early
+    if (snapshot.state === 'lead.data_confirmation') {
+      const replyDC = async (msg: string): Promise<void> => {
+        context.state = 'lead.data_confirmation';
+        context.lastUserMessage = messageText;
+        context.lastRoutedAgent = 'deterministic_data_confirmation';
+        await persistConversation(chatId, context, messageText || null, msg, ownerId);
+        await sendText(chatId, msg);
+      };
+
+      if (!context.dataConfirmationSent) {
+        const docs = await loadLeadDocuments(lead.id);
+        const cpf = extractCpfFromDocs(docs);
+
+        if (!cpf) {
+          await replyDC(
+            'Não consegui ler o CPF no documento. Pode enviar uma foto mais nítida, com boa iluminação e sem reflexo?',
+          );
+          return;
+        }
+
+        const confirmName = context.name ?? lead.name ?? 'não informado';
+        context.dataConfirmationSent = true;
+        await replyDC(
+          'Por favor, confirme seus dados:\n\n' +
+            `Nome: ${confirmName}\n` +
+            `CPF: ${cpf}\n\n` +
+            'Está correto? Responda *sim* para confirmar ou *não* para corrigir.',
+        );
+        return;
+      }
+
+      const normalized = normalizeIntentText(messageText);
+      const hasRejection = REJECTION_WORDS.some((w) => normalized.includes(w));
+      const isConfirmed = !hasRejection && CONFIRMATION_WORDS.some((w) => normalized.includes(w));
+
+      if (isConfirmed) {
+        context.dataConfirmed = true;
+        await prisma.lead.update({ where: { phone: chatId }, data: { stage: 'kyc_pending' } });
+
+        const docs = await loadLeadDocuments(lead.id);
+        notifyOwner(lead.ownerId, 'kyc_pending', {
+          leadName: lead.name ?? chatId,
+          leadPhone: chatId,
+          cpf: extractCpfFromDocs(docs),
+        }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
+
+        await replyDC(
+          '✅ Dados confirmados! Seus documentos foram enviados para análise. Em breve entraremos em contato.',
+        );
+        return;
+      }
+      // Explicit rejection: reset flag so next turn re-extracts and re-prompts after correction
+      if (hasRejection) {
+        context.dataConfirmationSent = false;
+      }
+      // Fall through to agent (collection agent handles correction dialogue)
     }
 
     // 11. Check for deterministic media send
