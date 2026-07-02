@@ -317,20 +317,21 @@ export async function handleLeadMessage(
       (lead.scheduledVisitAt == null || newVisitAt.getTime() !== lead.scheduledVisitAt.getTime());
 
     if (visitDateChanged) {
+      const tz = 'America/Sao_Paulo';
       const dateStr = newVisitAt.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
+        timeZone: tz,
       });
       const timeStr = newVisitAt.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: tz,
       });
       const propertyName = snapshot.propertyInFocus?.name ?? 'o imóvel';
-      sendText(
-        chatId,
-        `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`,
-      ).catch((err) => logger.error({ err }, '[lead.flow] Failed to send visit confirmation'));
+      replyText = `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`;
+      bypassAgentReply = true;
     }
 
     // Data confirmation gate — deterministic flow, always returns early
