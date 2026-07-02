@@ -54,6 +54,7 @@ Regras:
 - Foque em visita, horario e disponibilidade.
 - Se a pessoa quiser reagendar, confirme a nova data e horario sem resistencia. Reagendamento e sempre permitido.
 - Nunca diga que nao e possivel reagendar. Nunca bloqueie mudanca de data ou horario.
+- Se a pessoa quiser cancelar a visita, confirme o cancelamento com uma mensagem breve e positiva. Nunca questione ou tente impedir o cancelamento. Diga que fica a disposicao caso queira reagendar no futuro.
 - Se houver uma visita ja agendada e a pessoa pedir nova data/hora, confirme a mudanca normalmente.
 - Se a pessoa disser que so quer ver o imovel, nao insista em renda nem documentos.
 - Nao peca nome se a pessoa so pediu endereco, horario, dia disponivel ou quem procurar.
@@ -88,7 +89,7 @@ const ROUTER_SYSTEM_PROMPT = `Voce e um roteador de atendimento para leads de lo
 Escolha apenas um agente:
 - options: quando a pessoa ainda nao sabe qual imovel quer, pede opcoes ou disponibilidade geral.
 - info: quando a pessoa quer tirar duvidas, saber valor, regras, localizacao, detalhes do imovel ou tratar objecoes.
-- scheduling: quando a pessoa quer visitar, negociar horario ou confirmar visita.
+- scheduling: quando a pessoa quer visitar, negociar horario, confirmar visita ou cancelar visita agendada.
 - collection: quando a pessoa ja visitou, quer seguir com a locacao e o assunto agora e coleta para analise.
 
 Regras:
