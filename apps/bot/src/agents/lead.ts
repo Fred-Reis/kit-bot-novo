@@ -182,6 +182,14 @@ export const LeadExtractionSchema = z.object({
         "Se lead disse '14h', retornar '14:00'. Se disse '9h', retornar '09:00'. " +
         'Sem hora especifica → null.',
     ),
+  visit_cancelled: z
+    .boolean()
+    .default(false)
+    .describe(
+      'true quando o lead cancelar, desistir ou não poder mais comparecer à visita agendada. ' +
+        'Ex: "não vou poder ir", "preciso cancelar a visita", "mudei de ideia". ' +
+        'false em qualquer outro caso.',
+    ),
 });
 
 const RouterSchema = z.object({
@@ -230,7 +238,7 @@ export async function extractLeadUpdate(
   message: string,
   context: LeadContext,
   availablePropertiesSummary?: string,
-): Promise<Partial<LeadContext> & { extractedSource: string | null; scheduledVisitAt: string | null }> {
+): Promise<Partial<LeadContext> & { extractedSource: string | null; scheduledVisitAt: string | null; visitCancelled: boolean }> {
   const extractor = makeLLM(400).withStructuredOutput(LeadExtractionSchema);
 
   const prompt = ChatPromptTemplate.fromMessages([
@@ -259,7 +267,7 @@ export async function extractLeadUpdate(
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
     logger.error({ err }, '[lead.agent] extractLeadUpdate failed');
-    return { extractedSource: null, scheduledVisitAt: null };
+    return { extractedSource: null, scheduledVisitAt: null, visitCancelled: false };
   }
 
   const updates: Partial<LeadContext> = { currentIntent: raw.intent };
@@ -300,7 +308,7 @@ export async function extractLeadUpdate(
   const scheduledVisitAt =
     raw.visit_date && raw.visit_time ? `${raw.visit_date}T${raw.visit_time}:00-03:00` : null;
 
-  return { ...updates, extractedSource: raw.source, scheduledVisitAt };
+  return { ...updates, extractedSource: raw.source, scheduledVisitAt, visitCancelled: raw.visit_cancelled };
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

@@ -194,7 +194,7 @@ export async function handleLeadMessage(
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
-      const { extractedSource, scheduledVisitAt: extractedVisitAt, ...updates } = await extractLeadUpdate(
+      const { extractedSource, scheduledVisitAt: extractedVisitAt, visitCancelled, ...updates } = await extractLeadUpdate(
         messageText,
         context,
         availableSummary,
@@ -206,8 +206,12 @@ export async function handleLeadMessage(
         leadPatch.source = extractedSource;
       }
 
-      // Persist confirmed visit date — only advance, never regress
-      if (extractedVisitAt) {
+      if (visitCancelled) {
+        leadPatch.scheduledVisitAt = null;
+        context.wantsSchedule = false;
+        context.visitRequested = false;
+      } else if (extractedVisitAt) {
+        // Persist confirmed visit date — only advance, never regress
         const proposedDate = new Date(extractedVisitAt);
         if (!isNaN(proposedDate.getTime()) && proposedDate > new Date()) {
           leadPatch.scheduledVisitAt = proposedDate;
