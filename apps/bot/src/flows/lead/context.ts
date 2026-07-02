@@ -225,28 +225,29 @@ function deriveState(
 
   const visited = context.visitedProperty;
 
-  if (visited === false) {
-    if (context.wantsSchedule || intent === 'visit') {
-      return context.visitRequested ? 'lead.visit_requested' : 'lead.visit_scheduling';
-    }
-    if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
-    return 'lead.property_info';
+  // Explicit visit request always goes to scheduling (unless already visited)
+  if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
+    return context.visitRequested ? 'lead.visit_requested' : 'lead.visit_scheduling';
   }
 
-  if (visited !== true) {
-    if (intent === 'visit') return 'lead.visit_scheduling';
-    return 'lead.property_info';
-  }
-
+  // Property info questions answered in info state
   if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
 
+  // Visit is optional — advance to application whenever there is progress
   const hasApplicationProgress =
     context.wantsApplication ||
     !!context.income ||
     !!context.docsPreference ||
     (context.residents ?? []).length > 0;
 
-  if (!hasApplicationProgress) return 'lead.post_visit_decision';
+  if (!hasApplicationProgress) {
+    // Visited but hasn't decided yet → ask if they want to proceed
+    if (visited === true) return 'lead.post_visit_decision';
+    // No visit, no application intent → stay in info/interest stage
+    return 'lead.property_info';
+  }
+
+  // Application in progress — visit is no longer required
   if (applicationMissingItems.length > 0) return 'lead.collect_application';
   if (docsStage !== 'complete') return 'lead.collect_application';
   if (!residentsComplete) return 'lead.collect_application';

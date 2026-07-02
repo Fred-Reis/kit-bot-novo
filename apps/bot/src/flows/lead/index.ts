@@ -195,12 +195,18 @@ export async function handleLeadMessage(
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
+      const previousVisitedProperty = context.visitedProperty;
       const { extractedSource, scheduledVisitAt: extractedVisitAt, visitCancelled, ...updates } = await extractLeadUpdate(
         messageText,
         context,
         availableSummary,
       );
       Object.assign(context, updates);
+
+      // visitedProperty is monotonic: once the lead has visited, it never reverts
+      if (previousVisitedProperty === true && context.visitedProperty !== true) {
+        context.visitedProperty = true;
+      }
 
       // Don't overwrite manual source corrections made in the admin panel
       if (shouldUpdateLeadSource(lead.source, extractedSource)) {
