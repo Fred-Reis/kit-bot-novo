@@ -152,6 +152,7 @@ export async function handleLeadMessage(
   const messageText = text ?? '';
   let replyText: string | null = null;
   let bypassAgentReply = false;
+  let visitCancelledThisTurn = false;
 
   try {
     // 1. Load lead + conversation
@@ -210,6 +211,7 @@ export async function handleLeadMessage(
         leadPatch.scheduledVisitAt = null;
         context.wantsSchedule = false;
         context.visitRequested = false;
+        visitCancelledThisTurn = true;
       } else if (extractedVisitAt) {
         // Persist confirmed visit date — only advance, never regress
         const proposedDate = new Date(extractedVisitAt);
@@ -423,8 +425,12 @@ export async function handleLeadMessage(
     // 13. Route and run agent (unless deterministic media bypass)
     let targetAgent: string = 'info';
     if (!bypassAgentReply) {
-      const routedAgent = await routeLeadMessage(question, leadContextStr);
-      targetAgent = resolveTargetAgent(snapshot.state, routedAgent);
+      const routedAgent = visitCancelledThisTurn
+        ? 'scheduling'
+        : await routeLeadMessage(question, leadContextStr);
+      targetAgent = visitCancelledThisTurn
+        ? 'scheduling'
+        : resolveTargetAgent(snapshot.state, routedAgent);
       replyText = await runLeadAgent(
         targetAgent as Parameters<typeof runLeadAgent>[0],
         question,
