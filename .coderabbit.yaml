@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Config do CodeRabbit — review automático de PRs (app do GitHub) e CLI local.
+# Docs: https://docs.coderabbit.ai/reference/configuration
+
+language: pt-BR
+
+reviews:
+  profile: chill # trocar para "assertive" se quiser mais findings (mais ruído)
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false # PRs draft (ex: fase B aguardando fase A) não são revisadas
+    base_branches:
+      - main
+  path_filters:
+    - "!**/*.lockb"
+  path_instructions:
+    - path: "apps/bot/**"
+      instructions: |
+        Bot WhatsApp (Bun + Fastify + Prisma + LangChain). Regras invioláveis do projeto:
+        - Nunca sugerir Python, npm ou yarn (runtime é Bun).
+        - Regras de negócio pertencem ao código determinístico, nunca a prompts de LLM.
+        - Toda informação factual vem do banco; o LLM não pode improvisar regras, taxas ou disponibilidade.
+        - Booleans extraídos por LLM não podem dirigir o funil crítico (docs/KYC/contrato) — apontar como bug.
+        - Caminhos de arquivo locais são proibidos — sempre URLs do Supabase Storage.
+        - Falha silenciosa é bug: todo catch deve logar e, quando afeta o lead, o lead deve ser avisado.
+        - Mensagens ao lead em pt-BR, cordiais e curtas.
+    - path: "apps/web/src/components/**"
+      instructions: |
+        Componentes React seguem o COMPONENT_PATTERN.md do repo:
+        - Named export obrigatório (nunca export default).
+        - Arquivos lowercase-com-hífens; sem barrel files (index.ts) em pastas internas.
+        - Variantes com tv() (tailwind-variants); merge de classes com twMerge().
+        - data-slot="nome" no elemento raiz; estados via atributos data-[state]:.
+        - Cores via CSS variables — nunca hardcoded (ex.: bg-blue-500 é violação).
+        - aria-label obrigatório em botões só de ícone.
+        - {...props} espalhado por último.
+
+chat:
+  auto_reply: true
