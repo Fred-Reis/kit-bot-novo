@@ -26,7 +26,8 @@ async function main(): Promise<void> {
   const res = await fetch(pub.publicUrl);
   if (!res.ok) throw new Error(`public URL inacessível: HTTP ${res.status}`);
 
-  await supabase.storage.from('leads').remove([testPath]);
+  const { error: removeErr } = await supabase.storage.from('leads').remove([testPath]);
+  if (removeErr) console.error(`Falha ao remover arquivo de teste: ${removeErr.message}`);
   console.log('Storage saudável ✅ upload + public URL OK');
 }
 

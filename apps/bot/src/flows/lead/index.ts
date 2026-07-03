@@ -234,15 +234,23 @@ export async function handleLeadMessage(
     context.audioReceived = audioReceived;
 
     // 7. Persist document images
-    const persistedDocsCount = await persistLeadDocuments(
-      lead.id,
-      mediaItems,
-      context.docsPreference ?? null,
-      ownerId,
-    );
-    const receiptMsg = buildReceiptMessage(persistedDocsCount);
-    if (receiptMsg) {
-      await sendText(chatId, receiptMsg);
+    try {
+      const persistedDocsCount = await persistLeadDocuments(
+        lead.id,
+        mediaItems,
+        context.docsPreference ?? null,
+        ownerId,
+      );
+      const receiptMsg = buildReceiptMessage(persistedDocsCount);
+      if (receiptMsg) {
+        await sendText(chatId, receiptMsg);
+      }
+    } catch (err) {
+      logger.error({ err }, '[lead.flow] Failed to persist documents or send receipt');
+      await sendText(
+        chatId,
+        'Recebi seu documento, mas tive um problema para confirmar. Nossa equipe vai verificar em instantes.',
+      ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify receipt failure'));
     }
 
     // Reset data confirmation if new documents were submitted this turn

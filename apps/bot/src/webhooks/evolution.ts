@@ -149,11 +149,23 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
           { chatId, messageId, messageType },
           '[webhook] Midia sem base64 e fallback falhou — midia perdida',
         );
+        const { sendText } = await import('@/services/evolution');
+        await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
+          () => undefined,
+        );
         return;
       }
     }
 
-    if (!base64) return;
+    if (!base64) {
+      const { logger } = await import('@/lib/logger');
+      logger.error({ chatId, messageType }, '[webhook] Midia sem base64 e sem messageId — midia perdida');
+      const { sendText } = await import('@/services/evolution');
+      await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
+        () => undefined,
+      );
+      return;
+    }
 
     await bufferMedia(
       chatId,
