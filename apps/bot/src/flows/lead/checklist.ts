@@ -56,7 +56,7 @@ export function buildChecklist(input: ChecklistInput): ChecklistStatus {
     collected: input.residentsCollected,
     complete:
       input.expectedResidents != null &&
-      input.expectedResidents > 0 &&
+      input.expectedResidents >= 0 &&
       input.residentsCollected >= input.expectedResidents,
   };
   const name = !!(input.name ?? '').trim();

@@ -65,6 +65,11 @@ describe('buildChecklist — renda e moradores', () => {
     expect(s.residents.complete).toBe(false);
     expect(s.complete).toBe(false);
   });
+
+  it('moradores: expected = 0 e collected = 0 → completo', () => {
+    const s = buildChecklist({ ...base, expectedResidents: 0, residentsCollected: 0, documents: ['cnh_full'] });
+    expect(s.residents.complete).toBe(true);
+  });
 });
 
 describe('renderChecklistText', () => {
