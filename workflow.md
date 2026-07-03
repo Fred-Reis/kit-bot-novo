@@ -289,6 +289,7 @@ foundation: criar ActivityLog table + helpers
 - Sem warnings novos vs main
 
 ### Quando pausar
+
 - Skill SPEC: você precisa pensar no requisito → pause após `/spec`
 - Skill PLAN: você precisa validar abordagem → pause após `/plan`
 - Skill BUILD: aprovação manual a cada task — pausas naturais
