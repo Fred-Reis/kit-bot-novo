@@ -5,6 +5,7 @@ import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
 import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
+import { buildReceiptMessage } from '@/flows/lead/receipt';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -119,9 +120,9 @@ async function persistLeadDocuments(
   mediaItems: MediaItem[],
   docsPreference: 'cnh' | 'rg_cpf' | null,
   ownerId: string,
-): Promise<void> {
+): Promise<number> {
   const docItems = mediaItems.filter(isDocMedia);
-  if (docItems.length === 0) return;
+  if (docItems.length === 0) return 0;
 
   const docType = docsPreference ?? 'image';
 
@@ -139,6 +140,7 @@ async function persistLeadDocuments(
       });
     }),
   );
+  return docItems.length;
 }
 
 export async function handleLeadMessage(
@@ -232,7 +234,16 @@ export async function handleLeadMessage(
     context.audioReceived = audioReceived;
 
     // 7. Persist document images
-    await persistLeadDocuments(lead.id, mediaItems, context.docsPreference ?? null, ownerId);
+    const persistedDocsCount = await persistLeadDocuments(
+      lead.id,
+      mediaItems,
+      context.docsPreference ?? null,
+      ownerId,
+    );
+    const receiptMsg = buildReceiptMessage(persistedDocsCount);
+    if (receiptMsg) {
+      await sendText(chatId, receiptMsg);
+    }
 
     // Reset data confirmation if new documents were submitted this turn
     if (mediaItems.some(isDocMedia) && (context.dataConfirmed || context.dataConfirmationSent)) {
