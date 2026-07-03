@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { bufferMedia, bufferMessage } from '@/buffer';
 import { config } from '@/config';
+import { logger } from '@/lib/logger';
+import { getBase64FromMediaMessage, sendText } from '@/services/evolution';
 
 export interface InboundMessage {
   chatId: string;
@@ -141,28 +143,14 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
 
     if (!base64 && messageId) {
       // Evolution nem sempre inclui base64 no webhook — buscar sob demanda
-      const { getBase64FromMediaMessage } = await import('@/services/evolution');
       base64 = await getBase64FromMediaMessage(messageId);
-      if (!base64) {
-        const { logger } = await import('@/lib/logger');
-        logger.error(
-          { chatId, messageId, messageType },
-          '[webhook] Midia sem base64 e fallback falhou — midia perdida',
-        );
-        const { sendText } = await import('@/services/evolution');
-        await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
-          () => undefined,
-        );
-        return;
-      }
     }
 
     if (!base64) {
-      const { logger } = await import('@/lib/logger');
-      logger.error({ chatId, messageType }, '[webhook] Midia sem base64 e sem messageId — midia perdida');
-      const { sendText } = await import('@/services/evolution');
+      const reason = messageId ? 'fallback falhou' : 'sem messageId';
+      logger.error({ chatId, messageId, messageType }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
       await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
-        () => undefined,
+        (sendErr) => logger.error({ sendErr, chatId }, '[webhook] Failed to notify lead'),
       );
       return;
     }

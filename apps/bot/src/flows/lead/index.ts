@@ -126,7 +126,7 @@ async function persistLeadDocuments(
 
   const docType = docsPreference ?? 'image';
 
-  await Promise.all(
+  const results = await Promise.allSettled(
     docItems.map(async (m) => {
       const ocrText = await extractTextFromImage(m.url!);
       return prisma.leadDocument.create({
@@ -140,7 +140,11 @@ async function persistLeadDocuments(
       });
     }),
   );
-  return docItems.length;
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    logger.error({ failures }, '[lead.flow] Some documents failed to persist');
+  }
+  return results.filter((r) => r.status === 'fulfilled').length;
 }
 
 export async function handleLeadMessage(

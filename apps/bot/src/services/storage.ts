@@ -24,6 +24,12 @@ export async function uploadLeadDocument(
     throw new Error(`Supabase Storage upload failed: ${error.message}`);
   }
 
-  const { data } = supabase.storage.from('leads').getPublicUrl(path);
-  return data.publicUrl;
+  // Bucket é privado — gerar URL assinada com validade longa
+  const { data: signed, error: signErr } = await supabase.storage
+    .from('leads')
+    .createSignedUrl(path, 315_360_000); // 10 anos em segundos
+  if (signErr || !signed) {
+    throw new Error(`Supabase Storage signed URL failed: ${signErr?.message}`);
+  }
+  return signed.signedUrl;
 }

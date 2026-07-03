@@ -9,9 +9,9 @@ async function main(): Promise<void> {
 
   const exists = (buckets ?? []).some((b) => b.name === 'leads');
   if (!exists) {
-    const { error: createErr } = await supabase.storage.createBucket('leads', { public: true });
+    const { error: createErr } = await supabase.storage.createBucket('leads', { public: false });
     if (createErr) throw new Error(`createBucket falhou: ${createErr.message}`);
-    console.log('Bucket "leads" criado (public).');
+    console.log('Bucket "leads" criado (privado).');
   } else {
     console.log('Bucket "leads" já existe.');
   }
@@ -22,13 +22,16 @@ async function main(): Promise<void> {
     .upload(testPath, Buffer.from('healthcheck'), { contentType: 'text/plain' });
   if (upErr) throw new Error(`upload de teste falhou: ${upErr.message}`);
 
-  const { data: pub } = supabase.storage.from('leads').getPublicUrl(testPath);
-  const res = await fetch(pub.publicUrl);
-  if (!res.ok) throw new Error(`public URL inacessível: HTTP ${res.status}`);
-
-  const { error: removeErr } = await supabase.storage.from('leads').remove([testPath]);
-  if (removeErr) console.error(`Falha ao remover arquivo de teste: ${removeErr.message}`);
-  console.log('Storage saudável ✅ upload + public URL OK');
+  try {
+    const { data: signed, error: signErr } = await supabase.storage.from('leads').createSignedUrl(testPath, 60);
+    if (signErr || !signed) throw new Error(`signed URL falhou: ${signErr?.message}`);
+    const res = await fetch(signed.signedUrl);
+    if (!res.ok) throw new Error(`signed URL inacessível: HTTP ${res.status}`);
+    console.log('Storage saudável ✅ upload + signed URL OK');
+  } finally {
+    const { error: removeErr } = await supabase.storage.from('leads').remove([testPath]);
+    if (removeErr) console.error(`Falha ao remover arquivo de teste: ${removeErr.message}`);
+  }
 }
 
 main().catch((err) => {
