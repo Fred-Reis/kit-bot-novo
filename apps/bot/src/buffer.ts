@@ -62,9 +62,9 @@ export async function bufferMedia(
   let resolvedMedia: MediaItem = media;
   if (media.base64 && media.type !== 'audio' && media.mime) {
     try {
-      const url = await uploadLeadDocument(chatId, media.base64, media.mime);
-      // Keep type and mime but replace base64 with url
-      resolvedMedia = { type: media.type, mime: media.mime, url, messageId: media.messageId };
+      const storagePath = await uploadLeadDocument(chatId, media.base64, media.mime);
+      // Store the storage path — URL is generated on demand at display time
+      resolvedMedia = { type: media.type, mime: media.mime, url: storagePath, messageId: media.messageId };
     } catch (err) {
       logger.error({ err, chatId }, '[buffer] Failed to upload media to Storage');
       await sendText(

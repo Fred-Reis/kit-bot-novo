@@ -150,7 +150,7 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
       const reason = messageId ? 'fallback falhou' : 'sem messageId';
       logger.error({ chatId, messageId, messageType }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
       await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
-        (sendErr) => logger.error({ sendErr, chatId }, '[webhook] Failed to notify lead'),
+        (sendErr) => logger.error({ sendErr, chatId, messageId }, '[webhook] Failed to notify lead'),
       );
       return;
     }

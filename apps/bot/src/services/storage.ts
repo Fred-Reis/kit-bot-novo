@@ -11,11 +11,11 @@ export async function uploadLeadDocument(
   const ext = mimeType.split('/')[1] ?? 'bin';
   const timestamp = Date.now();
   const phone = chatId.split('@')[0];
-  const path = `leads/${phone}/${timestamp}.${ext}`;
+  const storagePath = `leads/${phone}/${timestamp}.${ext}`;
 
   const buffer = Buffer.from(base64Content, 'base64');
 
-  const { error } = await supabase.storage.from('leads').upload(path, buffer, {
+  const { error } = await supabase.storage.from('leads').upload(storagePath, buffer, {
     contentType: mimeType,
     upsert: false,
   });
@@ -24,12 +24,11 @@ export async function uploadLeadDocument(
     throw new Error(`Supabase Storage upload failed: ${error.message}`);
   }
 
-  // Bucket é privado — gerar URL assinada com validade longa
-  const { data: signed, error: signErr } = await supabase.storage
-    .from('leads')
-    .createSignedUrl(path, 315_360_000); // 10 anos em segundos
-  if (signErr || !signed) {
-    throw new Error(`Supabase Storage signed URL failed: ${signErr?.message}`);
-  }
-  return signed.signedUrl;
+  return storagePath;
+}
+
+export async function createLeadDocumentUrl(storagePath: string, expiresIn = 3_600): Promise<string> {
+  const { data, error } = await supabase.storage.from('leads').createSignedUrl(storagePath, expiresIn);
+  if (error || !data) throw new Error(`Supabase signed URL failed: ${error?.message}`);
+  return data.signedUrl;
 }
