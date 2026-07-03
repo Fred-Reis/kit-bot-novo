@@ -66,3 +66,20 @@ export async function sendMedia(
     throw new Error(`Evolution sendMedia failed: ${response.status} ${body}`);
   }
 }
+
+export async function getBase64FromMediaMessage(messageId: string): Promise<string | null> {
+  const url = `${config.EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${config.EVOLUTION_INSTANCE_NAME}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ message: { key: { id: messageId } }, convertToMp4: false }),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json().catch(() => null)) as { base64?: string } | null;
+  return data?.base64 ?? null;
+}

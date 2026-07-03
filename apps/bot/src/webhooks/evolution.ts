@@ -5,7 +5,7 @@ import { config } from '@/config';
 export interface InboundMessage {
   chatId: string;
   messageId: string | null;
-  messageType: 'text' | 'image' | 'document' | 'audio' | 'unknown';
+  messageType: 'text' | 'image' | 'document' | 'video' | 'audio' | 'unknown';
   text: string | null;
   mediaUrl: string | null;
   mediaMime: string | null;
@@ -31,7 +31,7 @@ function redactPayload(payload: Record<string, unknown>): Record<string, unknown
   return safe;
 }
 
-function extractInboundMessage(payload: Record<string, unknown>): InboundMessage | null {
+export function extractInboundMessage(payload: Record<string, unknown>): InboundMessage | null {
   if (payload['event'] !== 'messages.upsert') return null;
 
   const data = (payload['data'] ?? {}) as Record<string, unknown>;
@@ -70,6 +70,12 @@ function extractInboundMessage(payload: Record<string, unknown>): InboundMessage
     text = ((doc['caption'] ?? doc['title']) as string | null) ?? null;
     mediaMime = (doc['mimetype'] as string | null) ?? null;
     mediaUrl = ((doc['url'] ?? doc['directPath']) as string | null) ?? null;
+  } else if ('videoMessage' in msg) {
+    messageType = 'video';
+    const video = (msg['videoMessage'] ?? {}) as Record<string, unknown>;
+    text = (video['caption'] as string | null) ?? null;
+    mediaMime = (video['mimetype'] as string | null) ?? null;
+    mediaUrl = ((video['url'] ?? video['directPath']) as string | null) ?? null;
   } else if ('audioMessage' in msg) {
     messageType = 'audio';
     const audio = (msg['audioMessage'] ?? {}) as Record<string, unknown>;
@@ -130,13 +136,31 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
     return;
   }
 
-  if ((messageType === 'image' || messageType === 'document') && mediaBase64) {
+  if (messageType === 'image' || messageType === 'document' || messageType === 'video') {
+    let base64 = mediaBase64;
+
+    if (!base64 && messageId) {
+      // Evolution nem sempre inclui base64 no webhook — buscar sob demanda
+      const { getBase64FromMediaMessage } = await import('@/services/evolution');
+      base64 = await getBase64FromMediaMessage(messageId);
+      if (!base64) {
+        const { logger } = await import('@/lib/logger');
+        logger.error(
+          { chatId, messageId, messageType },
+          '[webhook] Midia sem base64 e fallback falhou — midia perdida',
+        );
+        return;
+      }
+    }
+
+    if (!base64) return;
+
     await bufferMedia(
       chatId,
       {
         type: messageType,
         mime: mediaMime ?? undefined,
-        base64: mediaBase64,
+        base64,
         messageId: messageId ?? undefined,
       },
       text ?? undefined,
