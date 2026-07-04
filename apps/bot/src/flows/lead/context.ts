@@ -38,6 +38,7 @@ export interface LeadContext {
   docsPreference?: 'cnh' | 'rg_cpf' | null;
   residents?: LeadResident[];
   residentsComplete?: boolean | null;
+  expectedResidents?: number | null;
   analysisSubmitted?: boolean;
   docsReceivedCount?: number;
   visitConfirmationSent?: boolean;

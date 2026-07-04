@@ -309,6 +309,31 @@ export async function handleLeadMessage(
       leadPatch.declaredIncome = incomeValue;
     }
 
+    // Persistir quantidade esperada de moradores
+    if (
+      context.expectedResidents != null &&
+      context.expectedResidents !== lead.expectedResidents
+    ) {
+      leadPatch.expectedResidents = context.expectedResidents;
+    }
+
+    // Sincronizar moradores coletados com a tabela (replace-all)
+    if ((context.residents ?? []).length > 0) {
+      const residents = context.residents ?? [];
+      await prisma.$transaction([
+        prisma.leadResident.deleteMany({ where: { leadId: lead.id } }),
+        prisma.leadResident.createMany({
+          data: residents.map((r) => ({
+            leadId: lead.id,
+            ownerId,
+            name: r.name,
+            sex: r.sex || null,
+            age: r.age ?? null,
+          })),
+        }),
+      ]);
+    }
+
     // Sincronizar Lead.stage com o estado da conversa
     const mappedStage = fsmStateToLeadStage(snapshot.state, lead.stage);
     if (mappedStage && mappedStage !== lead.stage) {
