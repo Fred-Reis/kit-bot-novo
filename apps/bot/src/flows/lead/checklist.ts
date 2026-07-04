@@ -1,4 +1,5 @@
 import { prisma } from '@/db/client';
+import { logger } from '@/lib/logger';
 import type { LeadDocumentType } from '@/services/doc-classifier';
 
 export interface ChecklistInput {
@@ -110,10 +111,15 @@ export async function getChecklistForLead(leadId: string): Promise<ChecklistStat
     prisma.leadResident.count({ where: { leadId } }),
   ]);
 
+  if (!lead) {
+    logger.error({ leadId }, '[checklist] Lead not found');
+    throw new Error(`Lead not found: ${leadId}`);
+  }
+
   return buildChecklist({
-    name: lead?.name ?? null,
-    declaredIncome: lead?.declaredIncome != null ? Number(lead.declaredIncome) : null,
-    expectedResidents: lead?.expectedResidents ?? null,
+    name: lead.name,
+    declaredIncome: lead.declaredIncome != null ? Number(lead.declaredIncome) : null,
+    expectedResidents: lead.expectedResidents ?? null,
     residentsCollected: residentsCount,
     documents: documents.map((d) => d.type as LeadDocumentType),
   });

@@ -25,6 +25,7 @@ import {
 import { extractCpfFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
+import { classifyDocument } from '@/services/doc-classifier';
 import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
@@ -118,21 +119,19 @@ async function persistConversation(
 async function persistLeadDocuments(
   leadId: string,
   mediaItems: MediaItem[],
-  docsPreference: 'cnh' | 'rg_cpf' | null,
   ownerId: string,
 ): Promise<number> {
   const docItems = mediaItems.filter(isDocMedia);
   if (docItems.length === 0) return 0;
 
-  const docType = docsPreference ?? 'image';
-
   const results = await Promise.allSettled(
     docItems.map(async (m) => {
       const ocrText = await extractTextFromImage(m.url!);
+      const type = classifyDocument(ocrText ?? '');
       return prisma.leadDocument.create({
         data: {
           leadId,
-          type: docType,
+          type,
           url: m.url!,
           ocrText: ocrText || null,
           ownerId,
@@ -239,12 +238,7 @@ export async function handleLeadMessage(
 
     // 7. Persist document images
     try {
-      const persistedDocsCount = await persistLeadDocuments(
-        lead.id,
-        mediaItems,
-        context.docsPreference ?? null,
-        ownerId,
-      );
+      const persistedDocsCount = await persistLeadDocuments(lead.id, mediaItems, ownerId);
       const receiptMsg = buildReceiptMessage(persistedDocsCount);
       if (receiptMsg) {
         await sendText(chatId, receiptMsg);
