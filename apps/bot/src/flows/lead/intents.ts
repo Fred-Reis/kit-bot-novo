@@ -41,6 +41,23 @@ const DETAILS_TERMS = new Set([
   'condicoes',
 ]);
 
+const CONTESTATION_TERMS = [
+  'ja enviei',
+  'ja mandei',
+  'ja te enviei',
+  'ja te mandei',
+  'enviei sim',
+  'mandei sim',
+  'acabei de enviar',
+  'acabei de mandar',
+];
+
+export function detectDocContestation(message: string | null): boolean {
+  const normalized = normalizeIntentText(message ?? '');
+  if (!normalized) return false;
+  return CONTESTATION_TERMS.some((t) => normalized.includes(t));
+}
+
 export function normalizeIntentText(value: string): string {
   const nfd = value.trim().toLowerCase().normalize('NFKD').replace(/\p{M}/gu, '');
   const noSymbols = nfd.replace(/[,.:;?!]/g, ' ');

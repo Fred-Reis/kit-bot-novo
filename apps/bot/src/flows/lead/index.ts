@@ -4,8 +4,10 @@ import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
-import { handleDocumentIntake } from '@/flows/lead/doc-intake';
-import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
+import { buildTransparencyReply, handleDocumentIntake } from '@/flows/lead/doc-intake';
+import { escalateToHuman, detectFrustration, isSameReply } from '@/flows/lead/escalation';
+import { getSimpleGreetingReply, normalizeIntentText, detectDocContestation } from '@/flows/lead/intents';
+import { getChecklistForLead } from '@/flows/lead/checklist';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -189,6 +191,14 @@ export async function handleLeadMessage(
       }
     }
 
+    // Escalação: pedido de humano ou frustração → pausa + notificação
+    if (context.wantsHuman || detectFrustration(messageText)) {
+      const reason = context.wantsHuman ? 'human_request' : 'frustration';
+      await escalateToHuman(chatId, lead.ownerId, lead.name, reason);
+      await persistConversation(chatId, context, messageText || null, null, ownerId);
+      return;
+    }
+
     // 6. Handle audio flag
     const audioReceived = mediaItems.some(isAudioMedia);
     context.audioReceived = audioReceived;
@@ -211,6 +221,33 @@ export async function handleLeadMessage(
       context.lastRoutedAgent = 'deterministic_doc_intake';
       await persistConversation(chatId, context, null, intake.reply, ownerId);
       return;
+    }
+
+    // Contestação de documentos — transparência total, determinístico
+    if (intake.processed === 0 && detectDocContestation(messageText)) {
+      const checklist = await getChecklistForLead(lead.id);
+      if (!checklist.identity.complete) {
+        const count = (context.docsContestations ?? 0) + 1;
+        context.docsContestations = count;
+
+        if (count >= 2) {
+          await escalateToHuman(chatId, lead.ownerId, lead.name, 'contestation');
+          await persistConversation(chatId, context, messageText, null, ownerId);
+          return;
+        }
+
+        const docs = await prisma.leadDocument.findMany({
+          where: { leadId: lead.id },
+          select: { type: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        const reply = buildTransparencyReply(docs, checklist);
+        context.lastUserMessage = messageText;
+        context.lastRoutedAgent = 'deterministic_transparency';
+        await persistConversation(chatId, context, messageText, reply, ownerId);
+        await sendText(chatId, reply);
+        return;
+      }
     }
 
     // 8. Resolve property in focus
@@ -445,8 +482,13 @@ export async function handleLeadMessage(
       }
     }
 
-    // 16. Send text reply
+    // 16. Send text reply — com detecção de loop
     if (replyText) {
+      const lastAssistant = [...chatHistory].reverse().find((m) => m.role === 'assistant');
+      if (!bypassAgentReply && isSameReply(replyText, lastAssistant?.content ?? null)) {
+        await escalateToHuman(chatId, lead.ownerId, lead.name, 'loop');
+        return;
+      }
       await sendText(chatId, replyText);
     }
   } catch (err) {

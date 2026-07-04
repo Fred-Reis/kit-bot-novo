@@ -11,6 +11,7 @@ type NotifyPayloadMap = {
   kyc_pending: { leadName: string; leadPhone: string; cpf: string | null };
   contract_signed: { leadName: string; tenantExternalId: string };
   payment_overdue: { tenantName: string; propertyName: string; daysOverdue: number };
+  human_needed: { leadName: string; leadPhone: string; reason: string };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -55,6 +56,17 @@ function buildChannelContent(
       const { tenantName, propertyName, daysOverdue } = payload as NotifyPayloadMap['payment_overdue'];
       return {
         whatsapp: `Pagamento em atraso ha ${daysOverdue} dias: ${tenantName} - ${propertyName}.`,
+        email: null,
+      };
+    }
+    case 'human_needed': {
+      const p = payload as NotifyPayloadMap['human_needed'];
+      return {
+        whatsapp:
+          `⚠️ Atendimento humano necessário\n` +
+          `Lead: ${p.leadName} (${p.leadPhone})\n` +
+          `Motivo: ${p.reason}\n` +
+          `O bot foi pausado para este contato.`,
         email: null,
       };
     }
