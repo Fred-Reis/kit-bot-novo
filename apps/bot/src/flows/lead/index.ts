@@ -4,8 +4,8 @@ import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
+import { handleDocumentIntake } from '@/flows/lead/doc-intake';
 import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
-import { buildReceiptMessage } from '@/flows/lead/receipt';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -25,8 +25,6 @@ import {
 import { extractCpfFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
-import { classifyDocument } from '@/services/doc-classifier';
-import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
 
@@ -38,18 +36,6 @@ const REJECTION_WORDS = ['nao', 'errado', 'incorreto'];
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
-}
-
-function isDocMedia(item: MediaItem): boolean {
-  if (!item.url) return false;
-  const type = item.type ?? '';
-  const mime = item.mime ?? '';
-  return (
-    type === 'image' ||
-    type === 'document' ||
-    mime.startsWith('image/') ||
-    mime === 'application/pdf'
-  );
 }
 
 async function loadChatHistory(
@@ -116,35 +102,6 @@ async function persistConversation(
   ]);
 }
 
-async function persistLeadDocuments(
-  leadId: string,
-  mediaItems: MediaItem[],
-  ownerId: string,
-): Promise<number> {
-  const docItems = mediaItems.filter(isDocMedia);
-  if (docItems.length === 0) return 0;
-
-  const results = await Promise.allSettled(
-    docItems.map(async (m) => {
-      const ocrText = await extractTextFromImage(m.url!);
-      const type = classifyDocument(ocrText ?? '');
-      return prisma.leadDocument.create({
-        data: {
-          leadId,
-          type,
-          url: m.url!,
-          ocrText: ocrText || null,
-          ownerId,
-        },
-      });
-    }),
-  );
-  const failures = results.filter((r) => r.status === 'rejected');
-  if (failures.length > 0) {
-    logger.error({ failures }, '[lead.flow] Some documents failed to persist');
-  }
-  return results.filter((r) => r.status === 'fulfilled').length;
-}
 
 export async function handleLeadMessage(
   chatId: string,
@@ -236,34 +193,24 @@ export async function handleLeadMessage(
     const audioReceived = mediaItems.some(isAudioMedia);
     context.audioReceived = audioReceived;
 
-    // 7. Persist document images
-    const docItemCount = mediaItems.filter(isDocMedia).length;
-    if (docItemCount > 0) {
-      try {
-        const persistedDocsCount = await persistLeadDocuments(lead.id, mediaItems, ownerId);
-        if (persistedDocsCount === 0) {
-          logger.error({ chatId }, '[lead.flow] All documents failed to persist');
-          await sendText(
-            chatId,
-            'Recebi seu arquivo, mas tive um problema ao salvar. Pode reenviar, por favor?',
-          ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify persist failure'));
-        } else {
-          const receiptMsg = buildReceiptMessage(persistedDocsCount);
-          if (receiptMsg) await sendText(chatId, receiptMsg);
-        }
-      } catch (err) {
-        logger.error({ err }, '[lead.flow] Failed to persist documents or send receipt');
-        await sendText(
-          chatId,
-          'Recebi seu documento, mas tive um problema para confirmar. Nossa equipe vai verificar em instantes.',
-        ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify receipt failure'));
+    // 7. Pipeline determinístico de documentos (zero LLM)
+    const intake = await handleDocumentIntake(chatId, lead.id, ownerId, mediaItems);
+    if (intake.reply) {
+      await sendText(chatId, intake.reply);
+    }
+    if (intake.persisted.length > 0) {
+      context.docsContestations = 0;
+      if (context.dataConfirmed || context.dataConfirmationSent) {
+        context.dataConfirmed = false;
+        context.dataConfirmationSent = false;
       }
     }
-
-    // Reset data confirmation if new documents were submitted this turn
-    if (mediaItems.some(isDocMedia) && (context.dataConfirmed || context.dataConfirmationSent)) {
-      context.dataConfirmed = false;
-      context.dataConfirmationSent = false;
+    // Turno só de documento: a resposta determinística basta — não acionar LLM
+    if (!messageText && intake.processed > 0) {
+      context.lastUserMessage = '';
+      context.lastRoutedAgent = 'deterministic_doc_intake';
+      await persistConversation(chatId, context, null, intake.reply, ownerId);
+      return;
     }
 
     // 8. Resolve property in focus
