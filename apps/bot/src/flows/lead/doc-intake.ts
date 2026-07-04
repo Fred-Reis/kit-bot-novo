@@ -11,7 +11,7 @@ import {
   DOC_TYPE_LABEL,
   type LeadDocumentType,
 } from '@/services/doc-classifier';
-import { extractTextFromBase64, extractTextFromImage } from '@/services/ocr';
+import { extractTextFromBase64 } from '@/services/ocr';
 
 export interface IntakeOutcome {
   processed: number;
@@ -22,21 +22,27 @@ export interface IntakeOutcome {
 function isIntakeMedia(item: MediaItem): boolean {
   const type = item.type ?? '';
   const mime = item.mime ?? '';
-  const isDocLike =
-    type === 'image' || type === 'document' || mime.startsWith('image/') || mime === 'application/pdf';
+  // PDFs cannot be processed by Vision images:annotate; skip OCR for them
+  if (mime === 'application/pdf') return false;
+  const isDocLike = type === 'image' || type === 'document' || mime.startsWith('image/');
   return isDocLike && (!!item.url || !!item.base64);
 }
 
 async function ocrMedia(item: MediaItem): Promise<string> {
   if (item.base64) return extractTextFromBase64(item.base64);
   if (!item.url) return '';
+  // item.url is a Supabase storage path — resolve to a signed URL before fetching
+  // Dynamic import avoids Supabase client initialization in test environments
   try {
-    const res = await fetch(item.url);
-    if (!res.ok) return extractTextFromImage(item.url);
+    const { createLeadDocumentUrl } = await import('@/services/storage');
+    const signedUrl = await createLeadDocumentUrl(item.url, 60);
+    const res = await fetch(signedUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return '';
     const buf = Buffer.from(await res.arrayBuffer());
     return extractTextFromBase64(buf.toString('base64'));
-  } catch {
-    return extractTextFromImage(item.url);
+  } catch (err) {
+    logger.warn({ err, url: item.url }, '[doc-intake] Failed to download media for OCR');
+    return '';
   }
 }
 
@@ -136,11 +142,16 @@ export async function handleDocumentIntake(
       continue;
     }
 
-    await prisma.leadDocument.create({
-      data: { leadId, type, url: item.url ?? '', ocrText: ocrText || null, ownerId },
-    });
-    existingTypes.add(type);
-    persisted.push(type);
+    try {
+      await prisma.leadDocument.create({
+        data: { leadId, type, url: item.url ?? '', ocrText: ocrText || null, ownerId },
+      });
+      existingTypes.add(type);
+      persisted.push(type);
+    } catch (err) {
+      logger.error({ err, leadId, type }, '[doc-intake] Falha ao persistir documento');
+      unknownCount += 1; // conta como não identificado para disparar o aviso ao lead
+    }
   }
 
   const checklist = await getChecklistForLead(leadId);

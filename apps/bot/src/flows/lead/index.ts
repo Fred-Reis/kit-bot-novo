@@ -485,14 +485,27 @@ export async function handleLeadMessage(
       targetAgent = 'deterministic_media';
     }
 
-    // 14. Persist conversation state + events
+    // 14. Detect loop before persisting — prevents ghost response in history
+    if (replyText && !bypassAgentReply) {
+      const lastAssistant = [...chatHistory].reverse().find((m) => m.role === 'assistant');
+      if (isSameReply(replyText, lastAssistant?.content ?? null)) {
+        await escalateToHuman(chatId, lead.ownerId, lead.name, 'loop');
+        context.lastUserMessage = messageText;
+        context.lastRoutedAgent = targetAgent;
+        context.state = snapshot.state;
+        await persistConversation(chatId, context, messageText || null, null, ownerId);
+        return;
+      }
+    }
+
+    // 15. Persist conversation state + events
     context.lastUserMessage = messageText;
     context.lastRoutedAgent = targetAgent;
     context.state = snapshot.state;
 
     await persistConversation(chatId, context, messageText || null, replyText, ownerId);
 
-    // 15. Send outbound media or listing link
+    // 16. Send outbound media or listing link
     if (outboundMedia && bypassAgentReply) {
       try {
         if (isListingLink) {
@@ -510,13 +523,8 @@ export async function handleLeadMessage(
       }
     }
 
-    // 16. Send text reply — com detecção de loop
+    // 17. Send text reply
     if (replyText) {
-      const lastAssistant = [...chatHistory].reverse().find((m) => m.role === 'assistant');
-      if (!bypassAgentReply && isSameReply(replyText, lastAssistant?.content ?? null)) {
-        await escalateToHuman(chatId, lead.ownerId, lead.name, 'loop');
-        return;
-      }
       await sendText(chatId, replyText);
     }
   } catch (err) {
