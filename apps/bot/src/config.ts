@@ -30,6 +30,13 @@ const schema = z.object({
     .default('false'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
+  // Feature flags
+  LEAD_FLOW_V2: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1')
+    .pipe(z.boolean()),
+
   // Google Cloud Vision (OCR) — optional
   GOOGLE_CREDENTIALS_JSON: z.string().optional(),
 
