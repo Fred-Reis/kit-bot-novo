@@ -8,6 +8,7 @@ import { buildTransparencyReply, handleDocumentIntake } from '@/flows/lead/doc-i
 import { escalateToHuman, detectFrustration, isSameReply } from '@/flows/lead/escalation';
 import { getSimpleGreetingReply, normalizeIntentText, detectDocContestation } from '@/flows/lead/intents';
 import { getChecklistForLead } from '@/flows/lead/checklist';
+import { parseIncomeValue } from '@/flows/lead/income';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -300,6 +301,12 @@ export async function handleLeadMessage(
     // Persistir nome extraído pelo LLM
     if (context.name && context.name !== lead.name) {
       leadPatch.name = context.name;
+    }
+
+    // Persistir renda declarada (valor numérico)
+    const incomeValue = parseIncomeValue(context.income);
+    if (incomeValue != null && Number(lead.declaredIncome ?? 0) !== incomeValue) {
+      leadPatch.declaredIncome = incomeValue;
     }
 
     // Sincronizar Lead.stage com o estado da conversa
