@@ -143,14 +143,16 @@ export async function handleDocumentIntake(
     }
 
     try {
-      await prisma.leadDocument.create({
-        data: { leadId, type, url: item.url ?? '', ocrText: ocrText || null, ownerId },
+      await prisma.leadDocument.upsert({
+        where: { leadId_type: { leadId, type } },
+        update: { url: item.url ?? '', ocrText: ocrText || null },
+        create: { leadId, type, url: item.url ?? '', ocrText: ocrText || null, ownerId },
       });
       existingTypes.add(type);
       persisted.push(type);
     } catch (err) {
       logger.error({ err, leadId, type }, '[doc-intake] Falha ao persistir documento');
-      unknownCount += 1; // conta como não identificado para disparar o aviso ao lead
+      unknownCount += 1;
     }
   }
 
