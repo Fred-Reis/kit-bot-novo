@@ -9,6 +9,11 @@ import {
   listAvailableProperties,
   summarizeProperty,
 } from '@/services/catalog';
+import {
+  type ChecklistStatus,
+  getChecklistForLead,
+  renderChecklistContext,
+} from '@/flows/lead/checklist';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +45,6 @@ export interface LeadContext {
   residentsComplete?: boolean | null;
   expectedResidents?: number | null;
   analysisSubmitted?: boolean;
-  docsReceivedCount?: number;
   visitConfirmationSent?: boolean;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;
@@ -57,23 +61,13 @@ export interface LeadSnapshot {
   propertyInFocus: PropertyData | null;
   propertyLocked: boolean;
   availableProperties: PropertyData[];
-  applicationMissingItems: string[];
-  docsPreference: 'cnh' | 'rg_cpf' | null;
-  docsReceivedCount: number;
-  docsRequiredCount: number;
-  docsMissingCount: number;
-  docsStage: 'choose' | 'cnh_images' | 'rg_images' | 'cpf_image' | 'complete';
-  docsSummary: string;
-  residentsSummary: string;
-  residentsComplete: boolean;
+  checklist: ChecklistStatus;
   state: string;
   stateGuidance: string;
   currentProcessStep: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const DOCS_REQUIRED_COUNT: Record<string, number> = { cnh: 2, rg_cpf: 3 };
 
 const PROCESS_STEPS = [
   'interesse',
@@ -104,7 +98,7 @@ const STATE_GUIDANCE: Record<string, string> = {
     'Confirme que os dados seguiram para analise e que depois havera contato.',
 };
 
-const PROPERTY_INFO_INTENTS = new Set([
+export const PROPERTY_INFO_INTENTS = new Set([
   'availability',
   'price_and_terms',
   'location',
@@ -148,73 +142,17 @@ function isPropertyLocked(context: LeadContext): boolean {
   return context.propertyReferenceLocked === true && !!(context.propertyReference ?? '').trim();
 }
 
-function buildApplicationMissingItems(context: LeadContext): string[] {
-  const missing: string[] = [];
-  if (!context.name) missing.push('nome completo');
-  if (!context.income) missing.push('renda mensal');
-  if (!context.docsPreference) missing.push('escolha documental');
-  return missing;
+// ─── State derivation ─────────────────────────────────────────────────────────
+
+export interface DeriveStateInput {
+  context: LeadContext;
+  intent: string;
+  propertyInFocus: PropertyData | null;
+  checklist: ChecklistStatus;
 }
 
-async function getDocsReceivedCount(leadId: string): Promise<number> {
-  const count = await prisma.leadDocument.count({ where: { leadId } });
-  return count;
-}
-
-function buildDocsStage(
-  docsPreference: 'cnh' | 'rg_cpf' | null,
-  docsReceivedCount: number,
-): LeadSnapshot['docsStage'] {
-  if (!docsPreference) return 'choose';
-  if (docsPreference === 'cnh') return docsReceivedCount >= 2 ? 'complete' : 'cnh_images';
-  if (docsReceivedCount >= 3) return 'complete';
-  if (docsReceivedCount >= 2) return 'cpf_image';
-  return 'rg_images';
-}
-
-function buildDocsSummary(
-  docsPreference: 'cnh' | 'rg_cpf' | null,
-  docsStage: string,
-  docsReceivedCount: number,
-): string {
-  if (docsStage === 'choose') return 'Ainda falta escolher entre CNH ou RG + CPF.';
-  if (docsPreference === 'cnh') {
-    if (docsReceivedCount === 0) return 'Envie as imagens da CNH frente e verso.';
-    if (docsReceivedCount === 1) return 'Ja recebemos uma imagem da CNH. Agora falta a outra face.';
-    return 'As imagens da CNH ja foram recebidas.';
-  }
-  if (docsStage === 'rg_images') {
-    if (docsReceivedCount === 0) return 'Na opcao RG + CPF, envie primeiro o RG frente e verso.';
-    return 'Ja recebemos uma imagem do RG. Agora falta a segunda imagem do RG.';
-  }
-  if (docsStage === 'cpf_image')
-    return 'O RG frente e verso ja foi recebido. Agora falta apenas a imagem do CPF.';
-  return 'Documentacao completa.';
-}
-
-function buildResidentsSummary(context: LeadContext): [string, boolean] {
-  const residents = context.residents ?? [];
-  if (residents.length === 0) return ['Nenhum morador informado ainda.', false];
-
-  const lines = residents.map((r) => {
-    const name = (r.name ?? '').trim() || 'nome nao informado';
-    const sex = (r.sex ?? '').trim() || 'sexo nao informado';
-    const age = r.age != null ? String(r.age) : 'idade nao informada';
-    return `- ${name} | sexo: ${sex} | idade: ${age}`;
-  });
-
-  const complete = context.residentsComplete === true;
-  let summary = lines.join('\n');
-  if (complete) summary += '\nTodos os moradores ja foram informados.';
-  return [summary, complete];
-}
-
-function deriveState(
-  snapshot: Omit<LeadSnapshot, 'state' | 'stateGuidance' | 'currentProcessStep'>,
-): string {
-  const { context, propertyInFocus, applicationMissingItems, docsStage, residentsComplete } =
-    snapshot;
-  const intent = snapshot.intent;
+export function deriveState(input: DeriveStateInput): string {
+  const { context, intent, propertyInFocus, checklist } = input;
 
   if (context.analysisSubmitted) return 'lead.review_submitted';
   if (intent === 'objection') return 'lead.objection_handling';
@@ -227,32 +165,27 @@ function deriveState(
 
   const visited = context.visitedProperty;
 
-  // Explicit visit request always goes to scheduling (unless already visited)
+  // Pedido explícito de visita sempre vai para scheduling (a menos que já visitou)
   if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
     return context.visitRequested ? 'lead.visit_requested' : 'lead.visit_scheduling';
   }
 
-  // Property info questions answered in info state
   if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
 
-  // Visit is optional — advance to application whenever there is progress
+  // Visita é opcional — progresso no checklist avança a coleta
   const hasApplicationProgress =
     context.wantsApplication ||
-    !!context.income ||
-    !!context.docsPreference ||
-    (context.residents ?? []).length > 0;
+    checklist.income ||
+    checklist.identity.have.length > 0 ||
+    checklist.residents.collected > 0 ||
+    checklist.residents.expected != null;
 
   if (!hasApplicationProgress) {
-    // Visited but hasn't decided yet → ask if they want to proceed
     if (visited === true) return 'lead.post_visit_decision';
-    // No visit, no application intent → stay in info/interest stage
     return 'lead.property_info';
   }
 
-  // Application in progress — visit is no longer required
-  if (applicationMissingItems.length > 0) return 'lead.collect_application';
-  if (docsStage !== 'complete') return 'lead.collect_application';
-  if (!residentsComplete) return 'lead.collect_application';
+  if (!checklist.complete) return 'lead.collect_application';
   if (!context.dataConfirmed) return 'lead.data_confirmation';
 
   return 'lead.review_submitted';
@@ -266,38 +199,19 @@ export async function buildLeadSnapshot(
 ): Promise<LeadSnapshot> {
   const propertyInFocus = await resolvePropertyInFocus(context);
   const availableProperties = await listAvailableProperties();
-  const docsPreference = context.docsPreference ?? null;
-  const docsReceivedCount = await getDocsReceivedCount(leadId);
-  const docsStage = buildDocsStage(docsPreference, docsReceivedCount);
-  const docsRequiredCount = DOCS_REQUIRED_COUNT[docsPreference ?? ''] ?? 0;
-  const docsMissingCount = Math.max(0, docsRequiredCount - docsReceivedCount);
-  const docsSummary = buildDocsSummary(docsPreference, docsStage, docsReceivedCount);
-  const [residentsSummary, residentsComplete] = buildResidentsSummary(context);
-  const applicationMissingItems = buildApplicationMissingItems(context);
+  const checklist = await getChecklistForLead(leadId);
   const intent = context.currentIntent ?? 'unknown';
 
-  const partial = {
+  const state = deriveState({ context, intent, propertyInFocus, checklist });
+
+  return {
     context,
     intent,
     name: (context.name ?? '').trim() || null,
     propertyInFocus,
     propertyLocked: isPropertyLocked(context),
     availableProperties,
-    applicationMissingItems,
-    docsPreference,
-    docsReceivedCount,
-    docsRequiredCount,
-    docsMissingCount,
-    docsStage,
-    docsSummary,
-    residentsSummary,
-    residentsComplete,
-  };
-
-  const state = deriveState(partial);
-
-  return {
-    ...partial,
+    checklist,
     state,
     stateGuidance: STATE_GUIDANCE[state] ?? STATE_GUIDANCE['lead.start'],
     currentProcessStep: currentProcessStep(state),
@@ -346,33 +260,11 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
     'lead.collect_application',
     'lead.post_visit_decision',
     'lead.review_submitted',
+    'lead.data_confirmation',
   ];
   if (applicationStates.includes(snapshot.state)) {
-    const missingText =
-      snapshot.applicationMissingItems.length > 0
-        ? snapshot.applicationMissingItems.join(', ')
-        : 'nenhum';
-    const nextItem =
-      snapshot.applicationMissingItems.length > 0
-        ? snapshot.applicationMissingItems[0]
-        : snapshot.docsStage !== 'complete'
-          ? 'documentos pendentes'
-          : !snapshot.residentsComplete
-            ? 'moradores'
-            : 'nenhum';
-
-    lines.push(
-      `Itens ainda pendentes para analise: ${missingText}.`,
-      `Proximo item natural da analise: ${nextItem}.`,
-      `Opcao documental escolhida: ${snapshot.docsPreference ?? 'nenhuma'}.`,
-      `Etapa documental: ${snapshot.docsStage}.`,
-      `Documentos recebidos: ${snapshot.docsReceivedCount}.`,
-      `Documentos faltantes: ${snapshot.docsMissingCount}.`,
-      `Resumo documental: ${snapshot.docsSummary}`,
-      `Moradores informados:\n${snapshot.residentsSummary}`,
-      `Lead quer seguir com a analise: ${context.wantsApplication === true}.`,
-      `Analise submetida: ${context.analysisSubmitted === true}.`,
-    );
+    lines.push(renderChecklistContext(snapshot.checklist));
+    lines.push(`Analise submetida: ${snapshot.context.analysisSubmitted === true}.`);
   } else {
     lines.push('Nao peca renda, documentos ou moradores nesta etapa.');
   }

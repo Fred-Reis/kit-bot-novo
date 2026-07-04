@@ -292,8 +292,6 @@ export async function handleLeadMessage(
       context.analysisSubmitted = false;
     }
 
-    context.docsReceivedCount = snapshot.docsReceivedCount;
-
     if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
       leadPatch.propertyId = snapshot.propertyInFocus.id;
     }
@@ -341,9 +339,7 @@ export async function handleLeadMessage(
     }
 
     const kycTransition = shouldTransitionToKyc(
-      snapshot.docsStage,
-      (context.residents ?? []).length,
-      snapshot.residentsComplete,
+      snapshot.checklist.complete,
       lead.stage,
       context.dataConfirmed ?? false,
     );
