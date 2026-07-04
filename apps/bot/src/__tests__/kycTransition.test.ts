@@ -8,45 +8,37 @@ import {
 
 describe('shouldTransitionToKyc', () => {
   test('transitions when all conditions met (interest)', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'interest', true)).toBe(true);
+    expect(shouldTransitionToKyc(true, 'interest', true)).toBe(true);
   });
 
   test('transitions when stage is collection', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'collection', true)).toBe(true);
+    expect(shouldTransitionToKyc(true, 'collection', true)).toBe(true);
   });
 
   test('transitions when stage is visiting', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'visiting', true)).toBe(true);
+    expect(shouldTransitionToKyc(true, 'visiting', true)).toBe(true);
   });
 
-  test('does not transition when residents array is empty', () => {
-    expect(shouldTransitionToKyc('complete', 0, true, 'interest', true)).toBe(false);
-  });
-
-  test('does not transition when residentsComplete is false', () => {
-    expect(shouldTransitionToKyc('complete', 2, false, 'interest', true)).toBe(false);
-  });
-
-  test('does not transition when docs not complete', () => {
-    expect(shouldTransitionToKyc('cnh_images', 1, true, 'interest', true)).toBe(false);
+  test('does not transition when checklist is incomplete', () => {
+    expect(shouldTransitionToKyc(false, 'interest', true)).toBe(false);
   });
 
   for (const stage of KYC_BLOCKER_STAGES) {
     test(`does not re-transition when stage is already ${stage}`, () => {
-      expect(shouldTransitionToKyc('complete', 1, true, stage, true)).toBe(false);
+      expect(shouldTransitionToKyc(true, stage, true)).toBe(false);
     });
   }
 
   test('does not transition when dataConfirmed is false', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'interest', false)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'interest', false)).toBe(false);
   });
 
   test('transitions from data_confirmation when dataConfirmed is true', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'data_confirmation', true)).toBe(true);
+    expect(shouldTransitionToKyc(true, 'data_confirmation', true)).toBe(true);
   });
 
   test('does not transition from data_confirmation when dataConfirmed is false', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'data_confirmation', false)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'data_confirmation', false)).toBe(false);
   });
 });
 

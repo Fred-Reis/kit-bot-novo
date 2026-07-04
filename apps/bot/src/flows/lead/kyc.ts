@@ -12,19 +12,11 @@ export const KYC_BLOCKER_STAGES = new Set([
 export const TERMINAL_STAGES = new Set([...KYC_BLOCKER_STAGES, 'data_confirmation']);
 
 export function shouldTransitionToKyc(
-  docsStage: string,
-  residentsCount: number,
-  residentsComplete: boolean,
+  checklistComplete: boolean,
   leadStage: string,
   dataConfirmed: boolean,
 ): boolean {
-  return (
-    docsStage === 'complete' &&
-    residentsCount > 0 &&
-    residentsComplete &&
-    dataConfirmed &&
-    !KYC_BLOCKER_STAGES.has(leadStage)
-  );
+  return checklistComplete && dataConfirmed && !KYC_BLOCKER_STAGES.has(leadStage);
 }
 
 export function shouldUpdateLeadSource(

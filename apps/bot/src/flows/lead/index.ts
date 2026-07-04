@@ -4,8 +4,11 @@ import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
-import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
-import { buildReceiptMessage } from '@/flows/lead/receipt';
+import { buildTransparencyReply, handleDocumentIntake } from '@/flows/lead/doc-intake';
+import { escalateToHuman, detectFrustration, isSameReply } from '@/flows/lead/escalation';
+import { getSimpleGreetingReply, normalizeIntentText, detectDocContestation } from '@/flows/lead/intents';
+import { getChecklistForLead } from '@/flows/lead/checklist';
+import { parseIncomeValue } from '@/flows/lead/income';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -25,8 +28,6 @@ import {
 import { extractCpfFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
-import { classifyDocument } from '@/services/doc-classifier';
-import { extractTextFromImage } from '@/services/ocr';
 
 const CHAT_HISTORY_LIMIT = 10;
 
@@ -38,18 +39,6 @@ const REJECTION_WORDS = ['nao', 'errado', 'incorreto'];
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
-}
-
-function isDocMedia(item: MediaItem): boolean {
-  if (!item.url) return false;
-  const type = item.type ?? '';
-  const mime = item.mime ?? '';
-  return (
-    type === 'image' ||
-    type === 'document' ||
-    mime.startsWith('image/') ||
-    mime === 'application/pdf'
-  );
 }
 
 async function loadChatHistory(
@@ -116,35 +105,6 @@ async function persistConversation(
   ]);
 }
 
-async function persistLeadDocuments(
-  leadId: string,
-  mediaItems: MediaItem[],
-  ownerId: string,
-): Promise<number> {
-  const docItems = mediaItems.filter(isDocMedia);
-  if (docItems.length === 0) return 0;
-
-  const results = await Promise.allSettled(
-    docItems.map(async (m) => {
-      const ocrText = await extractTextFromImage(m.url!);
-      const type = classifyDocument(ocrText ?? '');
-      return prisma.leadDocument.create({
-        data: {
-          leadId,
-          type,
-          url: m.url!,
-          ocrText: ocrText || null,
-          ownerId,
-        },
-      });
-    }),
-  );
-  const failures = results.filter((r) => r.status === 'rejected');
-  if (failures.length > 0) {
-    logger.error({ failures }, '[lead.flow] Some documents failed to persist');
-  }
-  return results.filter((r) => r.status === 'fulfilled').length;
-}
 
 export async function handleLeadMessage(
   chatId: string,
@@ -232,38 +192,63 @@ export async function handleLeadMessage(
       }
     }
 
+    // Escalação: pedido de humano ou frustração → pausa + notificação
+    if (context.wantsHuman || detectFrustration(messageText)) {
+      const reason = context.wantsHuman ? 'human_request' : 'frustration';
+      await escalateToHuman(chatId, lead.ownerId, lead.name, reason);
+      await persistConversation(chatId, context, messageText || null, null, ownerId);
+      return;
+    }
+
     // 6. Handle audio flag
     const audioReceived = mediaItems.some(isAudioMedia);
     context.audioReceived = audioReceived;
 
-    // 7. Persist document images
-    const docItemCount = mediaItems.filter(isDocMedia).length;
-    if (docItemCount > 0) {
-      try {
-        const persistedDocsCount = await persistLeadDocuments(lead.id, mediaItems, ownerId);
-        if (persistedDocsCount === 0) {
-          logger.error({ chatId }, '[lead.flow] All documents failed to persist');
-          await sendText(
-            chatId,
-            'Recebi seu arquivo, mas tive um problema ao salvar. Pode reenviar, por favor?',
-          ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify persist failure'));
-        } else {
-          const receiptMsg = buildReceiptMessage(persistedDocsCount);
-          if (receiptMsg) await sendText(chatId, receiptMsg);
-        }
-      } catch (err) {
-        logger.error({ err }, '[lead.flow] Failed to persist documents or send receipt');
-        await sendText(
-          chatId,
-          'Recebi seu documento, mas tive um problema para confirmar. Nossa equipe vai verificar em instantes.',
-        ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify receipt failure'));
+    // 7. Pipeline determinístico de documentos (zero LLM)
+    const intake = await handleDocumentIntake(chatId, lead.id, ownerId, mediaItems);
+    if (intake.reply) {
+      await sendText(chatId, intake.reply);
+    }
+    if (intake.persisted.length > 0) {
+      context.docsContestations = 0;
+      if (context.dataConfirmed || context.dataConfirmationSent) {
+        context.dataConfirmed = false;
+        context.dataConfirmationSent = false;
       }
     }
+    // Turno só de documento: a resposta determinística basta — não acionar LLM
+    if (!messageText && intake.processed > 0) {
+      context.lastUserMessage = '';
+      context.lastRoutedAgent = 'deterministic_doc_intake';
+      await persistConversation(chatId, context, null, intake.reply, ownerId);
+      return;
+    }
 
-    // Reset data confirmation if new documents were submitted this turn
-    if (mediaItems.some(isDocMedia) && (context.dataConfirmed || context.dataConfirmationSent)) {
-      context.dataConfirmed = false;
-      context.dataConfirmationSent = false;
+    // Contestação de documentos — transparência total, determinístico
+    if (intake.processed === 0 && detectDocContestation(messageText)) {
+      const checklist = await getChecklistForLead(lead.id);
+      if (!checklist.identity.complete) {
+        const count = (context.docsContestations ?? 0) + 1;
+        context.docsContestations = count;
+
+        if (count >= 2) {
+          await escalateToHuman(chatId, lead.ownerId, lead.name, 'contestation');
+          await persistConversation(chatId, context, messageText, null, ownerId);
+          return;
+        }
+
+        const docs = await prisma.leadDocument.findMany({
+          where: { leadId: lead.id },
+          select: { type: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        const reply = buildTransparencyReply(docs, checklist);
+        context.lastUserMessage = messageText;
+        context.lastRoutedAgent = 'deterministic_transparency';
+        await persistConversation(chatId, context, messageText, reply, ownerId);
+        await sendText(chatId, reply);
+        return;
+      }
     }
 
     // 8. Resolve property in focus
@@ -307,8 +292,6 @@ export async function handleLeadMessage(
       context.analysisSubmitted = false;
     }
 
-    context.docsReceivedCount = snapshot.docsReceivedCount;
-
     if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
       leadPatch.propertyId = snapshot.propertyInFocus.id;
     }
@@ -318,6 +301,49 @@ export async function handleLeadMessage(
       leadPatch.name = context.name;
     }
 
+    // Persistir renda declarada (valor numérico)
+    const incomeValue = parseIncomeValue(context.income);
+    if (incomeValue != null && Number(lead.declaredIncome ?? 0) !== incomeValue) {
+      leadPatch.declaredIncome = incomeValue;
+    }
+
+    // Persistir quantidade esperada de moradores
+    if (
+      context.expectedResidents != null &&
+      context.expectedResidents !== lead.expectedResidents
+    ) {
+      leadPatch.expectedResidents = context.expectedResidents;
+    }
+
+    // Sincronizar moradores coletados com a tabela (replace-all, somente se houver mudança)
+    const incomingResidents = context.residents ?? [];
+    if (incomingResidents.length > 0) {
+      const existingResidents = await prisma.leadResident.findMany({
+        where: { leadId: lead.id },
+        select: { name: true, sex: true, age: true },
+      });
+      const fingerprint = (arr: Array<{ name: string; sex?: string | null; age?: number | null }>) =>
+        JSON.stringify(
+          [...arr]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((r) => `${r.name}|${r.sex ?? ''}|${r.age ?? ''}`),
+        );
+      if (fingerprint(existingResidents) !== fingerprint(incomingResidents)) {
+        await prisma.$transaction([
+          prisma.leadResident.deleteMany({ where: { leadId: lead.id } }),
+          prisma.leadResident.createMany({
+            data: incomingResidents.map((r) => ({
+              leadId: lead.id,
+              ownerId,
+              name: r.name,
+              sex: r.sex || null,
+              age: r.age ?? null,
+            })),
+          }),
+        ]);
+      }
+    }
+
     // Sincronizar Lead.stage com o estado da conversa
     const mappedStage = fsmStateToLeadStage(snapshot.state, lead.stage);
     if (mappedStage && mappedStage !== lead.stage) {
@@ -325,9 +351,7 @@ export async function handleLeadMessage(
     }
 
     const kycTransition = shouldTransitionToKyc(
-      snapshot.docsStage,
-      (context.residents ?? []).length,
-      snapshot.residentsComplete,
+      snapshot.checklist.complete,
       lead.stage,
       context.dataConfirmed ?? false,
     );
@@ -473,14 +497,27 @@ export async function handleLeadMessage(
       targetAgent = 'deterministic_media';
     }
 
-    // 14. Persist conversation state + events
+    // 14. Detect loop before persisting — prevents ghost response in history
+    if (replyText && !bypassAgentReply) {
+      const lastAssistant = [...chatHistory].reverse().find((m) => m.role === 'assistant');
+      if (isSameReply(replyText, lastAssistant?.content ?? null)) {
+        await escalateToHuman(chatId, lead.ownerId, lead.name, 'loop');
+        context.lastUserMessage = messageText;
+        context.lastRoutedAgent = targetAgent;
+        context.state = snapshot.state;
+        await persistConversation(chatId, context, messageText || null, null, ownerId);
+        return;
+      }
+    }
+
+    // 15. Persist conversation state + events
     context.lastUserMessage = messageText;
     context.lastRoutedAgent = targetAgent;
     context.state = snapshot.state;
 
     await persistConversation(chatId, context, messageText || null, replyText, ownerId);
 
-    // 15. Send outbound media or listing link
+    // 16. Send outbound media or listing link
     if (outboundMedia && bypassAgentReply) {
       try {
         if (isListingLink) {
@@ -498,7 +535,7 @@ export async function handleLeadMessage(
       }
     }
 
-    // 16. Send text reply
+    // 17. Send text reply
     if (replyText) {
       await sendText(chatId, replyText);
     }

@@ -36,3 +36,14 @@ describe('LeadExtractionSchema — campo source', () => {
     expect(result.source).toBeNull();
   });
 });
+
+describe('expected_residents', () => {
+  test('aceita quantidade de moradores', () => {
+    const parsed = LeadExtractionSchema.parse({ expected_residents: 3 });
+    expect(parsed.expected_residents).toBe(3);
+  });
+  test('default null', () => {
+    const parsed = LeadExtractionSchema.parse({});
+    expect(parsed.expected_residents).toBeNull();
+  });
+});

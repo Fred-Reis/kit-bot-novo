@@ -70,17 +70,11 @@ Regras:
 - Se o estado atual for decisao apos visita, confirme se a pessoa quer seguir com a locacao e nao volte para visita.
 - A etapa atual deste agente e sempre "envio de documentacao para analise".
 - Nao fale que o proximo passo e contrato, pagamento ou entrega das chaves antes de confirmar que a documentacao foi enviada e seguira para analise.
-- Colete apenas o proximo item pendente informado no contexto.
-- Ordem da analise:
-  1. nome completo
-  2. renda mensal
-  3. escolha documental entre CNH ou RG + CPF
-  4. documentos
-  5. moradores com nome, sexo e idade
-- Na etapa documental:
-  - CNH: frente e verso
-  - RG + CPF: primeiro RG frente e verso, depois CPF
-  - Se a pessoa responder apenas CPF ou apenas RG como escolha documental, interprete como RG + CPF
+- Colete apenas o proximo item pendente do "Checklist da analise" presente no contexto.
+- Ordem natural: renda mensal -> documentos de identidade -> moradores. Nome geralmente vem dos documentos.
+- Documentos aceitos: CNH (frente e verso, ou UMA foto da CNH aberta mostrando frente e verso) OU RG (frente e verso) + CPF.
+- NAO pergunte "CNH ou RG?": aceite o que a pessoa enviar; o sistema identifica automaticamente.
+- Nunca afirme que um documento foi ou nao foi recebido por conta propria: use apenas o checklist do contexto.
 - Se os dados ja estiverem completos, apenas confirme que seguirao para analise.
 - Seja objetivo e faca no maximo uma pergunta por vez.`;
 
@@ -118,7 +112,8 @@ Regras:
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
 - Residents so devem ser preenchidos quando a pessoa informar nome, sexo e idade dos moradores.
 - Para property_interest: se a mensagem pede informacao, video, foto, visita ou qualquer dado sobre um imovel sem mencionar qual, e houver apenas um imovel na lista de disponiveis, preencha com o externalId desse imovel. Se houver mais de um e nao for possivel inferir, deixe null.
-- Para source: preencha APENAS quando o lead citar explicitamente o portal ou canal pelo qual encontrou o imóvel (exemplos: "vi no OLX", "achei no Zap Imóveis", "vi no Instagram", "me indicaram", "vi no seu site"). Contato direto pelo WhatsApp sem menção de origem → retornar null. "Zap", "mandei um zap", "fiz um zap" são gíria para WhatsApp — não equivalem ao portal Zap Imóveis. Só preencher source = "zap" se o lead disser literalmente "Zap Imóveis" ou "portal Zap".`;
+- Para source: preencha APENAS quando o lead citar explicitamente o portal ou canal pelo qual encontrou o imóvel (exemplos: "vi no OLX", "achei no Zap Imóveis", "vi no Instagram", "me indicaram", "vi no seu site"). Contato direto pelo WhatsApp sem menção de origem → retornar null. "Zap", "mandei um zap", "fiz um zap" são gíria para WhatsApp — não equivalem ao portal Zap Imóveis. Só preencher source = "zap" se o lead disser literalmente "Zap Imóveis" ou "portal Zap".
+- expected_residents: preencher apenas quando o lead disser quantas pessoas vao morar. "So eu" = 1. "Eu e minha esposa" = 2.`;
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
 
@@ -189,6 +184,16 @@ export const LeadExtractionSchema = z.object({
       'true quando o lead cancelar, desistir ou não poder mais comparecer à visita agendada. ' +
         'Ex: "não vou poder ir", "preciso cancelar a visita", "mudei de ideia". ' +
         'false em qualquer outro caso.',
+    ),
+  expected_residents: z
+    .number()
+    .int()
+    .nullable()
+    .default(null)
+    .describe(
+      'Quantidade TOTAL de pessoas que vão morar no imóvel, quando o lead informar. ' +
+        'Ex: "vamos morar eu e minha esposa" → 2; "só eu" → 1; "somos 4" → 4. ' +
+        'Sem informação → null.',
     ),
 });
 
@@ -298,6 +303,11 @@ export async function extractLeadUpdate(
 
   if (typeof raw.residents_complete === 'boolean')
     updates.residentsComplete = raw.residents_complete;
+
+  if (typeof raw.expected_residents === 'number' && raw.expected_residents > 0) {
+    updates.expectedResidents = raw.expected_residents;
+  }
+
   if (raw.wants_pause) updates.wantsPause = true;
   if (raw.wants_human) updates.wantsHuman = true;
 

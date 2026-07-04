@@ -135,6 +135,7 @@ model LeadDocument {
   createdAt DateTime @default(now())
 
   @@index([ownerId])
+  @@unique([leadId, type])
 }
 
 model LeadResident {

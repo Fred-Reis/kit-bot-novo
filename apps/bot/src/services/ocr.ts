@@ -21,45 +21,55 @@ function getAuth(): GoogleAuth | null {
   }
 }
 
-export async function extractTextFromImage(imageUrl: string): Promise<string> {
+type VisionImage = { source: { imageUri: string } } | { content: string };
+
+const ANNOTATE_TIMEOUT_MS = 15_000;
+
+async function annotate(image: VisionImage): Promise<string> {
   const auth = getAuth();
   if (!auth) return '';
 
-  try {
+  const run = async (): Promise<string> => {
     const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
     const token = tokenResponse.token;
     if (!token) return '';
-
     const response = await fetch('https://vision.googleapis.com/v1/images:annotate', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        requests: [
-          {
-            image: { source: { imageUri: imageUrl } },
-            features: [{ type: 'TEXT_DETECTION', maxResults: 1 }],
-          },
-        ],
+        requests: [{ image, features: [{ type: 'TEXT_DETECTION', maxResults: 1 }] }],
       }),
+      signal: AbortSignal.timeout(ANNOTATE_TIMEOUT_MS),
     });
-
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       logger.warn({ status: response.status, body }, '[ocr] Vision API error');
       return '';
     }
-
     const result = (await response.json()) as {
       responses?: Array<{ fullTextAnnotation?: { text?: string } }>;
     };
-
     return result.responses?.[0]?.fullTextAnnotation?.text ?? '';
+  };
+
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<string>((_, reject) =>
+        setTimeout(() => reject(new Error('annotate timeout')), ANNOTATE_TIMEOUT_MS),
+      ),
+    ]);
   } catch (err) {
-    logger.warn({ err }, '[ocr] extractTextFromImage error');
+    logger.warn({ err }, '[ocr] annotate error');
     return '';
   }
+}
+
+export async function extractTextFromImage(imageUrl: string): Promise<string> {
+  return annotate({ source: { imageUri: imageUrl } });
+}
+
+export async function extractTextFromBase64(base64: string): Promise<string> {
+  return annotate({ content: base64 });
 }

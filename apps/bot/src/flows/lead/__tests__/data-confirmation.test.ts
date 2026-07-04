@@ -7,22 +7,22 @@ describe('data_confirmation FSM behavior', () => {
   });
 
   test('allows KYC transition from data_confirmation when confirmed', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'data_confirmation', true)).toBe(true);
+    expect(shouldTransitionToKyc(true, 'data_confirmation', true)).toBe(true);
   });
 
   test('blocks KYC transition from data_confirmation when not confirmed', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'data_confirmation', false)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'data_confirmation', false)).toBe(false);
   });
 
   test('blocks KYC from kyc_pending even when confirmed', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'kyc_pending', true)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'kyc_pending', true)).toBe(false);
   });
 
   test('blocks KYC from contract_pending even when confirmed', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'contract_pending', true)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'contract_pending', true)).toBe(false);
   });
 
   test('blocks KYC from converted', () => {
-    expect(shouldTransitionToKyc('complete', 1, true, 'converted', true)).toBe(false);
+    expect(shouldTransitionToKyc(true, 'converted', true)).toBe(false);
   });
 });
