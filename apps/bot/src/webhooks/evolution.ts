@@ -120,7 +120,7 @@ export async function evolutionWebhookPlugin(fastify: FastifyInstance) {
 }
 
 async function dispatch(inbound: InboundMessage): Promise<void> {
-  const { chatId, messageId, messageType, text, mediaMime, mediaBase64, senderName } = inbound;
+  const { chatId, messageId, messageType, text, mediaMime, mediaBase64, mediaUrl, senderName } = inbound;
 
   if (messageType === 'text' && text) {
     await bufferMessage(chatId, text, messageId, senderName);
@@ -148,7 +148,7 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
 
     if (!base64) {
       const reason = messageId ? 'fallback falhou' : 'sem messageId';
-      logger.error({ chatId, messageId, messageType }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
+      logger.error({ chatId, messageId, messageType, mediaUrl }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
       await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
         (sendErr) => logger.error({ sendErr, chatId, messageId }, '[webhook] Failed to notify lead'),
       );
