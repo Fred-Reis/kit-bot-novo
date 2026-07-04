@@ -23,6 +23,7 @@ model Owner {
   contractTemplates ContractTemplate[]
   propertyMedias    PropertyMedia[]
   leadDocuments     LeadDocument[]
+  leadResidents     LeadResident[]
   activityLogs      ActivityLog[]
   conversations     Conversation[]
   events            Event[]
@@ -111,7 +112,10 @@ model Lead {
   archivedAt         DateTime?
   reactivatedAt      DateTime?
   scheduledVisitAt   DateTime?
+  declaredIncome     Decimal?
+  expectedResidents  Int?
   documents          LeadDocument[]
+  residents          LeadResident[]
   contracts          Contract[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
@@ -131,6 +135,21 @@ model LeadDocument {
   createdAt DateTime @default(now())
 
   @@index([ownerId])
+}
+
+model LeadResident {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  name      String
+  sex       String?
+  age       Int?
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([leadId])
 }
 
 model Tenant {
