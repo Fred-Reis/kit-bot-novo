@@ -1,6 +1,9 @@
 // Port of flows/lead_flow.py
 
 import { extractLeadUpdate, routeLeadMessage, runLeadAgent } from '@/agents/lead';
+import { runLeadAgentV2 } from '@/agents/lead-v2';
+import { buildLeadTools } from '@/agents/tools';
+import { config } from '@/config';
 import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
@@ -178,16 +181,18 @@ export async function handleLeadMessage(
         leadPatch.source = extractedSource;
       }
 
-      if (visitCancelled) {
-        leadPatch.scheduledVisitAt = null;
-        context.wantsSchedule = false;
-        context.visitRequested = false;
-        visitCancelledThisTurn = true;
-      } else if (extractedVisitAt) {
-        // Persist confirmed visit date — only advance, never regress
-        const proposedDate = new Date(extractedVisitAt);
-        if (!isNaN(proposedDate.getTime()) && proposedDate > new Date()) {
-          leadPatch.scheduledVisitAt = proposedDate;
+      if (!config.LEAD_FLOW_V2) {
+        if (visitCancelled) {
+          leadPatch.scheduledVisitAt = null;
+          context.wantsSchedule = false;
+          context.visitRequested = false;
+          visitCancelledThisTurn = true;
+        } else if (extractedVisitAt) {
+          // Persist confirmed visit date — only advance, never regress
+          const proposedDate = new Date(extractedVisitAt);
+          if (!isNaN(proposedDate.getTime()) && proposedDate > new Date()) {
+            leadPatch.scheduledVisitAt = proposedDate;
+          }
         }
       }
     }
@@ -372,28 +377,30 @@ export async function handleLeadMessage(
       }).catch((err) => logger.error({ err }, '[lead.flow] notifyOwner kyc_pending failed'));
     }
 
-    // Visit confirmation: fire on every new/changed visit date
-    const newVisitAt = leadPatch.scheduledVisitAt as Date | undefined;
-    const visitDateChanged =
-      newVisitAt != null &&
-      (lead.scheduledVisitAt == null || newVisitAt.getTime() !== lead.scheduledVisitAt.getTime());
+    // Visit confirmation: fire on every new/changed visit date (v1 only — v2 usa agendar_visita tool)
+    if (!config.LEAD_FLOW_V2) {
+      const newVisitAt = leadPatch.scheduledVisitAt as Date | undefined;
+      const visitDateChanged =
+        newVisitAt != null &&
+        (lead.scheduledVisitAt == null || newVisitAt.getTime() !== lead.scheduledVisitAt.getTime());
 
-    if (visitDateChanged) {
-      const tz = 'America/Sao_Paulo';
-      const dateStr = newVisitAt.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        timeZone: tz,
-      });
-      const timeStr = newVisitAt.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: tz,
-      });
-      const propertyName = snapshot.propertyInFocus?.name ?? 'o imóvel';
-      replyText = `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`;
-      bypassAgentReply = true;
+      if (visitDateChanged) {
+        const tz = 'America/Sao_Paulo';
+        const dateStr = newVisitAt.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          timeZone: tz,
+        });
+        const timeStr = newVisitAt.toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: tz,
+        });
+        const propertyName = snapshot.propertyInFocus?.name ?? 'o imóvel';
+        replyText = `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`;
+        bypassAgentReply = true;
+      }
     }
 
     // Data confirmation gate — deterministic flow, always returns early
@@ -481,18 +488,37 @@ export async function handleLeadMessage(
     // 13. Route and run agent (unless deterministic media bypass)
     let targetAgent: string = 'info';
     if (!bypassAgentReply) {
-      const routedAgent = visitCancelledThisTurn
-        ? 'scheduling'
-        : await routeLeadMessage(question, leadContextStr);
-      targetAgent = visitCancelledThisTurn
-        ? 'scheduling'
-        : resolveTargetAgent(snapshot.state, routedAgent);
-      replyText = await runLeadAgent(
-        targetAgent as Parameters<typeof runLeadAgent>[0],
-        question,
-        leadContextStr,
-        chatHistory,
-      );
+      if (config.LEAD_FLOW_V2) {
+        targetAgent = 'lead_v2';
+        const tools = buildLeadTools({
+          chatId,
+          leadId: lead.id,
+          ownerId: lead.ownerId,
+          leadName: lead.name,
+          propertyExternalId: snapshot.propertyInFocus?.externalId ?? null,
+        });
+        replyText = await runLeadAgentV2(question, leadContextStr, chatHistory, tools);
+
+        // Se o agente escalou, o bot foi pausado e o sistema já avisou o lead
+        const conv = await prisma.conversation.findUnique({ where: { chatId } });
+        if (conv?.botPaused) {
+          await persistConversation(chatId, context, messageText || null, null, ownerId);
+          return;
+        }
+      } else {
+        const routedAgent = visitCancelledThisTurn
+          ? 'scheduling'
+          : await routeLeadMessage(question, leadContextStr);
+        targetAgent = visitCancelledThisTurn
+          ? 'scheduling'
+          : resolveTargetAgent(snapshot.state, routedAgent);
+        replyText = await runLeadAgent(
+          targetAgent as Parameters<typeof runLeadAgent>[0],
+          question,
+          leadContextStr,
+          chatHistory,
+        );
+      }
     } else {
       targetAgent = 'deterministic_media';
     }
