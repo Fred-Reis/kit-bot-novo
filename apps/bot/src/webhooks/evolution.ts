@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { bufferMedia, bufferMessage } from '@/buffer';
 import { config } from '@/config';
+import { logger } from '@/lib/logger';
+import { getBase64FromMediaMessage, sendText } from '@/services/evolution';
 
 export interface InboundMessage {
   chatId: string;
   messageId: string | null;
-  messageType: 'text' | 'image' | 'document' | 'audio' | 'unknown';
+  messageType: 'text' | 'image' | 'document' | 'video' | 'audio' | 'unknown';
   text: string | null;
   mediaUrl: string | null;
   mediaMime: string | null;
@@ -31,7 +33,7 @@ function redactPayload(payload: Record<string, unknown>): Record<string, unknown
   return safe;
 }
 
-function extractInboundMessage(payload: Record<string, unknown>): InboundMessage | null {
+export function extractInboundMessage(payload: Record<string, unknown>): InboundMessage | null {
   if (payload['event'] !== 'messages.upsert') return null;
 
   const data = (payload['data'] ?? {}) as Record<string, unknown>;
@@ -70,6 +72,12 @@ function extractInboundMessage(payload: Record<string, unknown>): InboundMessage
     text = ((doc['caption'] ?? doc['title']) as string | null) ?? null;
     mediaMime = (doc['mimetype'] as string | null) ?? null;
     mediaUrl = ((doc['url'] ?? doc['directPath']) as string | null) ?? null;
+  } else if ('videoMessage' in msg) {
+    messageType = 'video';
+    const video = (msg['videoMessage'] ?? {}) as Record<string, unknown>;
+    text = (video['caption'] as string | null) ?? null;
+    mediaMime = (video['mimetype'] as string | null) ?? null;
+    mediaUrl = ((video['url'] ?? video['directPath']) as string | null) ?? null;
   } else if ('audioMessage' in msg) {
     messageType = 'audio';
     const audio = (msg['audioMessage'] ?? {}) as Record<string, unknown>;
@@ -112,7 +120,7 @@ export async function evolutionWebhookPlugin(fastify: FastifyInstance) {
 }
 
 async function dispatch(inbound: InboundMessage): Promise<void> {
-  const { chatId, messageId, messageType, text, mediaMime, mediaBase64, senderName } = inbound;
+  const { chatId, messageId, messageType, text, mediaMime, mediaBase64, mediaUrl, senderName } = inbound;
 
   if (messageType === 'text' && text) {
     await bufferMessage(chatId, text, messageId, senderName);
@@ -130,13 +138,29 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
     return;
   }
 
-  if ((messageType === 'image' || messageType === 'document') && mediaBase64) {
+  if (messageType === 'image' || messageType === 'document' || messageType === 'video') {
+    let base64 = mediaBase64;
+
+    if (!base64 && messageId) {
+      // Evolution nem sempre inclui base64 no webhook — buscar sob demanda
+      base64 = await getBase64FromMediaMessage(messageId);
+    }
+
+    if (!base64) {
+      const reason = messageId ? 'fallback falhou' : 'sem messageId';
+      logger.error({ chatId, messageId, messageType, mediaUrl }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
+      await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
+        (sendErr) => logger.error({ sendErr, chatId, messageId }, '[webhook] Failed to notify lead'),
+      );
+      return;
+    }
+
     await bufferMedia(
       chatId,
       {
         type: messageType,
         mime: mediaMime ?? undefined,
-        base64: mediaBase64,
+        base64,
         messageId: messageId ?? undefined,
       },
       text ?? undefined,

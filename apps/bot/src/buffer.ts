@@ -1,6 +1,7 @@
 import { config } from '@/config';
 import { redis } from '@/db/redis';
 import { logger } from '@/lib/logger';
+import { sendText } from '@/services/evolution';
 import { uploadLeadDocument } from '@/services/storage';
 
 const debounceHandles = new Map<string, NodeJS.Timeout>();
@@ -61,13 +62,18 @@ export async function bufferMedia(
   let resolvedMedia: MediaItem = media;
   if (media.base64 && media.type !== 'audio' && media.mime) {
     try {
-      const url = await uploadLeadDocument(chatId, media.base64, media.mime);
-      // Keep type and mime but replace base64 with url
-      resolvedMedia = { type: media.type, mime: media.mime, url, messageId: media.messageId };
+      const storagePath = await uploadLeadDocument(chatId, media.base64, media.mime);
+      // Store the storage path — URL is generated on demand at display time
+      resolvedMedia = { type: media.type, mime: media.mime, url: storagePath, messageId: media.messageId };
     } catch (err) {
       logger.error({ err, chatId }, '[buffer] Failed to upload media to Storage');
-      // Proceed without URL — flow will handle missing url gracefully
-      resolvedMedia = { type: media.type, mime: media.mime, messageId: media.messageId };
+      await sendText(
+        chatId,
+        'Não consegui receber seu arquivo agora 😕 Pode reenviar, por favor?',
+      ).catch((sendErr) => logger.error({ sendErr, chatId }, '[buffer] Failed to notify lead'));
+      // Sem URL a mídia é inútil no flow — não enfileirar
+      resetDebounce(chatId);
+      return;
     }
   }
 

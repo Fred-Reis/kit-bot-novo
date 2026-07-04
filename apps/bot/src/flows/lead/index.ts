@@ -5,6 +5,7 @@ import type { MediaItem } from '@/buffer';
 import { prisma } from '@/db/client';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
 import { getSimpleGreetingReply, normalizeIntentText } from '@/flows/lead/intents';
+import { buildReceiptMessage } from '@/flows/lead/receipt';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
@@ -119,13 +120,13 @@ async function persistLeadDocuments(
   mediaItems: MediaItem[],
   docsPreference: 'cnh' | 'rg_cpf' | null,
   ownerId: string,
-): Promise<void> {
+): Promise<number> {
   const docItems = mediaItems.filter(isDocMedia);
-  if (docItems.length === 0) return;
+  if (docItems.length === 0) return 0;
 
   const docType = docsPreference ?? 'image';
 
-  await Promise.all(
+  const results = await Promise.allSettled(
     docItems.map(async (m) => {
       const ocrText = await extractTextFromImage(m.url!);
       return prisma.leadDocument.create({
@@ -139,6 +140,11 @@ async function persistLeadDocuments(
       });
     }),
   );
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    logger.error({ failures }, '[lead.flow] Some documents failed to persist');
+  }
+  return results.filter((r) => r.status === 'fulfilled').length;
 }
 
 export async function handleLeadMessage(
@@ -232,7 +238,24 @@ export async function handleLeadMessage(
     context.audioReceived = audioReceived;
 
     // 7. Persist document images
-    await persistLeadDocuments(lead.id, mediaItems, context.docsPreference ?? null, ownerId);
+    try {
+      const persistedDocsCount = await persistLeadDocuments(
+        lead.id,
+        mediaItems,
+        context.docsPreference ?? null,
+        ownerId,
+      );
+      const receiptMsg = buildReceiptMessage(persistedDocsCount);
+      if (receiptMsg) {
+        await sendText(chatId, receiptMsg);
+      }
+    } catch (err) {
+      logger.error({ err }, '[lead.flow] Failed to persist documents or send receipt');
+      await sendText(
+        chatId,
+        'Recebi seu documento, mas tive um problema para confirmar. Nossa equipe vai verificar em instantes.',
+      ).catch((sendErr) => logger.error({ sendErr }, '[lead.flow] Failed to notify receipt failure'));
+    }
 
     // Reset data confirmation if new documents were submitted this turn
     if (mediaItems.some(isDocMedia) && (context.dataConfirmed || context.dataConfirmationSent)) {
