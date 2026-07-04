@@ -315,21 +315,33 @@ export async function handleLeadMessage(
       leadPatch.expectedResidents = context.expectedResidents;
     }
 
-    // Sincronizar moradores coletados com a tabela (replace-all)
-    if ((context.residents ?? []).length > 0) {
-      const residents = context.residents ?? [];
-      await prisma.$transaction([
-        prisma.leadResident.deleteMany({ where: { leadId: lead.id } }),
-        prisma.leadResident.createMany({
-          data: residents.map((r) => ({
-            leadId: lead.id,
-            ownerId,
-            name: r.name,
-            sex: r.sex || null,
-            age: r.age ?? null,
-          })),
-        }),
-      ]);
+    // Sincronizar moradores coletados com a tabela (replace-all, somente se houver mudança)
+    const incomingResidents = context.residents ?? [];
+    if (incomingResidents.length > 0) {
+      const existingResidents = await prisma.leadResident.findMany({
+        where: { leadId: lead.id },
+        select: { name: true, sex: true, age: true },
+      });
+      const fingerprint = (arr: Array<{ name: string; sex?: string | null; age?: number | null }>) =>
+        JSON.stringify(
+          [...arr]
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((r) => `${r.name}|${r.sex ?? ''}|${r.age ?? ''}`),
+        );
+      if (fingerprint(existingResidents) !== fingerprint(incomingResidents)) {
+        await prisma.$transaction([
+          prisma.leadResident.deleteMany({ where: { leadId: lead.id } }),
+          prisma.leadResident.createMany({
+            data: incomingResidents.map((r) => ({
+              leadId: lead.id,
+              ownerId,
+              name: r.name,
+              sex: r.sex || null,
+              age: r.age ?? null,
+            })),
+          }),
+        ]);
+      }
     }
 
     // Sincronizar Lead.stage com o estado da conversa
