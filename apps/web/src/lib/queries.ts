@@ -63,10 +63,23 @@ export async function fetchLead(
     .eq('chatId', mappedLead.phone)
     .maybeSingle();
 
+  const rawDocs = (docs as LeadDocument[]) ?? [];
+  const docsWithUrls = await Promise.all(
+    rawDocs.map(async (doc) => {
+      if (!doc.url) return doc;
+      const { data, error } = await supabase.storage.from('leads').createSignedUrl(doc.url, 3600);
+      if (error) {
+        console.error(`[fetchLead] Failed to sign URL for document ${doc.id}:`, error);
+        return doc;
+      }
+      return { ...doc, url: data.signedUrl };
+    }),
+  );
+
   return {
     ...mappedLead,
     botPaused: (conv as Pick<Conversation, 'botPaused'> | null)?.botPaused ?? false,
-    documents: (docs as LeadDocument[]) ?? [],
+    documents: docsWithUrls,
   };
 }
 
