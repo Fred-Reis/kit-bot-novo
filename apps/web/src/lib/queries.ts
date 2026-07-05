@@ -407,10 +407,15 @@ export async function fetchVisits(): Promise<VisitEntry[]> {
 export interface OwnerSettings {
   id: string;
   botEnabled: boolean;
+  notificationPhone: string | null;
+  notificationEmail: string | null;
 }
 
 export async function fetchOwner(): Promise<OwnerSettings> {
-  const { data, error } = await supabase.from('Owner').select('id, botEnabled').single();
+  const { data, error } = await supabase
+    .from('Owner')
+    .select('id, botEnabled, notificationPhone, notificationEmail')
+    .single();
   if (error) throw error;
   return data as OwnerSettings;
 }

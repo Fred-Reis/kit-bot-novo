@@ -99,7 +99,13 @@ export async function notifyOwner<T extends NotifyOwnerEventType>(
     const { whatsapp, email } = buildChannelContent(eventType, payload);
     const phone = owner.notificationPhone ?? owner.phone;
 
-    const sends: Promise<unknown>[] = [sendText(`${phone}@s.whatsapp.net`, whatsapp)];
+    const sends: Promise<unknown>[] = [];
+
+    if (!phone) {
+      logger.warn({ ownerId, eventType }, 'notifyOwner: no phone configured — skipping WhatsApp notification');
+    } else {
+      sends.push(sendText(`${phone}@s.whatsapp.net`, whatsapp));
+    }
 
     if (resend && owner.notificationEmail && email) {
       sends.push(

@@ -120,6 +120,24 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     },
   );
 
+  // ─── notification settings ────────────────────────────────────────────────
+  fastify.patch<{ Body: { notificationPhone?: string | null; notificationEmail?: string | null } }>(
+    '/admin/workspace/notifications',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { notificationPhone, notificationEmail } = request.body;
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(404).send({ error: 'Owner not found' });
+
+      const data: { notificationPhone?: string | null; notificationEmail?: string | null } = {};
+      if (notificationPhone !== undefined) data.notificationPhone = notificationPhone || null;
+      if (notificationEmail !== undefined) data.notificationEmail = notificationEmail || null;
+
+      await prisma.owner.update({ where: { id: owner.id }, data });
+      return reply.send({ notificationPhone: data.notificationPhone ?? owner.notificationPhone, notificationEmail: data.notificationEmail ?? owner.notificationEmail });
+    },
+  );
+
   // ─── update lead ──────────────────────────────────────────────────────────
   const VALID_LEAD_SOURCES = new Set([
     'whatsapp',

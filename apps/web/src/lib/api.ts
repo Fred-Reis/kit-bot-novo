@@ -136,6 +136,8 @@ export const adminApi = {
   updateVisitStatus: (leadId: string, status: 'upcoming' | 'completed' | 'cancelled') =>
     botApi.patch(`/admin/leads/${leadId}/visit-status`, { status }),
   updateBotEnabled: (enabled: boolean) => botApi.patch('/admin/workspace/bot-enabled', { enabled }),
+  updateNotificationSettings: (data: { notificationPhone?: string; notificationEmail?: string }) =>
+    botApi.patch('/admin/workspace/notifications', data),
 };
 
 export function apiErrorMessage(err: unknown, fallback: string): string {
