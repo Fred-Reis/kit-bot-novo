@@ -139,6 +139,12 @@ function defaultVarStates(keys: string[]): Record<string, ManualVarState> {
 function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [day, setDay] = useState(10);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
   const [unresolved, setUnresolved] = useState<string[]>([]);
   const [varStates, setVarStates] = useState<Record<string, ManualVarState>>({});
   const [loadingVars, setLoadingVars] = useState(false);
@@ -187,13 +193,17 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4"
+      onClick={onClose}
+    >
       <div
         data-slot="modal"
-        className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-6 shadow-lg"
+        className="flex w-full max-w-sm flex-col max-h-[85vh] rounded-xl border border-border bg-surface-raised shadow-lg"
+        onClick={(e) => e.stopPropagation()}
       >
         {step === 1 ? (
-          <>
+          <div className="p-6">
             <h2 className="text-base font-semibold text-foreground">Aprovar KYC</h2>
             <p className="mt-1 text-sm text-muted-foreground">Dia de vencimento do aluguel</p>
             <Input
@@ -224,61 +234,77 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
                 {loadingVars ? 'Verificando...' : 'Próximo →'}
               </CustomButton>
             </div>
-          </>
+          </div>
         ) : (
           <>
-            <h2 className="text-base font-semibold text-foreground">Variáveis pendentes</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              As seguintes variáveis não foram preenchidas automaticamente:
-            </p>
-            <div className="mt-3 space-y-4">
-              {unresolved.map((placeholder) => {
-                const state = varStates[placeholder] ?? { action: 'ignore' as ManualVarAction, value: '' };
-                return (
-                  <div key={placeholder} className="space-y-1.5">
-                    <p className="font-mono text-sm text-foreground">{placeholder}</p>
-                    <div className="flex gap-2">
-                      <CustomButton
-                        variant={state.action === 'fill' ? 'primary' : 'secondary'}
-                        onClick={() =>
-                          setVarStates((prev) => ({
-                            ...prev,
-                            [placeholder]: { action: 'fill', value: state.value },
-                          }))
-                        }
-                      >
-                        Preencher
-                      </CustomButton>
-                      <CustomButton
-                        variant={state.action === 'remove' ? 'primary' : 'secondary'}
-                        onClick={() =>
-                          setVarStates((prev) => ({
-                            ...prev,
-                            [placeholder]: { action: 'remove', value: '' },
-                          }))
-                        }
-                      >
-                        Remover
-                      </CustomButton>
-                    </div>
-                    {state.action === 'fill' && (
-                      <Input
-                        type="text"
-                        placeholder="Valor"
-                        value={state.value}
-                        onChange={(e) =>
-                          setVarStates((prev) => ({
-                            ...prev,
-                            [placeholder]: { action: 'fill', value: e.target.value },
-                          }))
-                        }
-                      />
-                    )}
-                  </div>
-                );
-              })}
+            <div className="shrink-0 border-b border-border px-6 pt-6 pb-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-semibold text-foreground">Variáveis pendentes</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    As seguintes variáveis não foram preenchidas automaticamente:
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar"
+                  onClick={onClose}
+                  className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
-            <div className="mt-4 flex items-center justify-between">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
+                {unresolved.map((placeholder) => {
+                  const state = varStates[placeholder] ?? { action: 'ignore' as ManualVarAction, value: '' };
+                  return (
+                    <div key={placeholder} className="space-y-1.5">
+                      <p className="font-mono text-sm text-foreground">{placeholder}</p>
+                      <div className="flex gap-2">
+                        <CustomButton
+                          variant={state.action === 'fill' ? 'primary' : 'secondary'}
+                          onClick={() =>
+                            setVarStates((prev) => ({
+                              ...prev,
+                              [placeholder]: { action: 'fill', value: state.value },
+                            }))
+                          }
+                        >
+                          Preencher
+                        </CustomButton>
+                        <CustomButton
+                          variant={state.action === 'remove' ? 'primary' : 'secondary'}
+                          onClick={() =>
+                            setVarStates((prev) => ({
+                              ...prev,
+                              [placeholder]: { action: 'remove', value: '' },
+                            }))
+                          }
+                        >
+                          Remover
+                        </CustomButton>
+                      </div>
+                      {state.action === 'fill' && (
+                        <Input
+                          type="text"
+                          placeholder="Valor"
+                          value={state.value}
+                          onChange={(e) =>
+                            setVarStates((prev) => ({
+                              ...prev,
+                              [placeholder]: { action: 'fill', value: e.target.value },
+                            }))
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="shrink-0 border-t border-border px-6 py-4 flex items-center justify-between">
               <CustomButton
                 variant="secondary"
                 onClick={() => mutation.mutate(defaultVarStates(unresolved))}
