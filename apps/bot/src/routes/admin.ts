@@ -134,7 +134,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (notificationEmail !== undefined) data.notificationEmail = notificationEmail || null;
 
       await prisma.owner.update({ where: { id: owner.id }, data });
-      return reply.send({ notificationPhone: data.notificationPhone ?? owner.notificationPhone, notificationEmail: data.notificationEmail ?? owner.notificationEmail });
+      return reply.send({
+        notificationPhone: notificationPhone !== undefined ? data.notificationPhone : owner.notificationPhone,
+        notificationEmail: notificationEmail !== undefined ? data.notificationEmail : owner.notificationEmail,
+      });
     },
   );
 
