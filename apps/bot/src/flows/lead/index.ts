@@ -244,6 +244,12 @@ export async function handleLeadMessage(
           : 'Não consegui ler o CPF no documento. Pode enviar uma foto mais nítida, com boa iluminação e sem reflexo?';
 
         if (cpf) context.dataConfirmationSent = true;
+
+        const mappedStage = fsmStateToLeadStage('lead.data_confirmation', lead.stage);
+        if (mappedStage && mappedStage !== lead.stage) {
+          await prisma.lead.update({ where: { phone: chatId }, data: { stage: mappedStage } });
+        }
+
         await persistConversation(chatId, context, null, confirmMsg, ownerId);
         await sendText(chatId, confirmMsg);
         return;
