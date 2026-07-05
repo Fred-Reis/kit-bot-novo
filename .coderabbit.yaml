@@ -13,10 +13,20 @@ reviews:
   auto_review:
     enabled: true
     drafts: false # PRs draft (ex: fase B aguardando fase A) não são revisadas
+    auto_incremental_review: false # não re-revisar a cada push — só na abertura do PR
     base_branches:
       - main
+    ignore_title_keywords:
+      - "WIP"
+      - "wip"
+      - "chore:"
+      - "docs:"
+      - "[skip review]"
   path_filters:
     - "!**/*.lockb"
+    - "!**/prisma/migrations/**"
+    - "!**/*.sql"
+    - "!**/*.md"
   path_instructions:
     - path: "apps/bot/**"
       instructions: |
