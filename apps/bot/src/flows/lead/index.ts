@@ -225,6 +225,30 @@ export async function handleLeadMessage(
     if (!messageText && intake.processed > 0) {
       context.lastUserMessage = '';
       context.lastRoutedAgent = 'deterministic_doc_intake';
+
+      // Check if checklist just completed → proactively send data confirmation
+      const postIntakeSnapshot = await buildLeadSnapshot(lead.id, context);
+      if (postIntakeSnapshot.state === 'lead.data_confirmation' && !context.dataConfirmationSent) {
+        await persistConversation(chatId, context, null, intake.reply, ownerId);
+
+        const docs = await loadLeadDocuments(lead.id);
+        const cpf = extractCpfFromDocs(docs);
+        context.state = 'lead.data_confirmation';
+        context.lastRoutedAgent = 'deterministic_data_confirmation';
+
+        const confirmMsg = cpf
+          ? 'Por favor, confirme seus dados:\n\n' +
+            `Nome: ${context.name ?? lead.name ?? 'não informado'}\n` +
+            `CPF: ${cpf}\n\n` +
+            'Está correto? Responda *sim* para confirmar ou *não* para corrigir.'
+          : 'Não consegui ler o CPF no documento. Pode enviar uma foto mais nítida, com boa iluminação e sem reflexo?';
+
+        if (cpf) context.dataConfirmationSent = true;
+        await persistConversation(chatId, context, null, confirmMsg, ownerId);
+        await sendText(chatId, confirmMsg);
+        return;
+      }
+
       await persistConversation(chatId, context, null, intake.reply, ownerId);
       return;
     }
