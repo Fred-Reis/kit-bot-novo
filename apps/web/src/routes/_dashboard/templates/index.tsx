@@ -1,7 +1,7 @@
 import type { ContractTemplateSummary } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { Pencil, Plus, Star, Trash2, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
@@ -43,6 +43,9 @@ function TemplateListItem({
           >
             {template.name}
           </p>
+          {template.isDefault && (
+            <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" aria-label="Padrão" />
+          )}
           <Pill tone={template.status === 'published' ? 'ok' : 'warn'}>
             {template.status === 'published' ? 'Publ.' : 'Rasc.'}
           </Pill>
@@ -113,6 +116,8 @@ function EditorPanel({ templateId }: { templateId: string }) {
   const [varValues, setVarValues] = useState<Record<string, string>>({});
   const [body, setBody] = useState('');
   const [varOrder, setVarOrder] = useState<string[]>([]);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [nameInput, setNameInput] = useState('');
 
   const { data: template, isLoading } = useQuery({
     queryKey: ['contract-template', templateId],
@@ -156,6 +161,28 @@ function EditorPanel({ templateId }: { templateId: string }) {
     onError: () => toast.error('Falha ao salvar template'),
   });
 
+  const renameMutation = useMutation({
+    mutationFn: (name: string) => adminApi.updateContractTemplate(templateId, { name }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contract-template', templateId] });
+      qc.invalidateQueries({ queryKey: ['contract-templates'] });
+      setIsRenaming(false);
+      toast.success('Template renomeado');
+    },
+    onError: () => toast.error('Falha ao renomear'),
+  });
+
+  const startRename = () => {
+    setNameInput(template?.name ?? '');
+    setIsRenaming(true);
+  };
+
+  const commitRename = () => {
+    const trimmed = nameInput.trim();
+    if (trimmed && trimmed !== template?.name) renameMutation.mutate(trimmed);
+    else setIsRenaming(false);
+  };
+
   const publishMutation = useMutation({
     mutationFn: (status: string) => adminApi.updateContractTemplate(templateId, { status }),
     onSuccess: (_, status) => {
@@ -164,6 +191,16 @@ function EditorPanel({ templateId }: { templateId: string }) {
       toast.success(status === 'published' ? 'Publicado' : 'Revertido para rascunho');
     },
     onError: () => toast.error('Falha ao atualizar status'),
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: () => adminApi.updateContractTemplate(templateId, { isDefault: true }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contract-template'] });
+      qc.invalidateQueries({ queryKey: ['contract-templates'] });
+      toast.success('Template definido como padrão');
+    },
+    onError: () => toast.error('Falha ao definir template padrão'),
   });
 
   const insertVariable = useCallback((variable: string) => {
@@ -200,7 +237,29 @@ function EditorPanel({ templateId }: { templateId: string }) {
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-sm font-medium text-foreground truncate">{template.name}</h2>
+          {isRenaming ? (
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') setIsRenaming(false);
+              }}
+              className="text-sm font-medium rounded border border-border bg-background px-1.5 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={startRename}
+              className="group flex items-center gap-1 min-w-0"
+              aria-label="Renomear template"
+            >
+              <h2 className="text-sm font-medium text-foreground truncate">{template.name}</h2>
+              <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )}
           <span className="font-mono text-[11px] text-muted-foreground shrink-0">
             {template.code}
           </span>
@@ -208,6 +267,19 @@ function EditorPanel({ templateId }: { templateId: string }) {
         <div className="flex shrink-0 items-center gap-2">
           <CustomButton variant="ghost" size="sm" onClick={() => setPreviewing((p) => !p)}>
             {previewing ? 'Editar' : 'Pré-visualizar'}
+          </CustomButton>
+          <CustomButton
+            variant="ghost"
+            size="sm"
+            onClick={() => setDefaultMutation.mutate()}
+            disabled={setDefaultMutation.isPending || template.isDefault || template.status !== 'published'}
+            aria-label="Definir como template padrão"
+            title={template.isDefault ? 'Template padrão' : 'Definir como padrão'}
+          >
+            <Star
+              className={`size-3.5 ${template.isDefault ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground'}`}
+            />
+            {template.isDefault ? 'Padrão' : 'Definir padrão'}
           </CustomButton>
           <CustomButton
             variant="secondary"
@@ -323,7 +395,6 @@ function EditorPanel({ templateId }: { templateId: string }) {
 
 function TemplatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editorKey, setEditorKey] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -345,14 +416,16 @@ function TemplatesPage() {
   });
 
   const importMutation = useMutation({
-    mutationFn: (file: File) => {
-      if (!activeId) throw new Error('Selecione um template primeiro');
-      return adminApi.importContractTemplate(activeId, file);
+    mutationFn: async (file: File) => {
+      const name = file.name.replace(/\.[^.]+$/, '');
+      const createRes = await adminApi.createContractTemplate(name);
+      const newId = (createRes.data as { id: string }).id;
+      await adminApi.importContractTemplate(newId, file);
+      return newId;
     },
-    onSuccess: async () => {
+    onSuccess: async (newId) => {
       await qc.invalidateQueries({ queryKey: ['contract-templates'] });
-      if (activeId) await qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
-      setEditorKey((k) => k + 1);
+      setSelectedId(newId);
       toast.success('Template importado com sucesso');
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Falha ao importar template')),
@@ -431,7 +504,7 @@ function TemplatesPage() {
         </div>
 
         {activeId ? (
-          <EditorPanel key={`${activeId}-${editorKey}`} templateId={activeId} />
+          <EditorPanel key={activeId} templateId={activeId} />
         ) : (
           <div className="flex items-center justify-center rounded-[10px] border border-border bg-surface-raised">
             <p className="text-sm text-muted-foreground">Selecione um template para editar.</p>

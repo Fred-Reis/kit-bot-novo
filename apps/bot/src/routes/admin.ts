@@ -481,8 +481,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const [property, template] = await Promise.all([
       prisma.property.findUnique({ where: { id: lead.propertyId }, include: { owner: true } }),
       prisma.contractTemplate.findFirst({
-        where: { status: 'published' },
-        orderBy: { updatedAt: 'desc' },
+        where: { status: 'published', ownerId: lead.ownerId },
+        orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
       }),
     ]);
     if (!property) return reply.status(404).send({ error: 'Property not found' });
@@ -724,7 +724,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           .from('contracts')
           .createSignedUrl(finalPdfPath, 3600);
         if (!error) finalPdfSignedUrl = data.signedUrl;
-        else fastify.log.warn({ err: error, finalPdfPath }, 'createSignedUrl failed for signed contract');
+        else
+          fastify.log.warn(
+            { err: error, finalPdfPath },
+            'createSignedUrl failed for signed contract',
+          );
       } catch (pdfErr) {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
       }
@@ -1376,10 +1380,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── update contract template ─────────────────────────────────────────────
   fastify.patch<{
     Params: { id: string };
-    Body: { name?: string; body?: string; status?: string };
+    Body: { name?: string; body?: string; status?: string; isDefault?: boolean };
   }>('/admin/contract-templates/:id', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { id } = request.params;
-    const { name, body, status } = request.body;
+    const { name, body, status, isDefault } = request.body;
     const existing = await prisma.contractTemplate.findUnique({
       where: { id },
       select: { id: true, name: true, status: true, ownerId: true },
@@ -1392,6 +1396,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     if (name !== undefined) data.name = name;
     if (body !== undefined) data.body = body;
     if (status !== undefined) data.status = status;
+    if (isDefault === true) data.isDefault = true;
+
+    // Unset default on other templates before setting this one
+    if (isDefault === true) {
+      await prisma.contractTemplate.updateMany({
+        where: { ownerId: existing.ownerId, id: { not: id } },
+        data: { isDefault: false },
+      });
+    }
+
     const template = await prisma.contractTemplate.update({ where: { id }, data });
     if (status === 'published' && existing.status !== 'published') {
       logActivityHelper({

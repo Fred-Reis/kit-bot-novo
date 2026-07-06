@@ -2,9 +2,10 @@ import type { ContractPreview, LeadStage } from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
+// No explicit Content-Type default — Axios sets application/json automatically for
+// object payloads, and must not override it for FormData (multipart needs the boundary).
 const botApi = axios.create({
   baseURL: import.meta.env.VITE_BOT_API_URL as string,
-  headers: { 'Content-Type': 'application/json' },
 });
 
 // Attach Supabase JWT on every request so bot can verify identity
@@ -103,7 +104,7 @@ export const adminApi = {
   importContractTemplate: (id: string, file: File) =>
     postFile(`/admin/contract-templates/${id}/import`, file),
   createContractTemplate: (name: string) => botApi.post('/admin/contract-templates', { name }),
-  updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string }) =>
+  updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string; isDefault?: boolean }) =>
     botApi.patch(`/admin/contract-templates/${id}`, data),
   deleteContractTemplate: (id: string) => botApi.delete(`/admin/contract-templates/${id}`),
   pauseLead: (leadId: string, paused: boolean) =>
