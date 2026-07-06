@@ -15,6 +15,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'icon-tile-*.svg'],
       manifest: {
+        id: '/',
         name: 'kit-manager',
         short_name: 'kit-manager',
         description: 'Painel do proprietário — gestão de locação',
