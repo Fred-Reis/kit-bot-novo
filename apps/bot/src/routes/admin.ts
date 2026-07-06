@@ -553,6 +553,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (!dlErr && blob) {
         const buf = Buffer.from(await blob.arrayBuffer());
         pdfBase64 = buf.toString('base64');
+      } else {
+        fastify.log.error(
+          { err: dlErr, contractId: contract.id, pdfPath },
+          'PDF download from storage failed — contract saved, no file sent',
+        );
       }
     } catch (pdfErr) {
       fastify.log.error(
@@ -688,6 +693,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(409).send({ error: 'Lead has no associated property' });
       }
 
+      const contract = await prisma.contract.findFirst({
+        where: { leadId: id, status: 'draft' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!contract) {
+        return reply.status(404).send({ error: 'No draft contract found for this lead' });
+      }
+
       // Atomically claim the stage — prevents duplicate tenants on retries or concurrent requests
       const { count } = await prisma.lead.updateMany({
         where: { id, stage: 'contract_pending' },
@@ -695,14 +708,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       });
       if (count === 0) {
         return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
-      }
-
-      const contract = await prisma.contract.findFirst({
-        where: { leadId: id, status: 'draft' },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (!contract) {
-        return reply.status(404).send({ error: 'No draft contract found for this lead' });
       }
 
       const today = new Date();
@@ -719,6 +724,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           .from('contracts')
           .createSignedUrl(finalPdfPath, 3600);
         if (!error) finalPdfSignedUrl = data.signedUrl;
+        else fastify.log.warn({ err: error, finalPdfPath }, 'createSignedUrl failed for signed contract');
       } catch (pdfErr) {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
       }
