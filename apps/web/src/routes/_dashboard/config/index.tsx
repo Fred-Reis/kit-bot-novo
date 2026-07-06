@@ -178,7 +178,8 @@ function NotificationContactCard() {
       setPhone(owner.notificationPhone ?? '');
       setEmail(owner.notificationEmail ?? '');
     }
-  }, [owner?.notificationPhone, owner?.notificationEmail]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.id]);
 
   async function handleSave() {
     setSaving(true);
