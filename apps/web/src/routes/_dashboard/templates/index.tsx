@@ -196,7 +196,7 @@ function EditorPanel({ templateId }: { templateId: string }) {
   const setDefaultMutation = useMutation({
     mutationFn: () => adminApi.updateContractTemplate(templateId, { isDefault: true }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contract-template', templateId] });
+      qc.invalidateQueries({ queryKey: ['contract-template'] });
       qc.invalidateQueries({ queryKey: ['contract-templates'] });
       toast.success('Template definido como padrão');
     },
