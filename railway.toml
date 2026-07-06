@@ -1,5 +1,5 @@
 [build]
-buildCommand = "cd apps/bot && bunx prisma generate && bun run build"
+buildCommand = "cd apps/bot && bunx prisma generate"
 
 [deploy]
 startCommand = "cd apps/bot && bun run start"
