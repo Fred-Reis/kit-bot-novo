@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import type { FastifyInstance } from 'fastify';
 import mammoth from 'mammoth';
+import { extractText } from 'unpdf';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
@@ -1454,9 +1455,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         data.mimetype ===
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         data.filename?.endsWith('.docx');
+      const isPdf = data.mimetype === 'application/pdf' || data.filename?.endsWith('.pdf');
 
-      if (!isDocx) {
-        return reply.status(400).send({ error: 'File must be a .docx document' });
+      if (!isDocx && !isPdf) {
+        return reply.status(400).send({ error: 'File must be .docx or .pdf' });
       }
 
       const chunks: Buffer[] = [];
@@ -1467,12 +1469,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       let body: string;
       try {
-        const result = await mammoth.extractRawText({ buffer: buf });
-        body = result.value;
-      } catch {
+        if (isDocx) {
+          const result = await mammoth.extractRawText({ buffer: buf });
+          body = result.value;
+        } else {
+          const { text } = await extractText(new Uint8Array(buf), { mergePages: true });
+          body = text;
+        }
+      } catch (err) {
+        fastify.log.error({ err, filename: data.filename, mimetype: data.mimetype }, 'template import extraction failed');
         return reply
           .status(422)
-          .send({ error: 'Could not extract text from file. Ensure it is a valid .docx document.' });
+          .send({ error: 'Could not extract text from file. Ensure it is a valid .docx or .pdf.' });
       }
 
       if (!body.trim()) {
