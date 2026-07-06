@@ -223,44 +223,60 @@ export async function handleLeadMessage(
           select: { id: true, code: true },
         });
         if (contract) {
-          const { count } = await prisma.lead.updateMany({
-            where: { id: lead.id, stage: 'contract_pending' },
-            data: { stage: 'converted' },
-          });
-          if (count > 0) {
-            let signedPdfUrl: string | undefined;
-            if (pdfItem.base64) {
-              try {
-                signedPdfUrl = await uploadSignedContractPdf(
-                  contract.id,
-                  pdfItem.base64,
-                  `${contract.code}-assinado.pdf`,
-                );
-              } catch (uploadErr) {
-                logger.warn({ err: uploadErr }, '[lead.flow] Failed to upload signed contract PDF');
-              }
-            } else if (pdfItem.url) {
-              // PDF arrived as a media URL (no base64) — use the URL directly as reference
-              signedPdfUrl = pdfItem.url;
-            }
+          // Ensure we have a persisted storage URL before finalizing
+          let signedPdfUrl: string | undefined;
+          if (pdfItem.base64) {
             try {
-              await finalizeContractSigning({
-                leadId: lead.id,
-                contractId: contract.id,
-                actorLabel: 'bot',
-                signedPdfUrl,
-              });
-            } catch (finalizeErr) {
-              logger.error({ err: finalizeErr }, '[lead.flow] finalizeContractSigning failed — reverting stage');
-              await prisma.lead.update({ where: { id: lead.id }, data: { stage: 'contract_pending' } }).catch(() => {});
-              throw finalizeErr;
+              signedPdfUrl = await uploadSignedContractPdf(
+                contract.id,
+                pdfItem.base64,
+                `${contract.code}-assinado.pdf`,
+              );
+            } catch (uploadErr) {
+              logger.warn({ err: uploadErr }, '[lead.flow] Failed to upload signed contract PDF');
             }
+          } else if (pdfItem.url) {
+            // PDF arrived as a media URL (no base64) — use the URL directly as reference
+            signedPdfUrl = pdfItem.url;
+          }
+
+          // Only proceed if we have a storage URL
+          if (!signedPdfUrl) {
+            logger.error('[lead.flow] No signed PDF URL available — cannot finalize contract');
             await sendText(
               chatId,
-              'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
+              'Não foi possível processar o contrato. Por favor, tente enviar novamente.',
             );
             return;
           }
+
+          try {
+            await finalizeContractSigning({
+              leadId: lead.id,
+              contractId: contract.id,
+              actorLabel: 'bot',
+              signedPdfUrl,
+            });
+          } catch (finalizeErr) {
+            logger.error({ err: finalizeErr }, '[lead.flow] finalizeContractSigning failed');
+            await sendText(
+              chatId,
+              'Ocorreu um erro ao processar seu contrato. Nossa equipe foi notificada e entrará em contato.',
+            );
+            return;
+          }
+
+          // Only mark lead as converted after successful finalization
+          await prisma.lead.updateMany({
+            where: { id: lead.id, stage: 'contract_pending' },
+            data: { stage: 'converted' },
+          });
+
+          await sendText(
+            chatId,
+            'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
+          );
+          return;
         }
       }
 

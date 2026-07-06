@@ -119,13 +119,13 @@ function EditorPanel({ templateId }: { templateId: string }) {
     queryFn: () => fetchContractTemplate(templateId),
   });
 
-  // Sync local state once per template load (not on every refetch)
+  // Sync local state when template id changes or body is updated from server
   useEffect(() => {
     if (!template) return;
     setBody(template.body);
     setVarOrder(extractVariables(template.body));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template?.id]);
+  }, [template?.id, template?.body]);
 
   const getEditorHtml = useCallback(
     (rawBody: string) =>
@@ -349,9 +349,9 @@ function TemplatesPage() {
       if (!activeId) throw new Error('Selecione um template primeiro');
       return adminApi.importContractTemplate(activeId, file);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contract-templates'] });
-      if (activeId) qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['contract-templates'] });
+      if (activeId) await qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
       setEditorKey((k) => k + 1);
       toast.success('Template importado com sucesso');
     },
