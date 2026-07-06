@@ -27,6 +27,12 @@ botApi.interceptors.response.use(undefined, async (error: unknown) => {
   return botApi.request(error.config);
 });
 
+function postFile(url: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return botApi.post(url, form);
+}
+
 export const adminApi = {
   approveKyc: (
     leadId: string,
@@ -92,20 +98,10 @@ export const adminApi = {
   getContractPdf: (contractId: string) =>
     botApi.get<{ url: string }>(`/admin/contracts/${contractId}/pdf`),
   markContractSigned: (leadId: string) => botApi.post(`/admin/leads/${leadId}/mark-signed`),
-  uploadSignedContract: (leadId: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    return botApi.post(`/admin/leads/${leadId}/upload-signed-contract`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
-  importContractTemplate: (id: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    return botApi.post(`/admin/contract-templates/${id}/import`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
+  uploadSignedContract: (leadId: string, file: File) =>
+    postFile(`/admin/leads/${leadId}/upload-signed-contract`, file),
+  importContractTemplate: (id: string, file: File) =>
+    postFile(`/admin/contract-templates/${id}/import`, file),
   createContractTemplate: (name: string) => botApi.post('/admin/contract-templates', { name }),
   updateContractTemplate: (id: string, data: { name?: string; body?: string; status?: string }) =>
     botApi.patch(`/admin/contract-templates/${id}`, data),

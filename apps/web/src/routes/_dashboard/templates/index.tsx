@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
-import { adminApi } from '@/lib/api';
+import { adminApi, apiErrorMessage } from '@/lib/api';
 import { fetchContractTemplate, fetchContractTemplates } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/templates/')({ component: TemplatesPage });
@@ -323,6 +323,7 @@ function EditorPanel({ templateId }: { templateId: string }) {
 
 function TemplatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -351,9 +352,10 @@ function TemplatesPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contract-templates'] });
       if (activeId) qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
+      setEditorKey((k) => k + 1);
       toast.success('Template importado com sucesso');
     },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao importar template'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Falha ao importar template')),
   });
 
   const deleteMutation = useMutation({
@@ -429,7 +431,7 @@ function TemplatesPage() {
         </div>
 
         {activeId ? (
-          <EditorPanel key={activeId} templateId={activeId} />
+          <EditorPanel key={`${activeId}-${editorKey}`} templateId={activeId} />
         ) : (
           <div className="flex items-center justify-center rounded-[10px] border border-border bg-surface-raised">
             <p className="text-sm text-muted-foreground">Selecione um template para editar.</p>

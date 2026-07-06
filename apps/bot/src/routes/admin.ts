@@ -13,7 +13,6 @@ import { finalizeContractSigning } from '@/services/contract-signing';
 import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
-import { notifyOwner } from '@/services/notify';
 import { generateAndUploadPdf } from '@/services/pdf';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
@@ -668,6 +667,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const chunks: Buffer[] = [];
       for await (const chunk of data.file) chunks.push(chunk);
+      if (data.file.truncated) return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
       const buf = Buffer.concat(chunks);
 
       const path = `signed/${contract.id}/${contract.code}-assinado.pdf`;
@@ -1337,15 +1337,24 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const chunks: Buffer[] = [];
       for await (const chunk of data.file) chunks.push(chunk);
+      if (data.file.truncated) return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
       const buf = Buffer.concat(chunks);
 
       let body: string;
-      if (isDocx) {
-        const result = await mammoth.extractRawText({ buffer: buf });
-        body = result.value;
-      } else {
-        const result = await pdfParse(buf);
-        body = result.text;
+      try {
+        if (isDocx) {
+          const result = await mammoth.extractRawText({ buffer: buf });
+          body = result.value;
+        } else {
+          const result = await pdfParse(buf);
+          body = result.text;
+        }
+      } catch {
+        return reply.status(422).send({ error: 'Could not extract text from file. Ensure it is a valid .docx or .pdf.' });
+      }
+
+      if (!body.trim()) {
+        return reply.status(422).send({ error: 'Extracted text is empty. File may be image-based or encrypted.' });
       }
 
       await prisma.contractTemplate.update({ where: { id }, data: { body } });

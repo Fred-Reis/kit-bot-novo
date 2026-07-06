@@ -40,38 +40,42 @@ export async function finalizeContractSigning(
   });
 
   if (!lead.propertyId) throw new Error('Lead has no associated property');
+  const propertyId = lead.propertyId;
 
   const cpf = extractCpfFromDocs(lead.documents);
   const tenantExternalId = await nextExternalId('tenant');
   const today = new Date();
 
-  const tenant = await prisma.tenant.create({
-    data: {
-      phone: lead.phone,
-      name: lead.name,
-      cpf,
-      propertyId: lead.propertyId,
-      contractStart: today,
-      externalId: tenantExternalId,
-      ownerId: lead.ownerId,
-    },
+  const tenant = await prisma.$transaction(async (tx) => {
+    const newTenant = await tx.tenant.create({
+      data: {
+        phone: lead.phone,
+        name: lead.name ?? undefined,
+        cpf: cpf ?? undefined,
+        propertyId,
+        contractStart: today,
+        externalId: tenantExternalId,
+        ownerId: lead.ownerId,
+      },
+    });
+    await Promise.all([
+      tx.contract.update({
+        where: { id: contractId },
+        data: {
+          tenantId: newTenant.id,
+          startDate: today,
+          status: 'active',
+          ...(finalContractBody != null ? { body: finalContractBody } : {}),
+          ...(finalPdfPath != null ? { pdfUrl: finalPdfPath } : {}),
+          ...(signedPdfUrl != null ? { signedPdfUrl } : {}),
+        },
+      }),
+      tx.property.update({ where: { id: propertyId }, data: { status: 'rented', active: false } }),
+    ]);
+    return newTenant;
   });
 
-  await Promise.all([
-    prisma.contract.update({
-      where: { id: contractId },
-      data: {
-        tenantId: tenant.id,
-        startDate: today,
-        status: 'active',
-        ...(finalContractBody != null ? { body: finalContractBody } : {}),
-        ...(finalPdfPath != null ? { pdfUrl: finalPdfPath } : {}),
-        ...(signedPdfUrl != null ? { signedPdfUrl } : {}),
-      },
-    }),
-    prisma.property.update({ where: { id: lead.propertyId }, data: { status: 'rented', active: false } }),
-    redis.del(`property:${lead.propertyId}`),
-  ]);
+  await redis.del(`property:${lead.propertyId}`);
 
   const leadLabel = lead.name ?? lead.phone;
 

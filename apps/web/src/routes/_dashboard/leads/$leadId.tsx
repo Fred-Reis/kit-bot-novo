@@ -546,7 +546,7 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
     queryFn: () => fetchLeadContracts(leadId),
   });
 
-  if (isLoading || contracts.length === 0) return null;
+  if (!isLoading && contracts.length === 0) return null;
 
   async function getSignedUrl(path: string): Promise<string | null> {
     const { data, error } = await supabase.storage.from('contracts').createSignedUrl(path, 3600);
@@ -562,6 +562,12 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface-raised p-5">
       <h2 className="mb-4 text-sm font-medium text-foreground">Contrato</h2>
+      {isLoading ? (
+        <div className="space-y-2">
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+        </div>
+      ) : (
       <div className="space-y-3">
         {contracts.map((c) => (
           <div key={c.id} className="space-y-2">
@@ -601,6 +607,7 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

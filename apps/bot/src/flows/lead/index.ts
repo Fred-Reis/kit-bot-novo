@@ -239,13 +239,22 @@ export async function handleLeadMessage(
               } catch (uploadErr) {
                 logger.warn({ err: uploadErr }, '[lead.flow] Failed to upload signed contract PDF');
               }
+            } else if (pdfItem.url) {
+              // PDF arrived as a media URL (no base64) — use the URL directly as reference
+              signedPdfUrl = pdfItem.url;
             }
-            await finalizeContractSigning({
-              leadId: lead.id,
-              contractId: contract.id,
-              actorLabel: 'bot',
-              signedPdfUrl,
-            });
+            try {
+              await finalizeContractSigning({
+                leadId: lead.id,
+                contractId: contract.id,
+                actorLabel: 'bot',
+                signedPdfUrl,
+              });
+            } catch (finalizeErr) {
+              logger.error({ err: finalizeErr }, '[lead.flow] finalizeContractSigning failed — reverting stage');
+              await prisma.lead.update({ where: { id: lead.id }, data: { stage: 'contract_pending' } }).catch(() => {});
+              throw finalizeErr;
+            }
             await sendText(
               chatId,
               'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
