@@ -272,7 +272,7 @@ function EditorPanel({ templateId }: { templateId: string }) {
             variant="ghost"
             size="sm"
             onClick={() => setDefaultMutation.mutate()}
-            disabled={setDefaultMutation.isPending || template.isDefault}
+            disabled={setDefaultMutation.isPending || template.isDefault || template.status !== 'published'}
             aria-label="Definir como template padrão"
             title={template.isDefault ? 'Template padrão' : 'Definir como padrão'}
           >
