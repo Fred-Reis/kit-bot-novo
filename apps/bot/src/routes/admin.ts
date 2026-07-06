@@ -1,12 +1,15 @@
 import { Prisma } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import type { FastifyInstance } from 'fastify';
+import mammoth from 'mammoth';
+import pdfParse from 'pdf-parse';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
+import { finalizeContractSigning } from '@/services/contract-signing';
 import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
@@ -474,6 +477,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         sendMedia(lead.phone, 'document', pdfBase64,
           'Segue seu contrato para revisão. Qualquer dúvida, é só chamar!',
           `${contractCode}.pdf`,
+        ).then(() =>
+          sendText(lead.phone,
+            'Para confirmar sua locação, assine o contrato e envie de volta aqui no WhatsApp com a mensagem: *Contrato assinado*.',
+          ),
         ).catch((err) => fastify.log.warn({ err }, 'Failed to send contract PDF to lead'));
       } else {
         sendText(lead.phone,
@@ -566,18 +573,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   );
 
   // ─── mark-contract-signed ────────────────────────────────────────────────
-  fastify.post<{ Params: { id: string } }>(
+  fastify.post<{ Params: { id: string }; Body: { signedPdfUrl?: string } }>(
     '/admin/leads/:id/mark-signed',
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
+      const { signedPdfUrl } = request.body ?? {};
 
       const lead = await prisma.lead.findUnique({
         where: { id },
-        select: {
-          name: true, phone: true, ownerId: true, stage: true, propertyId: true,
-          documents: { select: { ocrText: true } },
-        },
+        select: { name: true, phone: true, ownerId: true, stage: true, propertyId: true },
       });
       if (!lead) return reply.status(404).send({ error: 'Lead not found' });
       if (lead.stage !== 'contract_pending') {
@@ -606,46 +611,30 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'No draft contract found for this lead' });
       }
 
-      const cpf = extractCpfFromDocs(lead.documents);
-      const tenantExternalId = await nextExternalId('tenant');
       const today = new Date();
-      const leadLabel = lead.name ?? lead.phone;
+      const finalBody = contract.body.replace(/A ser preenchida na assinatura/g, formatDatePtBR(today));
+      let finalPdfPath: string | undefined;
+      let finalPdfSignedUrl: string | null = null;
 
-      const tenant = await prisma.tenant.create({
-        data: {
-          phone: lead.phone,
-          name: lead.name,
-          cpf,
-          propertyId: lead.propertyId,
-          contractStart: today,
-          externalId: tenantExternalId,
-          ownerId: lead.ownerId,
-        },
+      try {
+        finalPdfPath = await generateAndUploadPdf(contract.id, finalBody, contract.code);
+        const { data, error } = await supabase.storage.from('contracts').createSignedUrl(finalPdfPath, 3600);
+        if (!error) finalPdfSignedUrl = data.signedUrl;
+      } catch (pdfErr) {
+        fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
+      }
+
+      const { tenantId, tenantExternalId } = await finalizeContractSigning({
+        leadId: id,
+        contractId: contract.id,
+        actorLabel: request.adminUserId ?? 'admin',
+        signedPdfUrl: signedPdfUrl ?? null,
+        finalContractBody: finalBody,
+        finalPdfPath,
       });
 
-      const finalBody = contract.body.replace(
-        /A ser preenchida na assinatura/g,
-        formatDatePtBR(today),
-      );
-
-      const pdfPath = await generateAndUploadPdf(contract.id, finalBody, contract.code);
-
-      const [, , , signedUrlResult] = await Promise.all([
-        prisma.contract.update({
-          where: { id: contract.id },
-          data: { tenantId: tenant.id, startDate: today, status: 'active', body: finalBody, pdfUrl: pdfPath },
-        }),
-        prisma.property.update({ where: { id: lead.propertyId }, data: { status: 'rented', active: false } }),
-        redis.del(`property:${lead.propertyId}`),
-        supabase.storage.from('contracts').createSignedUrl(pdfPath, 3600),
-      ]);
-
-      if (signedUrlResult.error) {
-        fastify.log.warn({ err: signedUrlResult.error }, 'Failed to sign completed contract PDF URL');
-      }
-      const pdfUrl = signedUrlResult.data?.signedUrl ?? null;
-      if (pdfUrl) {
-        sendMedia(lead.phone, 'document', pdfUrl,
+      if (finalPdfSignedUrl) {
+        sendMedia(lead.phone, 'document', finalPdfSignedUrl,
           '✅ Contrato assinado! Aqui está sua cópia com a data de início preenchida.',
         ).catch((err) => fastify.log.warn({ err }, 'Failed to send signed contract to lead'));
       } else {
@@ -653,34 +642,46 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           .catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract signing'));
       }
 
-      logActivityHelper({
-        actorType: 'user',
-        actorLabel: request.adminUserId ?? 'admin',
-        ownerId: lead.ownerId,
-        action: 'contract_signed',
-        subject: leadLabel,
-        subjectId: id,
-        subjectType: 'lead',
-      }).catch(fastify.log.warn.bind(fastify.log));
+      return reply.send({ success: true, tenantId, tenantExternalId, stage: 'converted' });
+    },
+  );
 
-      logActivityHelper({
-        actorType: 'user',
-        actorLabel: request.adminUserId ?? 'admin',
-        ownerId: lead.ownerId,
-        action: 'tenant_created',
-        subject: tenantExternalId,
-        subjectId: tenant.id,
-        subjectType: 'tenant',
-      }).catch(fastify.log.warn.bind(fastify.log));
+  // ─── upload-signed-contract ───────────────────────────────────────────────
+  fastify.post<{ Params: { id: string } }>(
+    '/admin/leads/:id/upload-signed-contract',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
 
-      notifyOwner(lead.ownerId, 'contract_signed', {
-        leadName: leadLabel,
-        tenantExternalId,
-      }).catch((err: unknown) =>
-        fastify.log.warn({ err }, 'Failed to notify owner on contract_signed'),
-      );
+      const contract = await prisma.contract.findFirst({
+        where: { leadId: id },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, code: true },
+      });
+      if (!contract) return reply.status(404).send({ error: 'No contract found for this lead' });
 
-      return reply.send({ success: true, tenantId: tenant.id, stage: 'converted' });
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ error: 'No file provided' });
+      if (data.mimetype !== 'application/pdf') {
+        return reply.status(400).send({ error: 'File must be a PDF' });
+      }
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const buf = Buffer.concat(chunks);
+
+      const path = `signed/${contract.id}/${contract.code}-assinado.pdf`;
+      const { error: uploadErr } = await supabase.storage.from('contracts').upload(path, buf, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+      if (uploadErr) {
+        return reply.status(500).send({ error: `Upload failed: ${uploadErr.message}` });
+      }
+
+      await prisma.contract.update({ where: { id: contract.id }, data: { signedPdfUrl: path } });
+
+      return reply.send({ success: true, signedPdfUrl: path });
     },
   );
 
@@ -1310,6 +1311,45 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(409).send({ error: 'Template is in use' });
       await prisma.contractTemplate.delete({ where: { id } });
       return reply.status(204).send();
+    },
+  );
+
+  // ─── import contract template from DOCX or PDF ───────────────────────────
+  fastify.post<{ Params: { id: string } }>(
+    '/admin/contract-templates/:id/import',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const template = await prisma.contractTemplate.findUnique({ where: { id }, select: { id: true } });
+      if (!template) return reply.status(404).send({ error: 'Template not found' });
+
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ error: 'No file provided' });
+
+      const isDocx = data.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        || data.filename?.endsWith('.docx');
+      const isPdf = data.mimetype === 'application/pdf' || data.filename?.endsWith('.pdf');
+
+      if (!isDocx && !isPdf) {
+        return reply.status(400).send({ error: 'File must be .docx or .pdf' });
+      }
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const buf = Buffer.concat(chunks);
+
+      let body: string;
+      if (isDocx) {
+        const result = await mammoth.extractRawText({ buffer: buf });
+        body = result.value;
+      } else {
+        const result = await pdfParse(buf);
+        body = result.text;
+      }
+
+      await prisma.contractTemplate.update({ where: { id }, data: { body } });
+      return reply.send({ success: true, chars: body.length });
     },
   );
 

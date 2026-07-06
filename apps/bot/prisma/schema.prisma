@@ -305,6 +305,7 @@ model Contract {
   body        String
   status      String           @default("active")
   pdfUrl      String?
+  signedPdfUrl String?
   startDate   DateTime?
   endDate     DateTime?
   monthlyRent Decimal

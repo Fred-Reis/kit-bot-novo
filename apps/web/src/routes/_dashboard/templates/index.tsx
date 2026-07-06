@@ -323,6 +323,7 @@ function EditorPanel({ templateId }: { templateId: string }) {
 
 function TemplatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
   const { data: templates = [] } = useQuery({
@@ -342,6 +343,19 @@ function TemplatesPage() {
     onError: () => toast.error('Falha ao criar template'),
   });
 
+  const importMutation = useMutation({
+    mutationFn: (file: File) => {
+      if (!activeId) throw new Error('Selecione um template primeiro');
+      return adminApi.importContractTemplate(activeId, file);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contract-templates'] });
+      if (activeId) qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
+      toast.success('Template importado com sucesso');
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao importar template'),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteContractTemplate(id),
     onSuccess: () => {
@@ -359,10 +373,26 @@ function TemplatesPage() {
         subtitle="Contratos e documentos"
         actions={
           <div className="flex gap-2">
-            <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
+            <CustomButton
+              variant="secondary"
+              size="sm"
+              disabled={!activeId || importMutation.isPending}
+              onClick={() => importRef.current?.click()}
+            >
               <Upload className="size-4" />
-              Importar .docx
+              {importMutation.isPending ? 'Importando…' : 'Importar .docx / PDF'}
             </CustomButton>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) importMutation.mutate(file);
+                e.target.value = '';
+              }}
+            />
             <CustomButton
               variant="primary"
               size="sm"
