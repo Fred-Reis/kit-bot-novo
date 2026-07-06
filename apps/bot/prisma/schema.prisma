@@ -282,6 +282,7 @@ model ContractTemplate {
   name       String
   body       String     @default("")
   status     String     @default("draft")
+  isDefault  Boolean    @default(false)
   contracts  Contract[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt

@@ -5,6 +5,7 @@ export interface ContractTemplate {
   name: string;
   body: string;
   status: 'draft' | 'published';
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
