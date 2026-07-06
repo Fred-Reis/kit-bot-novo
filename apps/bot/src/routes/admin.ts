@@ -2,7 +2,8 @@ import { Prisma } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import type { FastifyInstance } from 'fastify';
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
+// Import from lib to bypass module.parent debug runner — crashes in Bun runtime
+import pdfParse from 'pdf-parse/lib/pdf-parse';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
@@ -20,7 +21,12 @@ const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 const MONTH_REGEX = /^\d{4}-\d{2}$/;
 const TEMPLATE_VAR_RE = /\{\{([^}]+)\}\}/g;
 const formatDatePtBR = (d: Date): string =>
-  d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' });
+  d.toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
 function uniquePlaceholders(text: string): string[] {
   return [...new Set([...text.matchAll(TEMPLATE_VAR_RE)].map((m) => m[0]))];
@@ -30,12 +36,22 @@ const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(
 
 function buildLeadAutoMap(
   lead: { name: string | null; phone: string },
-  property: { name: string; address: string; complement: string | null; neighborhood: string; rent: unknown; deposit: unknown; contractMonths: number | null; owner?: { name: string } | null },
+  property: {
+    name: string;
+    address: string;
+    complement: string | null;
+    neighborhood: string;
+    rent: unknown;
+    deposit: unknown;
+    contractMonths: number | null;
+    owner?: { name: string } | null;
+  },
   paymentDayOfMonth: number,
   cpf: string | null,
   rg: string | null = null,
 ): Record<string, string> {
-  const fmt = (n: unknown) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = (n: unknown) =>
+    Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const today = new Date();
   const months = property.contractMonths ?? 12;
   const endDate = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
@@ -160,10 +176,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { notificationPhone, notificationEmail } = request.body;
 
-      if (notificationPhone != null && notificationPhone !== '' && !E164_RE.test(notificationPhone)) {
-        return reply.status(400).send({ error: 'notificationPhone must be in E.164 format (e.g. +5511999999999)' });
+      if (
+        notificationPhone != null &&
+        notificationPhone !== '' &&
+        !E164_RE.test(notificationPhone)
+      ) {
+        return reply
+          .status(400)
+          .send({ error: 'notificationPhone must be in E.164 format (e.g. +5511999999999)' });
       }
-      if (notificationEmail != null && notificationEmail !== '' && !EMAIL_RE.test(notificationEmail)) {
+      if (
+        notificationEmail != null &&
+        notificationEmail !== '' &&
+        !EMAIL_RE.test(notificationEmail)
+      ) {
         return reply.status(400).send({ error: 'notificationEmail must be a valid email address' });
       }
 
@@ -176,8 +202,10 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       await prisma.owner.update({ where: { id: owner.id }, data });
       return reply.send({
-        notificationPhone: notificationPhone !== undefined ? data.notificationPhone : owner.notificationPhone,
-        notificationEmail: notificationEmail !== undefined ? data.notificationEmail : owner.notificationEmail,
+        notificationPhone:
+          notificationPhone !== undefined ? data.notificationPhone : owner.notificationPhone,
+        notificationEmail:
+          notificationEmail !== undefined ? data.notificationEmail : owner.notificationEmail,
       });
     },
   );
@@ -301,7 +329,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (count === 0) {
         const exists = await prisma.lead.findUnique({ where: { id }, select: { id: true } });
         if (!exists) return reply.status(404).send({ error: 'Lead not found' });
-        return reply.status(409).send({ error: archived ? 'Lead already archived' : 'Lead not archived' });
+        return reply
+          .status(409)
+          .send({ error: archived ? 'Lead already archived' : 'Lead not archived' });
       }
 
       const updated = await prisma.lead.findUnique({ where: { id } });
@@ -368,180 +398,213 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get<{
     Params: { id: string };
     Querystring: { paymentDayOfMonth?: string };
-  }>('/admin/leads/:id/contract-variables', { preHandler: verifyAdminJwt }, async (request, reply) => {
-    const { id } = request.params;
-    const paymentDayOfMonth = clampPaymentDay(request.query.paymentDayOfMonth);
+  }>(
+    '/admin/leads/:id/contract-variables',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const paymentDayOfMonth = clampPaymentDay(request.query.paymentDayOfMonth);
 
-    const lead = await prisma.lead.findUnique({
-      where: { id },
-      select: { phone: true, name: true, propertyId: true, documents: { select: { ocrText: true } } },
-    });
-    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
-    if (!lead.propertyId) return reply.status(409).send({ error: 'Lead has no associated property' });
+      const lead = await prisma.lead.findUnique({
+        where: { id },
+        select: {
+          phone: true,
+          name: true,
+          propertyId: true,
+          documents: { select: { ocrText: true } },
+        },
+      });
+      if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+      if (!lead.propertyId)
+        return reply.status(409).send({ error: 'Lead has no associated property' });
 
-    const [property, template] = await Promise.all([
-      prisma.property.findUnique({
-        where: { id: lead.propertyId },
-        include: { owner: true },
-      }),
-      prisma.contractTemplate.findFirst({
-        where: { status: 'published' },
-        orderBy: { updatedAt: 'desc' },
-      }),
-    ]);
+      const [property, template] = await Promise.all([
+        prisma.property.findUnique({
+          where: { id: lead.propertyId },
+          include: { owner: true },
+        }),
+        prisma.contractTemplate.findFirst({
+          where: { status: 'published' },
+          orderBy: { updatedAt: 'desc' },
+        }),
+      ]);
 
-    if (!template) return reply.send({ unresolved: [], hasTemplate: false });
-    if (!property) return reply.send({ unresolved: [], hasTemplate: true });
+      if (!template) return reply.send({ unresolved: [], hasTemplate: false });
+      if (!property) return reply.send({ unresolved: [], hasTemplate: true });
 
-    const cpf = extractCpfFromDocs(lead.documents);
-    const rg = extractRgFromDocs(lead.documents);
-    const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
-    const unresolved = uniquePlaceholders(template.body).filter(
-      (p) => !(normalizeLookupText(p.slice(2, -2)) in autoMap),
-    );
+      const cpf = extractCpfFromDocs(lead.documents);
+      const rg = extractRgFromDocs(lead.documents);
+      const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
+      const unresolved = uniquePlaceholders(template.body).filter(
+        (p) => !(normalizeLookupText(p.slice(2, -2)) in autoMap),
+      );
 
-    return reply.send({ unresolved, hasTemplate: true, templateName: template.name });
-  });
+      return reply.send({ unresolved, hasTemplate: true, templateName: template.name });
+    },
+  );
 
   // ─── approve-kyc ──────────────────────────────────────────────────────────
   fastify.post<{
     Params: { id: string };
     Body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> };
-  }>(
-    '/admin/leads/:id/approve-kyc',
-    { preHandler: verifyAdminJwt },
-    async (request, reply) => {
-      const { id } = request.params;
-      const { paymentDayOfMonth, manualVariables = {} } = request.body;
+  }>('/admin/leads/:id/approve-kyc', { preHandler: verifyAdminJwt }, async (request, reply) => {
+    const { id } = request.params;
+    const { paymentDayOfMonth, manualVariables = {} } = request.body;
 
-      if (!Number.isInteger(paymentDayOfMonth) || paymentDayOfMonth < 1 || paymentDayOfMonth > 28) {
-        return reply.status(400).send({ error: 'paymentDayOfMonth must be an integer between 1 and 28' });
-      }
+    if (!Number.isInteger(paymentDayOfMonth) || paymentDayOfMonth < 1 || paymentDayOfMonth > 28) {
+      return reply
+        .status(400)
+        .send({ error: 'paymentDayOfMonth must be an integer between 1 and 28' });
+    }
 
-      const lead = await prisma.lead.findUnique({
-        where: { id },
-        select: {
-          phone: true, name: true, stage: true, ownerId: true, propertyId: true,
-          documents: { select: { ocrText: true } },
-        },
+    const lead = await prisma.lead.findUnique({
+      where: { id },
+      select: {
+        phone: true,
+        name: true,
+        stage: true,
+        ownerId: true,
+        propertyId: true,
+        documents: { select: { ocrText: true } },
+      },
+    });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+    if (lead.stage !== 'kyc_pending') {
+      return reply
+        .status(409)
+        .send({ error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'` });
+    }
+    if (!lead.propertyId) {
+      return reply.status(409).send({ error: 'Lead has no associated property' });
+    }
+
+    const [property, template] = await Promise.all([
+      prisma.property.findUnique({ where: { id: lead.propertyId }, include: { owner: true } }),
+      prisma.contractTemplate.findFirst({
+        where: { status: 'published' },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+    if (!property) return reply.status(404).send({ error: 'Property not found' });
+    if (!template) {
+      return reply.status(409).send({
+        error: 'No published contract template found. Publish a template before approving KYC.',
       });
-      if (!lead) return reply.status(404).send({ error: 'Lead not found' });
-      if (lead.stage !== 'kyc_pending') {
-        return reply.status(409).send({ error: `Lead is in stage '${lead.stage}', expected 'kyc_pending'` });
+    }
+
+    // Atomically claim the stage — prevents duplicate contracts on retries or concurrent requests
+    const { count } = await prisma.lead.updateMany({
+      where: { id, stage: 'kyc_pending' },
+      data: { stage: 'contract_pending' },
+    });
+    if (count === 0) {
+      return reply.status(409).send({ error: `Lead is already past 'kyc_pending' stage` });
+    }
+
+    const cpf = extractCpfFromDocs(lead.documents);
+    const rg = extractRgFromDocs(lead.documents);
+    const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
+
+    let body = template.body;
+    for (const placeholder of uniquePlaceholders(template.body)) {
+      const key = normalizeLookupText(placeholder.slice(2, -2));
+      if (key in autoMap) body = body.replaceAll(placeholder, autoMap[key]);
+    }
+    for (const [placeholder, value] of Object.entries(manualVariables)) {
+      body = body.replaceAll(placeholder, value === null ? '' : value);
+    }
+    body = body.replace(/\{\{[^}]+\}\}/g, 'N/A');
+
+    const contractCode = await nextExternalId('contract');
+    const contractMonths = property.contractMonths ?? 12;
+    const startDate = new Date();
+    const endDate = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth() + contractMonths,
+      startDate.getDate(),
+    );
+
+    const contract = await prisma.contract.create({
+      data: {
+        code: contractCode,
+        ownerId: lead.ownerId,
+        templateId: template.id,
+        leadId: id,
+        propertyId: lead.propertyId,
+        body,
+        status: 'draft',
+        monthlyRent: property.rent,
+        startDate,
+        endDate,
+      },
+    });
+
+    let pdfPath: string | null = null;
+    let pdfBase64: string | null = null;
+    try {
+      pdfPath = await generateAndUploadPdf(contract.id, body, contractCode);
+      await prisma.contract.update({ where: { id: contract.id }, data: { pdfUrl: pdfPath } });
+
+      // Download bytes to send as base64 — avoids Evolution API's waUploadToServer bug
+      // that occurs when it tries to fetch an external URL.
+      const { data: blob, error: dlErr } = await supabase.storage
+        .from('contracts')
+        .download(pdfPath);
+      if (!dlErr && blob) {
+        const buf = Buffer.from(await blob.arrayBuffer());
+        pdfBase64 = buf.toString('base64');
       }
-      if (!lead.propertyId) {
-        return reply.status(409).send({ error: 'Lead has no associated property' });
-      }
+    } catch (pdfErr) {
+      fastify.log.error(
+        { err: pdfErr, contractId: contract.id },
+        'PDF generation failed — contract saved, no file sent',
+      );
+    }
 
-      const [property, template] = await Promise.all([
-        prisma.property.findUnique({ where: { id: lead.propertyId }, include: { owner: true } }),
-        prisma.contractTemplate.findFirst({ where: { status: 'published' }, orderBy: { updatedAt: 'desc' } }),
-      ]);
-      if (!property) return reply.status(404).send({ error: 'Property not found' });
-      if (!template) {
-        return reply.status(409).send({
-          error: 'No published contract template found. Publish a template before approving KYC.',
-        });
-      }
-
-      // Atomically claim the stage — prevents duplicate contracts on retries or concurrent requests
-      const { count } = await prisma.lead.updateMany({
-        where: { id, stage: 'kyc_pending' },
-        data: { stage: 'contract_pending' },
-      });
-      if (count === 0) {
-        return reply.status(409).send({ error: `Lead is already past 'kyc_pending' stage` });
-      }
-
-      const cpf = extractCpfFromDocs(lead.documents);
-      const rg = extractRgFromDocs(lead.documents);
-      const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
-
-      let body = template.body;
-      for (const placeholder of uniquePlaceholders(template.body)) {
-        const key = normalizeLookupText(placeholder.slice(2, -2));
-        if (key in autoMap) body = body.replaceAll(placeholder, autoMap[key]);
-      }
-      for (const [placeholder, value] of Object.entries(manualVariables)) {
-        body = body.replaceAll(placeholder, value === null ? '' : value);
-      }
-      body = body.replace(/\{\{[^}]+\}\}/g, 'N/A');
-
-      const contractCode = await nextExternalId('contract');
-      const contractMonths = property.contractMonths ?? 12;
-      const startDate = new Date();
-      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + contractMonths, startDate.getDate());
-
-      const contract = await prisma.contract.create({
-        data: {
-          code: contractCode,
-          ownerId: lead.ownerId,
-          templateId: template.id,
-          leadId: id,
-          propertyId: lead.propertyId,
-          body,
-          status: 'draft',
-          monthlyRent: property.rent,
-          startDate,
-          endDate,
-        },
-      });
-
-      let pdfPath: string | null = null;
-      let pdfBase64: string | null = null;
-      try {
-        pdfPath = await generateAndUploadPdf(contract.id, body, contractCode);
-        await prisma.contract.update({ where: { id: contract.id }, data: { pdfUrl: pdfPath } });
-
-        // Download bytes to send as base64 — avoids Evolution API's waUploadToServer bug
-        // that occurs when it tries to fetch an external URL.
-        const { data: blob, error: dlErr } = await supabase.storage.from('contracts').download(pdfPath);
-        if (!dlErr && blob) {
-          const buf = Buffer.from(await blob.arrayBuffer());
-          pdfBase64 = buf.toString('base64');
-        }
-      } catch (pdfErr) {
-        fastify.log.error({ err: pdfErr, contractId: contract.id }, 'PDF generation failed — contract saved, no file sent');
-      }
-
-      if (pdfBase64) {
-        sendMedia(lead.phone, 'document', pdfBase64,
-          'Segue seu contrato para revisão. Qualquer dúvida, é só chamar!',
-          `${contractCode}.pdf`,
-        ).then(() =>
-          sendText(lead.phone,
+    if (pdfBase64) {
+      sendMedia(
+        lead.phone,
+        'document',
+        pdfBase64,
+        'Segue seu contrato para revisão. Qualquer dúvida, é só chamar!',
+        `${contractCode}.pdf`,
+      )
+        .then(() =>
+          sendText(
+            lead.phone,
             'Para confirmar sua locação, assine o contrato e envie de volta aqui no WhatsApp com a mensagem: *Contrato assinado*.',
           ),
-        ).catch((err) => fastify.log.warn({ err }, 'Failed to send contract PDF to lead'));
-      } else {
-        sendText(lead.phone,
-          '✅ KYC aprovado! Seu contrato está sendo preparado e você receberá em breve. Qualquer dúvida, é só chamar.',
-        ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after KYC approval'));
-      }
+        )
+        .catch((err) => fastify.log.warn({ err }, 'Failed to send contract PDF to lead'));
+    } else {
+      sendText(
+        lead.phone,
+        '✅ KYC aprovado! Seu contrato está sendo preparado e você receberá em breve. Qualquer dúvida, é só chamar.',
+      ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after KYC approval'));
+    }
 
-      logActivityHelper({
-        actorType: 'user',
-        actorLabel: request.adminUserId ?? 'admin',
-        ownerId: lead.ownerId,
-        action: 'kyc_approved',
-        subject: lead.name ?? lead.phone,
-        subjectId: id,
-        subjectType: 'lead',
-      }).catch(fastify.log.warn.bind(fastify.log));
+    logActivityHelper({
+      actorType: 'user',
+      actorLabel: request.adminUserId ?? 'admin',
+      ownerId: lead.ownerId,
+      action: 'kyc_approved',
+      subject: lead.name ?? lead.phone,
+      subjectId: id,
+      subjectType: 'lead',
+    }).catch(fastify.log.warn.bind(fastify.log));
 
-      logActivityHelper({
-        actorType: 'user',
-        actorLabel: request.adminUserId ?? 'admin',
-        ownerId: lead.ownerId,
-        action: 'contract_created',
-        subject: contractCode,
-        subjectId: contract.id,
-        subjectType: 'contract',
-      }).catch(fastify.log.warn.bind(fastify.log));
+    logActivityHelper({
+      actorType: 'user',
+      actorLabel: request.adminUserId ?? 'admin',
+      ownerId: lead.ownerId,
+      action: 'contract_created',
+      subject: contractCode,
+      subjectId: contract.id,
+      subjectType: 'contract',
+    }).catch(fastify.log.warn.bind(fastify.log));
 
-      return reply.send({ success: true, contractId: contract.id, stage: 'contract_pending' });
-    },
-  );
+    return reply.send({ success: true, contractId: contract.id, stage: 'contract_pending' });
+  });
 
   // ─── invalidate-property-cache ────────────────────────────────────────────
   fastify.put<{ Params: { id: string } }>(
@@ -643,13 +706,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const today = new Date();
-      const finalBody = contract.body.replace(/A ser preenchida na assinatura/g, formatDatePtBR(today));
+      const finalBody = contract.body.replace(
+        /A ser preenchida na assinatura/g,
+        formatDatePtBR(today),
+      );
       let finalPdfPath: string | undefined;
       let finalPdfSignedUrl: string | null = null;
 
       try {
         finalPdfPath = await generateAndUploadPdf(contract.id, finalBody, contract.code);
-        const { data, error } = await supabase.storage.from('contracts').createSignedUrl(finalPdfPath, 3600);
+        const { data, error } = await supabase.storage
+          .from('contracts')
+          .createSignedUrl(finalPdfPath, 3600);
         if (!error) finalPdfSignedUrl = data.signedUrl;
       } catch (pdfErr) {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
@@ -665,12 +733,16 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       });
 
       if (finalPdfSignedUrl) {
-        sendMedia(lead.phone, 'document', finalPdfSignedUrl,
+        sendMedia(
+          lead.phone,
+          'document',
+          finalPdfSignedUrl,
           '✅ Contrato assinado! Aqui está sua cópia com a data de início preenchida.',
         ).catch((err) => fastify.log.warn({ err }, 'Failed to send signed contract to lead'));
       } else {
-        sendText(lead.phone, '✅ Contrato assinado! Em breve você receberá sua cópia.')
-          .catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after contract signing'));
+        sendText(lead.phone, '✅ Contrato assinado! Em breve você receberá sua cópia.').catch(
+          (err) => fastify.log.warn({ err }, 'Failed to notify lead after contract signing'),
+        );
       }
 
       return reply.send({ success: true, tenantId, tenantExternalId, stage: 'converted' });
@@ -699,7 +771,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const chunks: Buffer[] = [];
       for await (const chunk of data.file) chunks.push(chunk);
-      if (data.file.truncated) return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
+      if (data.file.truncated)
+        return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
       const buf = Buffer.concat(chunks);
 
       const path = `signed/${contract.id}/${contract.code}-assinado.pdf`;
@@ -1353,14 +1426,19 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { id } = request.params;
 
-      const template = await prisma.contractTemplate.findUnique({ where: { id }, select: { id: true } });
+      const template = await prisma.contractTemplate.findUnique({
+        where: { id },
+        select: { id: true },
+      });
       if (!template) return reply.status(404).send({ error: 'Template not found' });
 
       const data = await request.file();
       if (!data) return reply.status(400).send({ error: 'No file provided' });
 
-      const isDocx = data.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        || data.filename?.endsWith('.docx');
+      const isDocx =
+        data.mimetype ===
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        data.filename?.endsWith('.docx');
       const isPdf = data.mimetype === 'application/pdf' || data.filename?.endsWith('.pdf');
 
       if (!isDocx && !isPdf) {
@@ -1369,7 +1447,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
       const chunks: Buffer[] = [];
       for await (const chunk of data.file) chunks.push(chunk);
-      if (data.file.truncated) return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
+      if (data.file.truncated)
+        return reply.status(413).send({ error: 'File too large (limit: 10 MB)' });
       const buf = Buffer.concat(chunks);
 
       let body: string;
@@ -1382,11 +1461,15 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           body = result.text;
         }
       } catch {
-        return reply.status(422).send({ error: 'Could not extract text from file. Ensure it is a valid .docx or .pdf.' });
+        return reply
+          .status(422)
+          .send({ error: 'Could not extract text from file. Ensure it is a valid .docx or .pdf.' });
       }
 
       if (!body.trim()) {
-        return reply.status(422).send({ error: 'Extracted text is empty. File may be image-based or encrypted.' });
+        return reply
+          .status(422)
+          .send({ error: 'Extracted text is empty. File may be image-based or encrypted.' });
       }
 
       await prisma.contractTemplate.update({ where: { id }, data: { body } });
@@ -1751,7 +1834,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     const { leadId, propertyId, scheduledVisitAt, note } = request.body;
 
     if (!leadId || !propertyId || !scheduledVisitAt) {
-      return reply.status(400).send({ error: 'leadId, propertyId and scheduledVisitAt are required' });
+      return reply
+        .status(400)
+        .send({ error: 'leadId, propertyId and scheduledVisitAt are required' });
     }
 
     const visitDate = new Date(scheduledVisitAt);
@@ -1773,11 +1858,18 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(409).send({ error: 'Cannot schedule visit for archived lead' });
     }
     const STAGES_PAST_VISITING = new Set([
-      'collection', 'kyc_pending', 'kyc_approved', 'residents_docs_complete',
-      'contract_pending', 'contract_signed', 'converted',
+      'collection',
+      'kyc_pending',
+      'kyc_approved',
+      'residents_docs_complete',
+      'contract_pending',
+      'contract_signed',
+      'converted',
     ]);
     if (STAGES_PAST_VISITING.has(lead.stage)) {
-      return reply.status(409).send({ error: 'Cannot schedule visit: lead is already past the visiting stage' });
+      return reply
+        .status(409)
+        .send({ error: 'Cannot schedule visit: lead is already past the visiting stage' });
     }
     if (!property || property.ownerId !== owner.id) {
       return reply.status(404).send({ error: 'Property not found' });
