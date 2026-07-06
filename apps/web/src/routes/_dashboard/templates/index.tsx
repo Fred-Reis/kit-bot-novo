@@ -461,7 +461,7 @@ function TemplatesPage() {
             <input
               ref={importRef}
               type="file"
-              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
