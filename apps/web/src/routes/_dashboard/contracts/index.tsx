@@ -38,7 +38,8 @@ function effectiveStatus(c: ContractSummary): ContractSummary['status'] {
   return daysLeft <= 60 ? 'renewal' : 'active';
 }
 
-function formatDateRange(start: string, end: string | null): string {
+function formatDateRange(start: string | null, end: string | null): string {
+  if (!start) return '—';
   const fmt = (d: string) =>
     new Date(d).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' });
   return end ? `${fmt(start)} → ${fmt(end)}` : `${fmt(start)} → —`;
@@ -426,7 +427,7 @@ function ContractsPage() {
                     <td className="px-5 py-3.5 font-mono text-xs font-medium text-foreground">
                       {c.code}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-foreground">{c.tenant.name ?? '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-foreground">{c.tenant?.name ?? '—'}</td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground hidden md:table-cell">
                       {c.property.name}
                     </td>
