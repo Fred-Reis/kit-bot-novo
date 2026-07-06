@@ -1324,7 +1324,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const templates = await prisma.contractTemplate.findMany({
         select: {
           id: true,
-          code: true,
           name: true,
           status: true,
           updatedAt: true,
