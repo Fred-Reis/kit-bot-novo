@@ -335,6 +335,7 @@
 - [ ] Rules — aba Templates completos
 - [ ] Rules — aba Campos estruturados
 - [ ] Finance — aba Relatórios exportáveis
+- [ ] Templates — Variáveis globais: definir variáveis no nível do workspace (ex: nome da imobiliária, CNPJ, endereço) reutilizáveis em todos os templates sem redefinição; editor de variáveis globais nas Configurações; resolver automaticamente no `preview-contract` junto às variáveis locais do template
 
 ### Calendário de visitas
 
