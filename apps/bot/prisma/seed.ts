@@ -137,10 +137,10 @@ async function main() {
 
   // ─── Contract Templates ───────────────────────────────────────────────────
   const template = await prisma.contractTemplate.upsert({
-    where: { code: 'CT-01' },
+    where: { id: 'seed-template-ct-01' },
     update: { name: 'Contrato de Locação Residencial', status: 'published' },
     create: {
-      code: 'CT-01',
+      id: 'seed-template-ct-01',
       ownerId: oid,
       name: 'Contrato de Locação Residencial',
       status: 'published',
@@ -170,10 +170,10 @@ LOCADOR: {{nome_locador}}               LOCATÁRIO: {{nome_locatario}}`,
   })
 
   await prisma.contractTemplate.upsert({
-    where: { code: 'CT-02' },
+    where: { id: 'seed-template-ct-02' },
     update: {},
     create: {
-      code: 'CT-02',
+      id: 'seed-template-ct-02',
       ownerId: oid,
       name: 'Aditivo de Reajuste',
       status: 'draft',

@@ -35,7 +35,6 @@ Sentry.setupFastifyErrorHandler(fastify);
 
 const start = async () => {
   try {
-    await prisma.$executeRaw`CREATE SEQUENCE IF NOT EXISTS contract_template_code_seq START 1`;
     await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
     fastify.log.info(`Kit-bot running on port ${config.PORT}`);
   } catch (err) {
