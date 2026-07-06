@@ -97,22 +97,36 @@ export async function notifyOwner<T extends NotifyOwnerEventType>(
     }
 
     const { whatsapp, email } = buildChannelContent(eventType, payload);
-    const phone = owner.notificationPhone ?? owner.phone;
+    const rawPhone = owner.notificationPhone ?? owner.phone;
+    // Normalize to Evolution API format: strip leading + (E.164 → WhatsApp JID)
+    const phone = rawPhone ? rawPhone.replace(/^\+/, '') : null;
 
-    const sends: Promise<unknown>[] = [sendText(`${phone}@s.whatsapp.net`, whatsapp)];
+    const labeled: { label: string; promise: Promise<unknown> }[] = [];
+
+    if (!phone) {
+      logger.warn({ ownerId, eventType }, 'notifyOwner: no phone configured — skipping WhatsApp notification');
+    } else {
+      labeled.push({ label: 'whatsapp', promise: sendText(`${phone}@s.whatsapp.net`, whatsapp) });
+    }
 
     if (resend && owner.notificationEmail && email) {
-      sends.push(
-        resend.emails.send({
+      labeled.push({
+        label: 'email',
+        promise: resend.emails.send({
           from: 'kit-manager <notificacoes@kit-manager.app>',
           to: owner.notificationEmail,
           subject: email.subject,
           html: email.html,
         }),
-      );
+      });
     }
 
-    await Promise.all(sends);
+    const results = await Promise.allSettled(labeled.map((l) => l.promise));
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        logger.warn({ err: r.reason, channel: labeled[i]?.label }, 'notifyOwner: channel failed');
+      }
+    });
   } catch (err) {
     logger.error({ err }, 'notifyOwner failed (non-blocking)');
   }

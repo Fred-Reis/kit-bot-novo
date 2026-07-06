@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 import { FormField } from '@/components/form-field';
@@ -166,27 +166,89 @@ function IntegrationsSection() {
   );
 }
 
+function NotificationContactCard() {
+  const qc = useQueryClient();
+  const { data: owner } = useQuery({ queryKey: ['owner'], queryFn: fetchOwner });
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (owner) {
+      setPhone(owner.notificationPhone ?? '');
+      setEmail(owner.notificationEmail ?? '');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.id]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await adminApi.updateNotificationSettings({ notificationPhone: phone, notificationEmail: email });
+      void qc.invalidateQueries({ queryKey: ['owner'] });
+      toast.success('Configurações de notificação salvas.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Erro ao salvar configurações.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <SectionCard
+      title="Contato para notificações"
+      subtitle="Número e e-mail que recebem alertas de KYC, contratos e pagamentos em atraso."
+    >
+      <div className="space-y-3">
+        <FormField label="WhatsApp (somente dígitos, sem +55)">
+          <Input
+            placeholder="11999990000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </FormField>
+        <FormField label="E-mail">
+          <Input
+            type="email"
+            placeholder="voce@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </FormField>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <CustomButton variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Salvando…' : 'Salvar'}
+        </CustomButton>
+      </div>
+    </SectionCard>
+  );
+}
+
 function NotificationsSection() {
   const { notificationsEnabled, setNotificationsEnabled, autoRefresh, setAutoRefresh } =
     useUiStore();
 
   return (
-    <SectionCard title="Notificações" subtitle="Alertas e atualizações automáticas.">
-      <SettingRow label="Notificações ativas">
-        <Toggle
-          checked={notificationsEnabled}
-          onChange={setNotificationsEnabled}
-          aria-label="Alternar notificações"
-        />
-      </SettingRow>
-      <SettingRow label="Atualização automática">
-        <Toggle
-          checked={autoRefresh}
-          onChange={setAutoRefresh}
-          aria-label="Alternar atualização automática"
-        />
-      </SettingRow>
-    </SectionCard>
+    <div className="space-y-4">
+      <NotificationContactCard />
+      <SectionCard title="Interface" subtitle="Alertas e atualizações automáticas no painel.">
+        <SettingRow label="Notificações ativas">
+          <Toggle
+            checked={notificationsEnabled}
+            onChange={setNotificationsEnabled}
+            aria-label="Alternar notificações"
+          />
+        </SettingRow>
+        <SettingRow label="Atualização automática">
+          <Toggle
+            checked={autoRefresh}
+            onChange={setAutoRefresh}
+            aria-label="Alternar atualização automática"
+          />
+        </SettingRow>
+      </SectionCard>
+    </div>
   );
 }
 
