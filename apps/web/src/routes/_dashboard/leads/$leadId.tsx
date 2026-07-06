@@ -1,7 +1,7 @@
 import type { LeadDocument } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, FileText, X } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -9,7 +9,7 @@ import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
-import { fetchLead, fetchLeadContracts } from '@/lib/queries';
+import { fetchLead, fetchLeadContracts, fetchProperty } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
@@ -351,6 +351,12 @@ function LeadDetailPage() {
     queryFn: () => fetchLead(leadId),
   });
 
+  const { data: property } = useQuery({
+    queryKey: ['property', lead?.propertyId],
+    queryFn: () => fetchProperty(lead!.propertyId!),
+    enabled: !!lead?.propertyId,
+  });
+
   const togglePause = useMutation({
     mutationFn: (next: boolean) => adminApi.pauseLead(leadId, next),
     onSuccess: (_data, next) => {
@@ -482,6 +488,52 @@ function LeadDetailPage() {
       <div className="rounded-xl border border-border bg-surface-raised p-5">
         <StageStepper current={lead.stage} />
       </div>
+
+      {/* Property */}
+      {lead.propertyId && (
+        <div data-slot="property-card" className="rounded-xl border border-border bg-surface-raised p-5">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-sm font-medium text-foreground">Imóvel vinculado</h2>
+            {property && (
+              <Link
+                to="/properties/$propertyId"
+                params={{ propertyId: property.id }}
+                className="shrink-0 text-xs text-primary hover:underline"
+              >
+                Ver imóvel →
+              </Link>
+            )}
+          </div>
+          {property ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-xs text-foreground">
+                  {property.externalId}
+                </span>
+                <span className="text-sm font-medium text-foreground">{property.name}</span>
+              </div>
+              <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                <span>
+                  {property.address}
+                  {property.complement ? `, ${property.complement}` : ''} — {property.neighborhood}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Aluguel:{' '}
+                <span className="font-medium text-foreground">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(property.rent)}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-48 animate-pulse rounded bg-muted" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action buttons */}
       {lead.stage === 'kyc_pending' && (
