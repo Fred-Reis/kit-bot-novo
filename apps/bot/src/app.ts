@@ -3,6 +3,7 @@ import multipart from '@fastify/multipart';
 import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import { config } from '@/config';
+import { prisma } from '@/db/client';
 import adminAuthPlugin from '@/plugins/admin-auth';
 import { adminRoutes } from '@/routes/admin';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
@@ -34,6 +35,7 @@ Sentry.setupFastifyErrorHandler(fastify);
 
 const start = async () => {
   try {
+    await prisma.$executeRaw`CREATE SEQUENCE IF NOT EXISTS contract_template_code_seq START 1`;
     await fastify.listen({ port: config.PORT, host: '0.0.0.0' });
     fastify.log.info(`Kit-bot running on port ${config.PORT}`);
   } catch (err) {
