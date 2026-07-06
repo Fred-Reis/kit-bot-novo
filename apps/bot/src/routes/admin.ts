@@ -1359,8 +1359,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (!name) return reply.status(400).send({ error: 'name is required' });
       const owner = await prisma.owner.findFirst();
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
-      const count = await prisma.contractTemplate.count();
-      const code = `CT-AA-${String(count + 1).padStart(2, '0')}`;
+      const rows = await prisma.$queryRaw<[{ nextval: bigint }]>`SELECT nextval('contract_template_code_seq')`;
+      const code = `CT-AA-${String(Number(rows[0].nextval)).padStart(2, '0')}`;
       const template = await prisma.contractTemplate.create({
         data: { name, code, ownerId: owner.id },
       });
