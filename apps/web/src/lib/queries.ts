@@ -228,13 +228,13 @@ export async function fetchRuleSet(id: string): Promise<RuleSetDetail> {
 export async function fetchContractTemplates(): Promise<ContractTemplateSummary[]> {
   const { data, error } = await supabase
     .from('ContractTemplate')
-    .select('id, code, name, status, isDefault, updatedAt, contracts:Contract(count)')
+    .select('id, name, status, isDefault, updatedAt, contracts:Contract(count)')
     .order('updatedAt', { ascending: false });
   if (error) throw error;
   return (data ?? []).map((t) => {
     const { contracts, ...rest } = t as typeof t & { contracts: { count: number }[] };
     return { ...rest, usageCount: contracts[0]?.count ?? 0 };
-  }) as ContractTemplateSummary[];
+  }) as unknown as ContractTemplateSummary[];
 }
 
 export async function fetchContractTemplate(id: string): Promise<ContractTemplate> {
@@ -290,11 +290,11 @@ export async function fetchContract(id: string): Promise<ContractDetail> {
 export async function fetchPublishedTemplates(): Promise<ContractTemplateSummary[]> {
   const { data, error } = await supabase
     .from('ContractTemplate')
-    .select('id, code, name, status, updatedAt')
+    .select('id, name, status, updatedAt')
     .eq('status', 'published')
     .order('updatedAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((t) => ({ ...t, usageCount: 0 })) as ContractTemplateSummary[];
+  return (data ?? []).map((t) => ({ ...t, usageCount: 0 })) as unknown as ContractTemplateSummary[];
 }
 
 export async function fetchPropertyActivityLog(propertyId: string): Promise<ActivityLogEntry[]> {

@@ -50,7 +50,6 @@ function TemplateListItem({
             {template.status === 'published' ? 'Publ.' : 'Rasc.'}
           </Pill>
         </div>
-        <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{template.code}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           em uso · {template.usageCount} · atualizado{' '}
           {new Date(template.updatedAt).toLocaleDateString('pt-BR', {
@@ -235,34 +234,36 @@ function EditorPanel({ templateId }: { templateId: string }) {
       className="flex flex-col rounded-[10px] bg-surface-raised p-5"
       style={{ boxShadow: 'var(--shadow-sm)' }}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          {isRenaming ? (
-            <input
-              autoFocus
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') commitRename();
-                if (e.key === 'Escape') setIsRenaming(false);
-              }}
-              className="text-sm font-medium rounded border border-border bg-background px-1.5 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={startRename}
-              className="group flex items-center gap-1 min-w-0"
-              aria-label="Renomear template"
-            >
-              <h2 className="text-sm font-medium text-foreground truncate">{template.name}</h2>
-              <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
-          )}
-          <span className="font-mono text-[11px] text-muted-foreground shrink-0">
-            {template.code}
-          </span>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex flex-col min-w-0 gap-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            {isRenaming ? (
+              <input
+                autoFocus
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename();
+                  if (e.key === 'Escape') setIsRenaming(false);
+                }}
+                className="text-sm font-medium rounded border border-border bg-background px-1.5 py-0.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startRename}
+                className="group flex items-center gap-1 min-w-0"
+                aria-label="Renomear template"
+              >
+                <h2 className="text-sm font-medium text-foreground truncate">{template.name}</h2>
+                <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Atualizado em {new Date(template.updatedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <CustomButton variant="ghost" size="sm" onClick={() => setPreviewing((p) => !p)}>

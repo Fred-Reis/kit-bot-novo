@@ -278,7 +278,6 @@ model ContractTemplate {
   id         String     @id @default(uuid())
   ownerId    String
   owner      Owner      @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  code       String     @unique
   name       String
   body       String     @default("")
   status     String     @default("draft")
