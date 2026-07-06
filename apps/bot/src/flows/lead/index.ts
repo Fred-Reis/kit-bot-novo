@@ -248,7 +248,7 @@ export async function handleLeadMessage(
             });
             await sendText(
               chatId,
-              'Contrato recebido! ✅ Locação confirmada. Em breve entraremos em contato com você.',
+              'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
             );
             return;
           }
