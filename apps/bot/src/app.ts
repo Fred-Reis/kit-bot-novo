@@ -1,4 +1,5 @@
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import { config } from '@/config';
@@ -22,6 +23,7 @@ fastify.register(cors, {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 });
+fastify.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10 MB
 fastify.register(adminAuthPlugin);
 fastify.register(evolutionWebhookPlugin);
 fastify.register(adminRoutes);

@@ -396,6 +396,27 @@ export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLe
   return (data ?? []) as PropertyLeadSummary[];
 }
 
+export interface LeadContract {
+  id: string;
+  code: string;
+  status: string;
+  pdfUrl: string | null;
+  signedPdfUrl: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  monthlyRent: number;
+}
+
+export async function fetchLeadContracts(leadId: string): Promise<LeadContract[]> {
+  const { data, error } = await supabase
+    .from('Contract')
+    .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
+    .eq('leadId', leadId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as LeadContract[];
+}
+
 export interface VisitEntry {
   id: string;
   externalId: string | null;

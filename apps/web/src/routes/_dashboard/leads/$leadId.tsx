@@ -1,15 +1,16 @@
 import type { LeadDocument } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, Archive, CheckCircle, ChevronLeft, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, FileText, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
 import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
-import { fetchLead } from '@/lib/queries';
+import { fetchLead, fetchLeadContracts } from '@/lib/queries';
+import { supabase } from '@/lib/supabase';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -368,13 +369,26 @@ function LeadDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar origem.')),
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const markSigned = useMutation({
     mutationFn: () => adminApi.markContractSigned(leadId),
     onSuccess: () => {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
+  });
+
+  const uploadSigned = useMutation({
+    mutationFn: (file: File) => adminApi.uploadSignedContract(leadId, file),
+    onSuccess: () => {
+      toast.success('Contrato assinado anexado. Marcando como assinado…');
+      void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
+      markSigned.mutate();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao enviar contrato assinado.')),
   });
 
   const archiveMutation = useMutation({
@@ -479,15 +493,34 @@ function LeadDetailPage() {
         </div>
       )}
       {lead.stage === 'contract_pending' && (
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <CustomButton
             variant="primary"
-            disabled={markSigned.isPending}
+            disabled={markSigned.isPending || uploadSigned.isPending}
             onClick={() => markSigned.mutate()}
           >
             <CheckCircle className="size-4" />
             {markSigned.isPending ? 'Salvando…' : 'Marcar contrato assinado'}
           </CustomButton>
+          <CustomButton
+            variant="secondary"
+            disabled={uploadSigned.isPending || markSigned.isPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <FileText className="size-4" />
+            {uploadSigned.isPending ? 'Enviando…' : 'Anexar contrato assinado'}
+          </CustomButton>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadSigned.mutate(file);
+              e.target.value = '';
+            }}
+          />
         </div>
       )}
 
@@ -495,11 +528,86 @@ function LeadDetailPage() {
         <ApproveKycModal leadId={leadId} onClose={() => setShowApproveKycModal(false)} />
       )}
 
+      {/* Contracts */}
+      <LeadContractsSection leadId={leadId} />
+
       {/* Documents */}
       <div className="rounded-xl border border-border bg-surface-raised p-5">
         <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
         <DocGrid docs={lead.documents ?? []} />
       </div>
+    </div>
+  );
+}
+
+function LeadContractsSection({ leadId }: { leadId: string }) {
+  const { data: contracts = [], isLoading } = useQuery({
+    queryKey: ['lead-contracts', leadId],
+    queryFn: () => fetchLeadContracts(leadId),
+  });
+
+  if (!isLoading && contracts.length === 0) return null;
+
+  async function getSignedUrl(path: string): Promise<string | null> {
+    const { data, error } = await supabase.storage.from('contracts').createSignedUrl(path, 3600);
+    return error ? null : data.signedUrl;
+  }
+
+  async function openPdf(path: string) {
+    const url = await getSignedUrl(path);
+    if (url) window.open(url, '_blank');
+    else toast.error('Não foi possível abrir o arquivo.');
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-surface-raised p-5">
+      <h2 className="mb-4 text-sm font-medium text-foreground">Contrato</h2>
+      {isLoading ? (
+        <div className="space-y-2">
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+          <div className="h-10 animate-pulse rounded-lg bg-muted" />
+        </div>
+      ) : (
+      <div className="space-y-3">
+        {contracts.map((c) => (
+          <div key={c.id} className="space-y-2">
+            {c.pdfUrl && (
+              <button
+                type="button"
+                onClick={() => void openPdf(c.pdfUrl!)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-muted"
+              >
+                <FileText className="size-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">{c.code}.pdf</p>
+                  <p className="text-xs text-muted-foreground">Contrato emitido</p>
+                </div>
+                <Download className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            )}
+            {c.signedPdfUrl ? (
+              <button
+                type="button"
+                onClick={() => void openPdf(c.signedPdfUrl!)}
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-muted"
+              >
+                <FileText className="size-5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">{c.code}-assinado.pdf</p>
+                  <p className="text-xs text-muted-foreground">Contrato assinado</p>
+                </div>
+                <Download className="size-4 shrink-0 text-muted-foreground" />
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
+                <FileText className="size-5 shrink-0 text-muted-foreground/40" />
+                <p className="text-xs text-muted-foreground">Aguardando contrato assinado</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      )}
     </div>
   );
 }

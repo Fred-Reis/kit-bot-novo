@@ -29,6 +29,7 @@ import {
   summarizeProperty,
 } from '@/services/catalog';
 import { extractCpfFromDocs } from '@/services/cpf';
+import { finalizeContractSigning, uploadSignedContractPdf } from '@/services/contract-signing';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
 
@@ -208,6 +209,91 @@ export async function handleLeadMessage(
     // 6. Handle audio flag
     const audioReceived = mediaItems.some(isAudioMedia);
     context.audioReceived = audioReceived;
+
+    // 6b. Signed contract PDF detection — deterministic, before LLM
+    // If lead is in contract_pending and sends a PDF, treat it as the signed contract.
+    if (lead.stage === 'contract_pending') {
+      const pdfItem = mediaItems.find(
+        (item) => item.mime === 'application/pdf' && (item.base64 || item.url),
+      );
+      if (pdfItem) {
+        const contract = await prisma.contract.findFirst({
+          where: { leadId: lead.id, status: 'draft' },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, code: true },
+        });
+        if (contract) {
+          // Ensure we have a persisted storage URL before finalizing
+          let signedPdfUrl: string | undefined;
+          if (pdfItem.base64) {
+            try {
+              signedPdfUrl = await uploadSignedContractPdf(
+                contract.id,
+                pdfItem.base64,
+                `${contract.code}-assinado.pdf`,
+              );
+            } catch (uploadErr) {
+              logger.warn({ err: uploadErr }, '[lead.flow] Failed to upload signed contract PDF');
+            }
+          } else if (pdfItem.url) {
+            // PDF arrived as a media URL (no base64) — use the URL directly as reference
+            signedPdfUrl = pdfItem.url;
+          }
+
+          // Only proceed if we have a storage URL
+          if (!signedPdfUrl) {
+            logger.error('[lead.flow] No signed PDF URL available — cannot finalize contract');
+            await sendText(
+              chatId,
+              'Não foi possível processar o contrato. Por favor, tente enviar novamente.',
+            );
+            return;
+          }
+
+          try {
+            await finalizeContractSigning({
+              leadId: lead.id,
+              contractId: contract.id,
+              actorLabel: 'bot',
+              signedPdfUrl,
+            });
+          } catch (finalizeErr) {
+            logger.error({ err: finalizeErr }, '[lead.flow] finalizeContractSigning failed');
+            await sendText(
+              chatId,
+              'Ocorreu um erro ao processar seu contrato. Nossa equipe foi notificada e entrará em contato.',
+            );
+            return;
+          }
+
+          // Only mark lead as converted after successful finalization
+          await prisma.lead.updateMany({
+            where: { id: lead.id, stage: 'contract_pending' },
+            data: { stage: 'converted' },
+          });
+
+          await sendText(
+            chatId,
+            'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
+          );
+          return;
+        }
+      }
+
+      // Lead in contract_pending sent text with "contrato assinado" but no PDF
+      const normalizedText = normalizeIntentText(messageText);
+      if (
+        normalizedText.includes('contrato assinado') ||
+        normalizedText.includes('assinei o contrato') ||
+        normalizedText.includes('ja assinei')
+      ) {
+        await sendText(
+          chatId,
+          'Ótimo! Por favor, envie o contrato assinado aqui no WhatsApp como arquivo PDF. 📎',
+        );
+        return;
+      }
+    }
 
     // 7. Pipeline determinístico de documentos (zero LLM)
     const intake = await handleDocumentIntake(chatId, lead.id, ownerId, mediaItems);

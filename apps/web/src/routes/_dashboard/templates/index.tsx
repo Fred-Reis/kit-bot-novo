@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
-import { adminApi } from '@/lib/api';
+import { adminApi, apiErrorMessage } from '@/lib/api';
 import { fetchContractTemplate, fetchContractTemplates } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/templates/')({ component: TemplatesPage });
@@ -119,13 +119,13 @@ function EditorPanel({ templateId }: { templateId: string }) {
     queryFn: () => fetchContractTemplate(templateId),
   });
 
-  // Sync local state once per template load (not on every refetch)
+  // Sync local state when template id changes or body is updated from server
   useEffect(() => {
     if (!template) return;
     setBody(template.body);
     setVarOrder(extractVariables(template.body));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template?.id]);
+  }, [template?.id, template?.body]);
 
   const getEditorHtml = useCallback(
     (rawBody: string) =>
@@ -323,6 +323,8 @@ function EditorPanel({ templateId }: { templateId: string }) {
 
 function TemplatesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
+  const importRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
   const { data: templates = [] } = useQuery({
@@ -342,6 +344,20 @@ function TemplatesPage() {
     onError: () => toast.error('Falha ao criar template'),
   });
 
+  const importMutation = useMutation({
+    mutationFn: (file: File) => {
+      if (!activeId) throw new Error('Selecione um template primeiro');
+      return adminApi.importContractTemplate(activeId, file);
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['contract-templates'] });
+      if (activeId) await qc.invalidateQueries({ queryKey: ['contract-template', activeId] });
+      setEditorKey((k) => k + 1);
+      toast.success('Template importado com sucesso');
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Falha ao importar template')),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteContractTemplate(id),
     onSuccess: () => {
@@ -359,10 +375,26 @@ function TemplatesPage() {
         subtitle="Contratos e documentos"
         actions={
           <div className="flex gap-2">
-            <CustomButton variant="secondary" size="sm" onClick={() => toast.info('Em breve')}>
+            <CustomButton
+              variant="secondary"
+              size="sm"
+              disabled={!activeId || importMutation.isPending}
+              onClick={() => importRef.current?.click()}
+            >
               <Upload className="size-4" />
-              Importar .docx
+              {importMutation.isPending ? 'Importando…' : 'Importar .docx / PDF'}
             </CustomButton>
+            <input
+              ref={importRef}
+              type="file"
+              accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) importMutation.mutate(file);
+                e.target.value = '';
+              }}
+            />
             <CustomButton
               variant="primary"
               size="sm"
@@ -399,7 +431,7 @@ function TemplatesPage() {
         </div>
 
         {activeId ? (
-          <EditorPanel key={activeId} templateId={activeId} />
+          <EditorPanel key={`${activeId}-${editorKey}`} templateId={activeId} />
         ) : (
           <div className="flex items-center justify-center rounded-[10px] border border-border bg-surface-raised">
             <p className="text-sm text-muted-foreground">Selecione um template para editar.</p>
