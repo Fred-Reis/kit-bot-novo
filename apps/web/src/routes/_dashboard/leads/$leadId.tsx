@@ -149,6 +149,7 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
   const [varStates, setVarStates] = useState<Record<string, ManualVarState>>({});
   const [loadingVars, setLoadingVars] = useState(false);
   const [hasTemplate, setHasTemplate] = useState(true);
+  const [templateName, setTemplateName] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const clampedDay = Math.min(28, Math.max(1, day));
@@ -182,6 +183,7 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
         mutation.mutate(undefined);
         return;
       }
+      setTemplateName(data.templateName ?? null);
       setVarStates(defaultVarStates(data.unresolved));
       setUnresolved(data.unresolved);
       setStep(2);
@@ -199,7 +201,7 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
     >
       <div
         data-slot="modal"
-        className="flex w-full max-w-sm flex-col max-h-[85vh] rounded-xl border border-border bg-surface-raised shadow-lg"
+        className="flex w-full max-w-lg flex-col max-h-[85vh] rounded-xl border border-border bg-surface-raised shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
         {step === 1 ? (
@@ -241,6 +243,12 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <h2 className="text-base font-semibold text-foreground">Variáveis pendentes</h2>
+                  {templateName && (
+                    <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+                      Template:{' '}
+                      <span className="text-foreground">{templateName}</span>
+                    </p>
+                  )}
                   <p className="mt-1 text-sm text-muted-foreground">
                     As seguintes variáveis não foram preenchidas automaticamente:
                   </p>

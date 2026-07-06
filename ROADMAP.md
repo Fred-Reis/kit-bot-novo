@@ -354,6 +354,11 @@
 - [ ] **Cron de limpeza de `Event`:** deletar rows da tabela `Event` (histórico de conversa) com mais de N meses para leads em estágio terminal (`converted`, `archived`) — N a definir com base no custo real de armazenamento Supabase.
 - [ ] **Política documentada:** definir regra de retenção por tipo de dado (Event, LeadDocument, ActivityLog) antes de implementar o cron.
 
+### Perfil do proprietário para contratos
+
+- [ ] **`Owner` — campos para auto-preenchimento de contrato:** adicionar campos `ownerName`, `ownerCpf`, `ownerAddress`, `ownerCnpj` (opcional) na tabela `Owner`; CRUD em Config > Workspace no painel admin; `getContractVariables` usa esses campos para resolver variáveis do tipo `{{nome_locador}}`, `{{cpf_locador}}`, `{{endereco_locador}}` etc.
+- [ ] **Auto-fill de variáveis no modal "Aprovar KYC":** o endpoint `GET /admin/leads/:id/contract-variables` já auto-mapeia dados do lead e do imóvel; estender para incluir dados do `Owner` (locador) e dados do imóvel (endereço, bairro, valor, prazo); modal só exibe variáveis que realmente não foram resolvidas automaticamente — lista vazia deve resultar em aprovação direta sem abrir step 2.
+
 ### Bot — features pendentes
 
 - [x] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.

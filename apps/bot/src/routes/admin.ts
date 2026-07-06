@@ -7,7 +7,7 @@ import { redis } from '@/db/redis';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
-import { extractCpfFromDocs } from '@/services/cpf';
+import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { notifyOwner } from '@/services/notify';
@@ -28,25 +28,53 @@ const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(
 
 function buildLeadAutoMap(
   lead: { name: string | null; phone: string },
-  property: { name: string; address: string; complement: string | null; neighborhood: string; rent: unknown; deposit: unknown; owner?: { name: string } | null },
+  property: { name: string; address: string; complement: string | null; neighborhood: string; rent: unknown; deposit: unknown; contractMonths: number | null; owner?: { name: string } | null },
   paymentDayOfMonth: number,
   cpf: string | null,
+  rg: string | null = null,
 ): Record<string, string> {
   const fmt = (n: unknown) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const today = new Date();
+  const months = property.contractMonths ?? 12;
+  const endDate = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
+  const fullAddress = [property.address, property.complement].filter(Boolean).join(', ');
+  const ownerName = property.owner?.name ?? '';
+  const rentFmt = fmt(property.rent);
+  const depositFmt = fmt(property.deposit);
+
   return {
+    // locatário
     locatario: lead.name ?? lead.phone,
+    nome_locatario: lead.name ?? lead.phone,
     ...(cpf !== null ? { cpf_locatario: cpf } : {}),
+    ...(rg !== null ? { rg_locatario: rg } : {}),
     telefone_locatario: lead.phone,
-    locador: property.owner?.name ?? '',
+    // locador
+    locador: ownerName,
+    nome_locador: ownerName,
+    // imóvel
     imovel: property.name,
-    endereco: [property.address, property.complement].filter(Boolean).join(', '),
+    nome_imovel: property.name,
+    endereco: fullAddress,
+    endereco_imovel: fullAddress,
+    complemento_imovel: property.complement ?? '',
     bairro: property.neighborhood,
-    aluguel: fmt(property.rent),
-    deposito: fmt(property.deposit),
+    bairro_imovel: property.neighborhood,
+    // valores
+    aluguel: rentFmt,
+    valor_aluguel: rentFmt,
+    deposito: depositFmt,
+    caucao: depositFmt,
+    valor_caucao: depositFmt,
+    // prazo e datas
+    prazo_meses: String(months),
+    prazo: String(months),
     data_hoje: formatDatePtBR(today),
+    data_inicio: formatDatePtBR(today),
+    data_termino: formatDatePtBR(endDate),
     data_assinatura: 'A ser preenchida na assinatura',
     vencimento: String(paymentDayOfMonth),
+    dia_vencimento: String(paymentDayOfMonth),
   };
 }
 
@@ -332,12 +360,13 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     if (!property) return reply.send({ unresolved: [], hasTemplate: true });
 
     const cpf = extractCpfFromDocs(lead.documents);
-    const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf);
+    const rg = extractRgFromDocs(lead.documents);
+    const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
     const unresolved = uniquePlaceholders(template.body).filter(
       (p) => !(normalizeLookupText(p.slice(2, -2)) in autoMap),
     );
 
-    return reply.send({ unresolved, hasTemplate: true });
+    return reply.send({ unresolved, hasTemplate: true, templateName: template.name });
   });
 
   // ─── approve-kyc ──────────────────────────────────────────────────────────
@@ -391,7 +420,8 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const cpf = extractCpfFromDocs(lead.documents);
-      const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf);
+      const rg = extractRgFromDocs(lead.documents);
+      const autoMap = buildLeadAutoMap(lead, property, paymentDayOfMonth, cpf, rg);
 
       let body = template.body;
       for (const placeholder of uniquePlaceholders(template.body)) {
@@ -404,6 +434,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       body = body.replace(/\{\{[^}]+\}\}/g, 'N/A');
 
       const contractCode = await nextExternalId('contract');
+      const contractMonths = property.contractMonths ?? 12;
+      const startDate = new Date();
+      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + contractMonths, startDate.getDate());
 
       const contract = await prisma.contract.create({
         data: {
@@ -415,24 +448,36 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           body,
           status: 'draft',
           monthlyRent: property.rent,
+          startDate,
+          endDate,
         },
       });
 
-      const pdfPath = await generateAndUploadPdf(contract.id, body, contractCode);
+      let pdfPath: string | null = null;
+      let pdfBase64: string | null = null;
+      try {
+        pdfPath = await generateAndUploadPdf(contract.id, body, contractCode);
+        await prisma.contract.update({ where: { id: contract.id }, data: { pdfUrl: pdfPath } });
 
-      const [, { data: signedUrlData }] = await Promise.all([
-        prisma.contract.update({ where: { id: contract.id }, data: { pdfUrl: pdfPath } }),
-        supabase.storage.from('contracts').createSignedUrl(pdfPath, 3600),
-      ]);
+        // Download bytes to send as base64 — avoids Evolution API's waUploadToServer bug
+        // that occurs when it tries to fetch an external URL.
+        const { data: blob, error: dlErr } = await supabase.storage.from('contracts').download(pdfPath);
+        if (!dlErr && blob) {
+          const buf = Buffer.from(await blob.arrayBuffer());
+          pdfBase64 = buf.toString('base64');
+        }
+      } catch (pdfErr) {
+        fastify.log.error({ err: pdfErr, contractId: contract.id }, 'PDF generation failed — contract saved, no file sent');
+      }
 
-      const pdfUrl = signedUrlData?.signedUrl ?? null;
-      if (pdfUrl) {
-        sendMedia(lead.phone, 'document', pdfUrl,
+      if (pdfBase64) {
+        sendMedia(lead.phone, 'document', pdfBase64,
           'Segue seu contrato para revisão. Qualquer dúvida, é só chamar!',
+          `${contractCode}.pdf`,
         ).catch((err) => fastify.log.warn({ err }, 'Failed to send contract PDF to lead'));
       } else {
         sendText(lead.phone,
-          '✅ Contrato gerado! Em breve você receberá o arquivo. Qualquer dúvida, é só chamar.',
+          '✅ KYC aprovado! Seu contrato está sendo preparado e você receberá em breve. Qualquer dúvida, é só chamar.',
         ).catch((err) => fastify.log.warn({ err }, 'Failed to notify lead after KYC approval'));
       }
 

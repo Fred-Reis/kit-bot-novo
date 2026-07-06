@@ -243,29 +243,33 @@ export async function fetchContractTemplate(id: string): Promise<ContractTemplat
   return data as ContractTemplate;
 }
 
+// PostgREST returns an object (not array) for FK-from-current-table (many-to-one).
+// tenantId nullable (set only after mark-signed); leadId present from approve-kyc.
+// tenant name falls back to lead name/phone for contracts awaiting signature.
 type ContractRow = Omit<ContractSummary, 'tenant' | 'property'> & {
-  tenant: { name: string | null }[];
-  property: { name: string }[];
+  tenant: { name: string | null } | null;
+  lead: { name: string | null; phone: string } | null;
+  property: { name: string } | null;
 };
 
 export async function fetchContracts(): Promise<ContractSummary[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select(
-      'id, code, status, startDate, endDate, monthlyRent, tenant:Tenant(name), property:Property(name)',
+      'id, code, status, startDate, endDate, monthlyRent, tenant:Tenant(name), lead:Lead(name, phone), property:Property(name)',
     )
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as ContractRow[]).map((r) => ({
+  return ((data ?? []) as unknown as ContractRow[]).map((r) => ({
     ...r,
-    tenant: { name: r.tenant[0]?.name ?? null },
-    property: { name: r.property[0]?.name ?? '' },
+    tenant: { name: r.tenant?.name ?? r.lead?.name ?? r.lead?.phone ?? null },
+    property: { name: r.property?.name ?? '' },
   }));
 }
 
 type ContractDetailRow = Omit<ContractDetail, 'tenant' | 'property'> & {
-  tenant: { name: string | null; phone: string }[];
-  property: { name: string }[];
+  tenant: { name: string | null; phone: string } | null;
+  property: { name: string } | null;
 };
 
 export async function fetchContract(id: string): Promise<ContractDetail> {
@@ -278,8 +282,8 @@ export async function fetchContract(id: string): Promise<ContractDetail> {
   const r = data as unknown as ContractDetailRow;
   return {
     ...r,
-    tenant: { name: r.tenant[0]?.name ?? null, phone: r.tenant[0]?.phone ?? '' },
-    property: { name: r.property[0]?.name ?? '' },
+    tenant: { name: r.tenant?.name ?? null, phone: r.tenant?.phone ?? '' },
+    property: { name: r.property?.name ?? '' },
   };
 }
 

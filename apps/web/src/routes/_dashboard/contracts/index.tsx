@@ -22,12 +22,14 @@ const STATUS_LABEL: Record<ContractSummary['status'], string> = {
   active: 'Ativo',
   terminated: 'Encerrado',
   renewal: 'Renovação',
+  draft: 'Aguardando assinatura',
 };
 
 const STATUS_TONE: Record<ContractSummary['status'], 'ok' | 'default' | 'warn'> = {
   active: 'ok',
   terminated: 'default',
   renewal: 'warn',
+  draft: 'warn',
 };
 
 function effectiveStatus(c: ContractSummary): ContractSummary['status'] {

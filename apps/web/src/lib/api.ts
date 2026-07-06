@@ -33,7 +33,7 @@ export const adminApi = {
     body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> },
   ) => botApi.post(`/admin/leads/${leadId}/approve-kyc`, body),
   getContractVariables: (leadId: string, paymentDayOfMonth: number) =>
-    botApi.get<{ unresolved: string[]; hasTemplate: boolean }>(
+    botApi.get<{ unresolved: string[]; hasTemplate: boolean; templateName?: string }>(
       `/admin/leads/${leadId}/contract-variables`,
       { params: { paymentDayOfMonth } },
     ),
