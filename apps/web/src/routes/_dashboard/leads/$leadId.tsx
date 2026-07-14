@@ -1,7 +1,7 @@
 import type { LeadDocument } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, FileText, MapPin, X } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, Eye, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
@@ -602,15 +602,34 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
 
   if (!isLoading && contracts.length === 0) return null;
 
-  async function getSignedUrl(path: string): Promise<string | null> {
-    const { data, error } = await supabase.storage.from('contracts').createSignedUrl(path, 3600);
-    return error ? null : data.signedUrl;
+  async function getBlob(path: string): Promise<Blob | null> {
+    const { data, error } = await supabase.storage.from('contracts').download(path);
+    return error ? null : data;
   }
 
-  async function openPdf(path: string) {
-    const url = await getSignedUrl(path);
-    if (url) window.open(url, '_blank');
-    else toast.error('Não foi possível abrir o arquivo.');
+  async function previewPdf(path: string) {
+    const tab = window.open('', '_blank');
+    const blob = await getBlob(path);
+    if (!blob) { tab?.close(); toast.error('Não foi possível abrir o arquivo.'); return; }
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    if (tab) tab.location.href = url;
+    else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  async function downloadPdf(path: string, filename: string) {
+    const toastId = toast.loading('Baixando arquivo...');
+    const blob = await getBlob(path);
+    if (!blob) { toast.error('Não foi possível baixar o arquivo.', { id: toastId }); return; }
+    toast.dismiss(toastId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -626,32 +645,38 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
         {contracts.map((c) => (
           <div key={c.id} className="space-y-2">
             {c.pdfUrl && (
-              <button
-                type="button"
-                onClick={() => void openPdf(c.pdfUrl!)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-muted"
-              >
+              <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
                 <FileText className="size-5 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">{c.code}.pdf</p>
                   <p className="text-xs text-muted-foreground">Contrato emitido</p>
                 </div>
-                <Download className="size-4 shrink-0 text-muted-foreground" />
-              </button>
+                <div className="flex items-center gap-1">
+                  <button type="button" aria-label="Visualizar contrato" onClick={() => void previewPdf(c.pdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                    <Eye className="size-4" />
+                  </button>
+                  <button type="button" aria-label="Baixar contrato" onClick={() => void downloadPdf(c.pdfUrl!, `${c.code}.pdf`)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                    <Download className="size-4" />
+                  </button>
+                </div>
+              </div>
             )}
             {c.signedPdfUrl ? (
-              <button
-                type="button"
-                onClick={() => void openPdf(c.signedPdfUrl!)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-muted"
-              >
+              <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
                 <FileText className="size-5 shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">{c.code}-assinado.pdf</p>
                   <p className="text-xs text-muted-foreground">Contrato assinado</p>
                 </div>
-                <Download className="size-4 shrink-0 text-muted-foreground" />
-              </button>
+                <div className="flex items-center gap-1">
+                  <button type="button" aria-label="Visualizar contrato assinado" onClick={() => void previewPdf(c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                    <Eye className="size-4" />
+                  </button>
+                  <button type="button" aria-label="Baixar contrato assinado" onClick={() => void downloadPdf(c.signedPdfUrl!, `${c.code}-assinado.pdf`)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                    <Download className="size-4" />
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
                 <FileText className="size-5 shrink-0 text-muted-foreground/40" />
