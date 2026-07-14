@@ -351,7 +351,7 @@ function LeadDetailPage() {
     queryFn: () => fetchLead(leadId),
   });
 
-  const { data: property } = useQuery({
+  const { data: property, isError: isPropertyError } = useQuery({
     queryKey: ['property', lead?.propertyId],
     queryFn: () => fetchProperty(lead!.propertyId!),
     enabled: !!lead?.propertyId,
@@ -526,6 +526,8 @@ function LeadDetailPage() {
                 </span>
               </p>
             </div>
+          ) : isPropertyError ? (
+            <p className="mt-3 text-sm text-destructive">Erro ao carregar imóvel.</p>
           ) : (
             <div className="mt-3 space-y-2">
               <div className="h-4 w-32 animate-pulse rounded bg-muted" />
