@@ -605,9 +605,8 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
   function storagePath(urlOrPath: string): string {
     try {
       const u = new URL(urlOrPath);
-      const marker = '/object/contracts/';
-      const i = u.pathname.indexOf(marker);
-      if (i !== -1) return decodeURIComponent(u.pathname.slice(i + marker.length));
+      const match = u.pathname.match(/\/object\/(?:public\/|sign\/|authenticated\/)?contracts\/(.+)/);
+      if (match) return decodeURIComponent(match[1]);
     } catch { /* already a relative path */ }
     return urlOrPath;
   }
@@ -645,12 +644,26 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
     }
   }
 
-  async function downloadPdf(contractId: string, signedPdfPath?: string) {
+  async function downloadPdf(contractId: string, filename: string, signedPdfPath?: string) {
     const toastId = toast.loading('Baixando arquivo...');
     const signedUrl = await getSignedUrl(contractId, signedPdfPath);
     if (!signedUrl) { toast.error('Não foi possível baixar o arquivo.', { id: toastId }); return; }
-    toast.dismiss(toastId);
-    window.open(signedUrl, '_blank');
+    try {
+      const resp = await fetch(signedUrl);
+      if (!resp.ok) throw new Error();
+      const blob = await resp.blob();
+      toast.dismiss(toastId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Não foi possível baixar o arquivo.', { id: toastId });
+    }
   }
 
   return (
@@ -676,7 +689,7 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
                   <button type="button" aria-label="Visualizar contrato" onClick={() => void previewPdf(c.id)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
                     <Eye className="size-4" />
                   </button>
-                  <button type="button" aria-label="Baixar contrato" onClick={() => void downloadPdf(c.id)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                  <button type="button" aria-label="Baixar contrato" onClick={() => void downloadPdf(c.id, `${c.code}.pdf`)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
                     <Download className="size-4" />
                   </button>
                 </div>
@@ -693,7 +706,7 @@ function LeadContractsSection({ leadId }: { leadId: string }) {
                   <button type="button" aria-label="Visualizar contrato assinado" onClick={() => void previewPdf(c.id, c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
                     <Eye className="size-4" />
                   </button>
-                  <button type="button" aria-label="Baixar contrato assinado" onClick={() => void downloadPdf(c.id, c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
+                  <button type="button" aria-label="Baixar contrato assinado" onClick={() => void downloadPdf(c.id, `${c.code}-assinado.pdf`, c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
                     <Download className="size-4" />
                   </button>
                 </div>
