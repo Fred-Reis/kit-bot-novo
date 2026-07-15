@@ -36,6 +36,7 @@ const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(
 function buildLeadAutoMap(
   lead: { name: string | null; phone: string },
   property: {
+    externalId: string;
     name: string;
     address: string;
     complement: string | null;
@@ -65,11 +66,13 @@ function buildLeadAutoMap(
     nome_locatario: lead.name ?? lead.phone,
     ...(cpf !== null ? { cpf_locatario: cpf } : {}),
     ...(rg !== null ? { rg_locatario: rg } : {}),
-    telefone_locatario: lead.phone,
+    telefone_locatario: lead.phone.replace(/@[^@]+$/, ''),
     // locador
     locador: ownerName,
     nome_locador: ownerName,
     // imóvel
+    unidade: property.externalId,
+    id_imovel: property.externalId,
     imovel: property.name,
     nome_imovel: property.name,
     endereco: fullAddress,
