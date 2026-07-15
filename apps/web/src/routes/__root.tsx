@@ -22,6 +22,17 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     if (data.session && isAuthRoute) {
       throw redirect({ to: '/' });
     }
+    if (data.session && !isAuthRoute) {
+      const { data: owner } = await supabase
+        .from('Owner')
+        .select('id')
+        .eq('email', data.session.user.email ?? '')
+        .maybeSingle();
+      if (!owner) {
+        await supabase.auth.signOut();
+        throw redirect({ to: '/login' });
+      }
+    }
   },
   component: RootComponent,
 });
