@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as DashboardVisitsIndexRouteImport } from './routes/_dashboard/visits/index'
 import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
@@ -42,6 +43,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/login',
@@ -137,6 +143,7 @@ const DashboardPropertiesPropertyIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/login': typeof AuthLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/new': typeof DashboardPropertiesNewRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof DashboardIndexRoute
   '/login': typeof AuthLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/leads/$leadId': typeof DashboardLeadsLeadIdRoute
   '/properties/new': typeof DashboardPropertiesNewRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/_dashboard': typeof DashboardRouteWithChildren
   '/_auth/login': typeof AuthLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/contracts/$contractId': typeof DashboardContractsContractIdRoute
   '/_dashboard/leads/$leadId': typeof DashboardLeadsLeadIdRoute
@@ -202,6 +211,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/auth/callback'
     | '/contracts/$contractId'
     | '/leads/$leadId'
     | '/properties/new'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/auth/callback'
     | '/contracts/$contractId'
     | '/leads/$leadId'
     | '/properties/new'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/_dashboard'
     | '/_auth/login'
+    | '/auth/callback'
     | '/_dashboard/'
     | '/_dashboard/contracts/$contractId'
     | '/_dashboard/leads/$leadId'
@@ -265,6 +277,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRouteWithChildren
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_auth/login': {
       id: '/_auth/login'
@@ -471,6 +491,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -12,6 +12,7 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ location }) => {
+    if (location.pathname === '/auth/callback') return;
     const { data } = await supabase.auth.getSession();
     const isAuthRoute = location.pathname.startsWith('/login');
 

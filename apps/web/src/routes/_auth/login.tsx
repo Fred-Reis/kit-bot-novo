@@ -17,7 +17,7 @@ function LoginPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
       toast.error('Erro ao enviar magic link.');
@@ -31,7 +31,7 @@ function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) toast.error('Erro ao iniciar login com Google.');
     } catch {
