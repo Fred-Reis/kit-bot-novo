@@ -56,5 +56,9 @@ export interface Owner {
   email: string | null;
   notificationPhone: string | null;
   notificationEmail: string | null;
+  botEnabled: boolean;
+  cpf: string | null;
+  cnpj: string | null;
+  address: string | null;
   createdAt: string;
 }
