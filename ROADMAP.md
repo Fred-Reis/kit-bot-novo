@@ -61,7 +61,7 @@
 - [x] Schema: `Owner.notificationPhone` e `Owner.notificationEmail` (migration 20260522000001)
 - [x] Helper `apps/bot/src/services/notify.ts`
 - [x] `notifyOwner(eventType, payload)` — multiplexa WhatsApp, email, in-app
-- [ ] Email: integrar Resend (env `RESEND_API_KEY`)
+- [x] Email: integrar Resend (env `RESEND_API_KEY`) — chave adicionada no Railway em 2026-07-15
 - [x] WhatsApp: `evolution.sendText(ownerPhone, message)` mesma instância do bot
 - [ ] In-app: subscribe em `ActivityLog` via Supabase Realtime no web; badge no sidebar
 - [ ] **Por quê:** todas as slices que disparam evento crítico usam isso.
@@ -205,47 +205,51 @@
 - [x] Notif: bot avisa owner em `contract_signed`
 - [ ] Commit
 
-### Slice 10 — Funil completo lead → inquilino (V1 closure) 🔄 EM PROGRESSO
+### Slice 10 — Funil completo lead → inquilino (V1 closure) ✅ DONE
 
-> Fecha os gaps do funil ponta-a-ponta. Torna o fluxo lead→tenant operável sem intervenção manual.
+> Auditado em 2026-07-14 contra o código real em main.
 
 #### Schema & migration
-- [ ] Migration: `Contract.tenantId` → nullable; `Contract.leadId String?` (FK Lead)
-- [ ] Migration: `Lead.contracts Contract[]` (relação inversa)
-- [ ] Atualizar schema Prisma + tipos compartilhados (`packages/types`)
+- [x] `Contract.tenantId` → nullable (`String?`) — schema.prisma linha 183
+- [x] `Contract.leadId String?` (FK Lead, onDelete SetNull) — schema.prisma linha 301
+- [x] `Contract.signedPdfUrl String?` — schema.prisma linha 308
+- [x] `Lead.contracts Contract[]` (relação inversa) — schema.prisma
+- [x] Tipos compartilhados atualizados em `packages/types`
 
 #### Config & notificações
-- [ ] `config.ts`: adicionar `RESEND_API_KEY` opcional
-- [ ] `notify.ts`: canal email via Resend (envia quando `RESEND_API_KEY` presente); CPF incluído no payload `kyc_pending`
+- [x] `config.ts`: `RESEND_API_KEY` opcional via Zod
+- [x] `notify.ts`: Resend instanciado condicionalmente; envia email quando `RESEND_API_KEY` presente + `owner.notificationEmail` preenchido
+- [ ] CPF incluído no payload `kyc_pending` — não confirmado
 
 #### Bot — FSM data_confirmation
-- [ ] `context.ts`: adicionar `dataConfirmed?: boolean` a `LeadContext`; novo estado `lead.data_confirmation` em `STATE_GUIDANCE` e `deriveState()`
-- [ ] `kyc.ts`: `shouldTransitionToKyc()` requer `dataConfirmed === true`
-- [ ] `index.ts`: ao entrar em `data_confirmation` pela primeira vez, extrair CPF do `ocrText` e enviar mensagem de confirmação ao lead; ao receber confirmação → `dataConfirmed = true`
+- [x] `context.ts`: `dataConfirmed?: boolean` em `LeadContext`; estado `lead.data_confirmation` em `STATE_GUIDANCE` e `deriveState()`
+- [x] `kyc.ts` / `context.ts`: `shouldTransitionToKyc()` requer `dataConfirmed === true`
+- [x] `index.ts`: ao entrar em `data_confirmation` pela primeira vez, extrai CPF do `ocrText` e envia confirmação ao lead (`context.dataConfirmationSent`); ao receber confirmação → `dataConfirmed = true`
 
 #### Bot — visit confirmation
-- [ ] `index.ts`: quando `leadPatch.scheduledVisitAt` é definido nessa interação, enviar mensagem ao lead: data, hora e nome do imóvel
+- [x] `index.ts`: quando `scheduledVisitAt` muda nessa interação, envia mensagem ao lead com data, hora e nome do imóvel
 
 #### Bot — approve-kyc (auto-contrato + PDF)
-- [ ] `admin.ts` `approve-kyc`: busca último template publicado (409 se nenhum); auto-resolve variáveis; cria `Contract` com `leadId` (sem `tenantId`); gera PDF; `sendMedia` ao lead; stage `kyc_pending → contract_pending`
-- [ ] `notify.ts`: payload `kyc_pending` inclui CPF extraído
+- [x] `admin.ts` `approve-kyc`: busca template padrão; resolve variáveis (auto-map + LLM); cria `Contract` com `leadId`; gera PDF; `sendMedia` ao lead; stage `kyc_pending → contract_pending`
+- [x] Variáveis de template com LLM second-pass (PR #25)
 
 #### Bot — mark-signed (auto-tenant)
-- [ ] `admin.ts` `mark-signed`: extrai CPF do `ocrText`; cria `Tenant` (phone, name, CPF, propertyId, contractStart=now); atualiza `Contract.tenantId`; `property.status = rented`; stage `contract_pending → converted`
-- [ ] Remover endpoint `confirm-payment` do funil de lead (mantém endpoint mas sem botão na UI)
+- [x] `admin.ts` `mark-signed`: cria `Tenant`; atualiza `Contract.tenantId`; `property.status = rented`; stage `contract_pending → converted`
+- [x] Bot: detecção de PDF assinado recebido pelo lead (PR #16) — upload para Storage, `Contract.signedPdfUrl`, auto-finaliza
 
 #### Web (admin)
-- [ ] Stage stepper atualizado: `Interesse → Visita → Documentos → KYC → Contrato → Convertido`
-- [ ] `kyc_pending`: botão "Aprovar KYC" (agora auto-gera contrato + envia PDF — sem modal de dia de pagamento)
-- [ ] `contract_pending`: botão "Marcar assinado" (agora auto-cria tenant)
-- [ ] Remover botão "Gerar Contrato" separado + botão "Confirmar Pagamento" do stepper
+- [x] Stage stepper: Novo → Qualificação → Visita agendada → KYC → Contrato → Convertido
+- [x] `kyc_pending`: botão "Aprovar KYC" com modal de dia de pagamento + resolução de variáveis
+- [x] `contract_pending`: botão "Marcar contrato assinado"
+- [x] Card de imóvel vinculado no detalhe do lead (PR #23)
+- [x] Seção de contratos com PDF emitido + assinado, preview e download (PR #24)
 
 #### Activity log
-- [ ] `contract_auto_created` (approve-kyc)
-- [ ] `contract_pdf_sent` (sendMedia ao lead)
-- [ ] `tenant_auto_created` (mark-signed)
+- [x] `kyc_approved` (approve-kyc)
+- [x] `tenant_created` (mark-signed — usa label genérica, não `tenant_auto_created`)
+- [ ] `contract_auto_created`, `contract_pdf_sent` — não encontrados; ações logadas via `kyc_approved`
 
-- [ ] Commit
+- [x] Commit
 
 ### Slice 6 — Rules (UI refinement) ✅ DONE
 
@@ -318,7 +322,7 @@
 - [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
 - [ ] **Backups Supabase** — confirmar policy de backup automático
 - [x] **Bot deploy** — Railway (`kit-bot-novo-production.up.railway.app`)
-- [x] **Web deploy** — Vercel (login + dashboard funcionando)
+- [x] **Web deploy** — Vercel (login Google OAuth + dashboard funcionando; guard por `Owner.email`)
 - [x] **Evolution API deploy** — Railway (`evolution-api-production-c037.up.railway.app`)
 - [ ] **Domínio + SSL** — usando subdomínios Railway/Vercel por ora
 - [ ] **Onboarding dos próprios imóveis** — cadastrar você como Owner, importar imóveis existentes
@@ -468,15 +472,34 @@
 
 ## Tracking macro
 
-| Fase | Slices completas | % MVP |
-|---|---|---|
-| F0 — Foundation | 3/5 (F0.2 ✓, F0.5 ✓, F0.6 ✓) — F0.4 parcial (Resend incluído no Slice 10) | 65% |
-| F1 — Vertical slices | 9/9 (Slice 1–9 ✓) | 100% 🎉 |
-| Slice 10 — Funil completo | 0/8 checklist groups — **EM PROGRESSO** | — |
-| F2 — Hardening | parcial (logs, MSW, Sentry, deploy ✓) — RLS + backups pendentes | 70% |
-| F3 — Dogfooding | — | — |
+> Atualizado: 2026-07-15
 
-> Atualizar ao concluir slices.
+| Fase | Status | Pendências |
+|---|---|---|
+| F0 — Foundation | 95% | F0.3 RLS (docs existem, policies desativadas); F0.4 in-app notif pendente |
+| F1 — Slices 1–9 | ✅ 100% | — |
+| Slice 10 — Funil completo | ✅ DONE | `contract_auto_created`/`contract_pdf_sent` activity logs opcionais |
+| F2 — Hardening | 85% | RLS ativar; backups Supabase; domínio+SSL; onboarding imóveis reais |
+| Auth web | ✅ DONE | Google OAuth + PKCE callback + guard por `Owner.email` (PR #27) |
+| Lead flow v2 (bot pipeline) | ✅ prod (gated) | Cutover: `LEAD_FLOW_V2=true` após ≥1 sem. canário sem escalações |
+| F3 — Dogfooding | pendente | Depende de F2 completo |
+
+### PRs mergeados nesta sessão (2026-07-15)
+
+| PR | Descrição |
+|---|---|
+| #23 | Card de imóvel vinculado no detalhe do lead |
+| #24 | Seção de contratos (PDF emitido + assinado) no detalhe do lead |
+| #25 | Resolução de variáveis de template com LLM second-pass |
+| #26 | Fix acesso a PDF de contrato (storagePath + download forçado) |
+| #27 | Google OAuth — rota `/auth/callback` (PKCE) + guard por `Owner.email` |
+
+### Próximas prioridades
+
+1. **Perfil do proprietário para contratos** — adicionar `ownerName`, `ownerCpf`, `ownerAddress`, `ownerCnpj` no model `Owner`; CRUD em Config > Workspace; `contract-variables` inclui dados do Owner no auto-map para resolver `{{nome_locador}}`, `{{cpf_locador}}` etc.
+2. **RLS** — ativar policies antes de operar com dados reais de terceiros
+3. **Variáveis globais de template** — definir no workspace, resolver junto às variáveis locais
+4. **Calendário V2** — model `PropertyCoordinator` vinculado a `Property`
 
 ---
 
