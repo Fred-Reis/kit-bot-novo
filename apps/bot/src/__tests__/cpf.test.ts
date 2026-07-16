@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { extractCpfFromDocs } from '@/services/cpf';
+import { extractCpfFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
 
 describe('extractCpfFromDocs', () => {
   test('returns null for empty docs array', () => {
@@ -38,5 +38,45 @@ describe('extractCpfFromDocs', () => {
   test('prefers labeled CPF over unlabeled 11-digit fields (CNH REGISTRO)', () => {
     const ocrText = 'REGISTRO: 12345678901\nCPF: 123.456.789-09';
     expect(extractCpfFromDocs([{ ocrText }])).toBe('123.456.789-09');
+  });
+});
+
+describe('isValidCpfFormat', () => {
+  test('accepts 11 unformatted digits', () => {
+    expect(isValidCpfFormat('12345678909')).toBe(true);
+  });
+
+  test('accepts formatted CPF', () => {
+    expect(isValidCpfFormat('123.456.789-09')).toBe(true);
+  });
+
+  test('rejects fewer than 11 digits', () => {
+    expect(isValidCpfFormat('1234567890')).toBe(false);
+  });
+
+  test('rejects more than 11 digits', () => {
+    expect(isValidCpfFormat('123456789099')).toBe(false);
+  });
+
+  test('rejects empty string', () => {
+    expect(isValidCpfFormat('')).toBe(false);
+  });
+});
+
+describe('isValidCnpjFormat', () => {
+  test('accepts 14 unformatted digits', () => {
+    expect(isValidCnpjFormat('12345678000199')).toBe(true);
+  });
+
+  test('accepts formatted CNPJ', () => {
+    expect(isValidCnpjFormat('12.345.678/0001-99')).toBe(true);
+  });
+
+  test('rejects fewer than 14 digits', () => {
+    expect(isValidCnpjFormat('1234567800019')).toBe(false);
+  });
+
+  test('rejects empty string', () => {
+    expect(isValidCnpjFormat('')).toBe(false);
   });
 });

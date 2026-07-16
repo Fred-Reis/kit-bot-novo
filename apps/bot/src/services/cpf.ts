@@ -9,12 +9,24 @@ const CPF_BARE_REGEX = /\d{3}\.?\d{3}\.?\d{3}-?\d{2}/;
 const RG_LABEL_REGEX =
   /(?:RG[:\s]*|REGISTRO\s*GERAL[:\s]*|DOC\.?\s*IDENTIDADE[^\d]{0,60})(\d{6,10})/i;
 
+function extractDigits(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
 function normalizeCpf(raw: string): string {
-  return raw.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  return extractDigits(raw).replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
 export function maskCpf(cpf: string): string {
   return cpf.replace(/(\d{3})\.\d{3}\.\d{3}-\d{2}/, '$1.***.***-**');
+}
+
+export function isValidCpfFormat(raw: string): boolean {
+  return extractDigits(raw).length === 11;
+}
+
+export function isValidCnpjFormat(raw: string): boolean {
+  return extractDigits(raw).length === 14;
 }
 
 export function extractRgFromDocs(docs: { ocrText: string | null }[]): string | null {
