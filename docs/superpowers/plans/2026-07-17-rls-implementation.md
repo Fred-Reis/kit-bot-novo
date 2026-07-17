@@ -352,10 +352,10 @@ git commit -m "docs: update RLS ADR with implementation status and Owner.id find
 
 - [ ] **Step 1: Update F0.3 checklist**
 
-In `ROADMAP.md`, find:
+In `ROADMAP.md`, find (this is the committed baseline this branch was cut from — a doc-sync gap where the checkbox/path/date were never updated after the ADR was actually written on 2026-06-16):
 ```markdown
 ### F0.3 — RLS readiness
-- [x] Documentar policies necessárias em `docs/adrs/001-rls-strategy.md` (2026-06-16)
+- [ ] Documentar policies necessárias em `adrs/001-rls-strategy.md`
 - [ ] Implementar policies por `ownerId` (mas manter desativadas até produção)
 - [ ] Testar leitura como `authenticated` e escrita como `service_role`
 - [ ] **Por quê:** dever-de-casa antes de subir produção real.
