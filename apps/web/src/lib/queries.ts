@@ -444,15 +444,19 @@ export async function fetchVisits(): Promise<VisitEntry[]> {
 
 export interface OwnerSettings {
   id: string;
+  name: string;
   botEnabled: boolean;
   notificationPhone: string | null;
   notificationEmail: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+  address: string | null;
 }
 
 export async function fetchOwner(): Promise<OwnerSettings> {
   const { data, error } = await supabase
     .from('Owner')
-    .select('id, botEnabled, notificationPhone, notificationEmail')
+    .select('id, name, botEnabled, notificationPhone, notificationEmail, cpf, cnpj, address')
     .single();
   if (error) throw error;
   return data as OwnerSettings;

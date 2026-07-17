@@ -14,6 +14,9 @@ model Owner {
   notificationPhone String?
   notificationEmail String?
   botEnabled        Boolean            @default(true)
+  cpf               String?
+  cnpj              String?
+  address           String?
   properties        Property[]
   tenants           Tenant[]
   leads             Lead[]

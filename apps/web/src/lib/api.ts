@@ -149,6 +149,8 @@ export const adminApi = {
   updateBotEnabled: (enabled: boolean) => botApi.patch('/admin/workspace/bot-enabled', { enabled }),
   updateNotificationSettings: (data: { notificationPhone?: string | null; notificationEmail?: string | null }) =>
     botApi.patch('/admin/workspace/notifications', data),
+  updateOwnerProfile: (data: { name?: string; cpf?: string | null; cnpj?: string | null; address?: string | null }) =>
+    botApi.patch('/admin/workspace/profile', data),
 };
 
 export function apiErrorMessage(err: unknown, fallback: string): string {

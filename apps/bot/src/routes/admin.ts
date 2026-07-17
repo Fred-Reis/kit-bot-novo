@@ -10,7 +10,8 @@ import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
 import { finalizeContractSigning } from '@/services/contract-signing';
-import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
+import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
+import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { generateAndUploadPdf } from '@/services/pdf';
@@ -18,85 +19,8 @@ import { generateAndUploadPdf } from '@/services/pdf';
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
 const MONTH_REGEX = /^\d{4}-\d{2}$/;
-const TEMPLATE_VAR_RE = /\{\{([^}]+)\}\}/g;
-const formatDatePtBR = (d: Date): string =>
-  d.toLocaleDateString('pt-BR', {
-    timeZone: 'America/Sao_Paulo',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-
-function uniquePlaceholders(text: string): string[] {
-  return [...new Set([...text.matchAll(TEMPLATE_VAR_RE)].map((m) => m[0]))];
-}
 
 const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(v ?? 10)));
-
-function buildLeadAutoMap(
-  lead: { name: string | null; phone: string },
-  property: {
-    externalId: string;
-    name: string;
-    address: string;
-    complement: string | null;
-    neighborhood: string;
-    rent: unknown;
-    deposit: unknown;
-    contractMonths: number | null;
-    owner?: { name: string } | null;
-  },
-  paymentDayOfMonth: number,
-  cpf: string | null,
-  rg: string | null = null,
-): Record<string, string> {
-  const fmt = (n: unknown) =>
-    Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const today = new Date();
-  const months = property.contractMonths ?? 12;
-  const endDate = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
-  const fullAddress = [property.address, property.complement].filter(Boolean).join(', ');
-  const ownerName = property.owner?.name ?? '';
-  const rentFmt = fmt(property.rent);
-  const depositFmt = fmt(property.deposit);
-
-  return {
-    // locatário
-    locatario: lead.name ?? lead.phone,
-    nome_locatario: lead.name ?? lead.phone,
-    ...(cpf !== null ? { cpf_locatario: cpf } : {}),
-    ...(rg !== null ? { rg_locatario: rg } : {}),
-    telefone_locatario: lead.phone.replace(/@[^@]+$/, ''),
-    // locador
-    locador: ownerName,
-    nome_locador: ownerName,
-    // imóvel
-    unidade: property.externalId,
-    id_imovel: property.externalId,
-    imovel: property.name,
-    nome_imovel: property.name,
-    endereco: fullAddress,
-    endereco_imovel: fullAddress,
-    complemento_imovel: property.complement ?? '',
-    bairro: property.neighborhood,
-    bairro_imovel: property.neighborhood,
-    // valores
-    aluguel: rentFmt,
-    valor_aluguel: rentFmt,
-    deposito: depositFmt,
-    caucao: depositFmt,
-    valor_caucao: depositFmt,
-    // prazo e datas
-    prazo_meses: String(months),
-    prazo: String(months),
-    data_hoje: formatDatePtBR(today),
-    data_inicio: formatDatePtBR(today),
-    data_termino: formatDatePtBR(endDate),
-    data_assinatura: 'A ser preenchida na assinatura',
-    vencimento: String(paymentDayOfMonth),
-    dia_vencimento: String(paymentDayOfMonth),
-  };
-}
 
 const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg',
@@ -208,6 +132,44 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           notificationPhone !== undefined ? data.notificationPhone : owner.notificationPhone,
         notificationEmail:
           notificationEmail !== undefined ? data.notificationEmail : owner.notificationEmail,
+      });
+    },
+  );
+
+  // ─── owner profile (contract auto-fill) ──────────────────────────────────
+  fastify.patch<{
+    Body: { name?: string; cpf?: string | null; cnpj?: string | null; address?: string | null };
+  }>(
+    '/admin/workspace/profile',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { name, cpf, cnpj, address } = request.body;
+
+      if (name !== undefined && name.trim() === '') {
+        return reply.status(400).send({ error: 'name must not be empty' });
+      }
+      if (cpf != null && cpf !== '' && !isValidCpfFormat(cpf)) {
+        return reply.status(400).send({ error: 'cpf must have 11 digits' });
+      }
+      if (cnpj != null && cnpj !== '' && !isValidCnpjFormat(cnpj)) {
+        return reply.status(400).send({ error: 'cnpj must have 14 digits' });
+      }
+
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(404).send({ error: 'Owner not found' });
+
+      const data: { name?: string; cpf?: string | null; cnpj?: string | null; address?: string | null } = {};
+      if (name !== undefined) data.name = name.trim();
+      if (cpf !== undefined) data.cpf = cpf || null;
+      if (cnpj !== undefined) data.cnpj = cnpj || null;
+      if (address !== undefined) data.address = (address ?? '').trim() || null;
+
+      await prisma.owner.update({ where: { id: owner.id }, data });
+      return reply.send({
+        name: data.name ?? owner.name,
+        cpf: cpf !== undefined ? data.cpf : owner.cpf,
+        cnpj: cnpj !== undefined ? data.cnpj : owner.cnpj,
+        address: address !== undefined ? data.address : owner.address,
       });
     },
   );
