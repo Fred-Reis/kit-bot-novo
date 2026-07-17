@@ -54,7 +54,7 @@ Novo endpoint em `src/routes/admin.ts`, seguindo o padrão de `PATCH /admin/work
 - Valida CPF (11 dígitos após strip de não-dígitos) e CNPJ (14 dígitos após strip, só se enviado) — 400 se formato inválido
 - `prisma.owner.findFirst()` (single-tenant, mesmo padrão dos outros endpoints de workspace)
 - `prisma.owner.update(...)` com update parcial — só campos enviados; string vazia vira `null`
-- Log activity (`logActivity`) igual aos outros PATCH de workspace
+- Sem log de activity — segue o precedente de `/admin/workspace/notifications` (que também não loga), não o de `/admin/workspace/bot-enabled` (que loga). Os PATCH de workspace não são uniformes nisso; edição de perfil é mais próxima de "dado de contato/identidade" (como notifications) do que de um evento operacional (como o toggle do bot)
 - Retorna valores atualizados, fallback pros valores anteriores nos campos não enviados
 
 ### `buildLeadAutoMap` (linhas 30-99)
