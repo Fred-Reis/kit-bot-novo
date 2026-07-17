@@ -11,7 +11,7 @@ import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
 import { finalizeContractSigning } from '@/services/contract-signing';
 import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
-import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
+import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { generateAndUploadPdf } from '@/services/pdf';
@@ -132,6 +132,44 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           notificationPhone !== undefined ? data.notificationPhone : owner.notificationPhone,
         notificationEmail:
           notificationEmail !== undefined ? data.notificationEmail : owner.notificationEmail,
+      });
+    },
+  );
+
+  // ─── owner profile (contract auto-fill) ──────────────────────────────────
+  fastify.patch<{
+    Body: { name?: string; cpf?: string | null; cnpj?: string | null; address?: string | null };
+  }>(
+    '/admin/workspace/profile',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { name, cpf, cnpj, address } = request.body;
+
+      if (name !== undefined && name.trim() === '') {
+        return reply.status(400).send({ error: 'name must not be empty' });
+      }
+      if (cpf != null && cpf !== '' && !isValidCpfFormat(cpf)) {
+        return reply.status(400).send({ error: 'cpf must have 11 digits' });
+      }
+      if (cnpj != null && cnpj !== '' && !isValidCnpjFormat(cnpj)) {
+        return reply.status(400).send({ error: 'cnpj must have 14 digits' });
+      }
+
+      const owner = await prisma.owner.findFirst();
+      if (!owner) return reply.status(404).send({ error: 'Owner not found' });
+
+      const data: { name?: string; cpf?: string | null; cnpj?: string | null; address?: string | null } = {};
+      if (name !== undefined) data.name = name.trim();
+      if (cpf !== undefined) data.cpf = cpf || null;
+      if (cnpj !== undefined) data.cnpj = cnpj || null;
+      if (address !== undefined) data.address = address || null;
+
+      await prisma.owner.update({ where: { id: owner.id }, data });
+      return reply.send({
+        name: data.name ?? owner.name,
+        cpf: cpf !== undefined ? data.cpf : owner.cpf,
+        cnpj: cnpj !== undefined ? data.cnpj : owner.cnpj,
+        address: address !== undefined ? data.address : owner.address,
       });
     },
   );
