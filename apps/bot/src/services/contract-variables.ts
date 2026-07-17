@@ -23,7 +23,7 @@ export function buildLeadAutoMap(
     rent: unknown;
     deposit: unknown;
     contractMonths: number | null;
-    owner?: { name: string } | null;
+    owner?: { name: string; cpf?: string | null; cnpj?: string | null; address?: string | null } | null;
   },
   paymentDayOfMonth: number,
   cpf: string | null,
@@ -49,6 +49,9 @@ export function buildLeadAutoMap(
     // locador
     locador: ownerName,
     nome_locador: ownerName,
+    ...(property.owner?.cpf ? { cpf_locador: property.owner.cpf } : {}),
+    ...(property.owner?.cnpj ? { cnpj_locador: property.owner.cnpj } : {}),
+    ...(property.owner?.address ? { endereco_locador: property.owner.address } : {}),
     // imóvel
     unidade: property.externalId,
     id_imovel: property.externalId,

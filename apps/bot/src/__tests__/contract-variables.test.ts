@@ -58,4 +58,22 @@ describe('buildLeadAutoMap', () => {
     expect('cpf_locatario' in map).toBe(false);
     expect('rg_locatario' in map).toBe(false);
   });
+
+  test('maps cpf_locador, cnpj_locador, endereco_locador when present on owner', () => {
+    const property = {
+      ...baseProperty,
+      owner: { name: 'Maria Proprietária', cpf: '111.222.333-44', cnpj: '12.345.678/0001-99', address: 'Av. B, 200' },
+    };
+    const map = buildLeadAutoMap(baseLead, property, 10, null);
+    expect(map.cpf_locador).toBe('111.222.333-44');
+    expect(map.cnpj_locador).toBe('12.345.678/0001-99');
+    expect(map.endereco_locador).toBe('Av. B, 200');
+  });
+
+  test('omits cpf_locador, cnpj_locador, endereco_locador when absent on owner', () => {
+    const map = buildLeadAutoMap(baseLead, baseProperty, 10, null);
+    expect('cpf_locador' in map).toBe(false);
+    expect('cnpj_locador' in map).toBe(false);
+    expect('endereco_locador' in map).toBe(false);
+  });
 });
