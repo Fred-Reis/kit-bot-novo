@@ -47,7 +47,9 @@ async function main() {
     }
 
     await client.query('SET LOCAL ROLE authenticated');
-    await client.query(`SET LOCAL request.jwt.claims = '{"sub":"${ownerId}"}'`);
+    await client.query(`SELECT set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({ sub: ownerId }),
+    ]);
 
     for (const table of TABLES) {
       const { rows } = await client.query(`SELECT count(*)::int AS count FROM "${table}"`);
