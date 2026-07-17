@@ -51,15 +51,6 @@ function SectionCard({
   );
 }
 
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm text-foreground font-medium">{value}</span>
-    </div>
-  );
-}
-
 function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-6 py-3 border-b border-border last:border-0">
@@ -70,14 +61,61 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
 }
 
 function WorkspaceSection() {
+  const qc = useQueryClient();
+  const { data: owner } = useQuery({ queryKey: ['owner'], queryFn: fetchOwner });
+  const [name, setName] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [cnpj, setCnpj] = useState('');
+  const [address, setAddress] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (owner) {
+      setName(owner.name ?? '');
+      setCpf(owner.cpf ?? '');
+      setCnpj(owner.cnpj ?? '');
+      setAddress(owner.address ?? '');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owner?.id]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await adminApi.updateOwnerProfile({ name, cpf, cnpj, address });
+      void qc.invalidateQueries({ queryKey: ['owner'] });
+      toast.success('Perfil do proprietário salvo.');
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Erro ao salvar perfil do proprietário.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <SectionCard title="Workspace" subtitle="Informações da empresa.">
-      <ReadOnlyField label="Nome da empresa" value="kit-manager" />
-      <ReadOnlyField label="CNPJ" value="—" />
-      <ReadOnlyField label="Domínio" value="—" />
-      <ReadOnlyField label="Idioma padrão" value="pt-BR" />
-      <ReadOnlyField label="Moeda" value="BRL" />
-      <ReadOnlyField label="Fuso horário" value="America/Sao_Paulo" />
+    <SectionCard
+      title="Workspace"
+      subtitle="Dados do locador usados no preenchimento automático de contratos."
+    >
+      <div className="space-y-3">
+        <FormField label="Nome do locador" required>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </FormField>
+        <FormField label="CPF" hint="Somente números ou com máscara.">
+          <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(e.target.value)} />
+        </FormField>
+        <FormField label="Endereço">
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+        </FormField>
+        <FormField label="CNPJ (opcional)" hint="Preencher só se o locador for pessoa jurídica.">
+          <Input placeholder="00.000.000/0000-00" value={cnpj} onChange={(e) => setCnpj(e.target.value)} />
+        </FormField>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <CustomButton variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Salvando…' : 'Salvar'}
+        </CustomButton>
+      </div>
     </SectionCard>
   );
 }
