@@ -1,6 +1,6 @@
 # ADR 001 — Row Level Security Strategy
 
-**Status:** Documentado — implementação SQL pendente (f2b)
+**Status:** Policies implementadas e verificadas (`20260717000001_rls_policies`) — desativadas até ativação em produção
 **Data:** 2026-06-16
 
 ---
@@ -25,6 +25,8 @@ Implementar policies de RLS baseadas em `ownerId` em todas as tabelas que possue
 
 O bot usa `service_role` que bypassa RLS, então nenhuma alteração é necessária no código do bot.
 
+**Nota (2026-07-17):** a policy `auth.uid()::text = "ownerId"` só funciona porque `Owner.id` já é idêntico ao `auth.users.id` do Supabase Auth correspondente (verificado em produção: `50ebce4b-e386-41aa-8b9f-bc2d8bb5996e` bate nos dois lados). Isso não é garantido pelo código de criação de Owner (`apps/bot/prisma/seed.ts` gera `Owner.id` via `@default(uuid())`, independente de qualquer auth UUID) — é o estado atual, não um invariante garantido. Ao criar owners futuros (fase 5, multi-tenant), o fluxo de signup precisa setar `Owner.id` = `auth.uid()` explicitamente, ou as policies deixam de bater silenciosamente.
+
 As policies serão **criadas mas mantidas desativadas** até o início de f2b, quando serão habilitadas e testadas antes do deploy.
 
 ---
@@ -38,6 +40,7 @@ As policies serão **criadas mas mantidas desativadas** até o início de f2b, q
 | `Property` | `auth.uid()::text = "ownerId"` |
 | `PropertyMedia` | `auth.uid()::text = "ownerId"` |
 | `Lead` | `auth.uid()::text = "ownerId"` |
+| `LeadResident` | `auth.uid()::text = "ownerId"` |
 | `LeadDocument` | `auth.uid()::text = "ownerId"` |
 | `Tenant` | `auth.uid()::text = "ownerId"` |
 | `Payment` | `auth.uid()::text = "ownerId"` |
