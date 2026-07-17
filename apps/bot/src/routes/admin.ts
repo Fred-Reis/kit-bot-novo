@@ -162,7 +162,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       if (name !== undefined) data.name = name.trim();
       if (cpf !== undefined) data.cpf = cpf || null;
       if (cnpj !== undefined) data.cnpj = cnpj || null;
-      if (address !== undefined) data.address = address || null;
+      if (address !== undefined) data.address = (address ?? '').trim() || null;
 
       await prisma.owner.update({ where: { id: owner.id }, data });
       return reply.send({

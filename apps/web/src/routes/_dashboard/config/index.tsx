@@ -112,7 +112,7 @@ function WorkspaceSection() {
         </FormField>
       </div>
       <div className="mt-4 flex justify-end">
-        <CustomButton variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+        <CustomButton variant="primary" size="sm" onClick={handleSave} disabled={saving || !owner}>
           {saving ? 'Salvando…' : 'Salvar'}
         </CustomButton>
       </div>

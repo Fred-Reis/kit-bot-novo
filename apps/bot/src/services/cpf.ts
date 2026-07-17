@@ -22,11 +22,11 @@ export function maskCpf(cpf: string): string {
 }
 
 export function isValidCpfFormat(raw: string): boolean {
-  return extractDigits(raw).length === 11;
+  return /^(?:\d{11}|\d{3}\.\d{3}\.\d{3}-\d{2})$/.test(raw);
 }
 
 export function isValidCnpjFormat(raw: string): boolean {
-  return extractDigits(raw).length === 14;
+  return /^(?:\d{14}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})$/.test(raw);
 }
 
 export function extractRgFromDocs(docs: { ocrText: string | null }[]): string | null {

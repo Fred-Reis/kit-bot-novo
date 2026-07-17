@@ -61,6 +61,14 @@ describe('isValidCpfFormat', () => {
   test('rejects empty string', () => {
     expect(isValidCpfFormat('')).toBe(false);
   });
+
+  test('rejects digits padded with letters', () => {
+    expect(isValidCpfFormat('abc12345678909xyz')).toBe(false);
+  });
+
+  test('rejects non-canonical punctuation', () => {
+    expect(isValidCpfFormat('123 456 789-09')).toBe(false);
+  });
 });
 
 describe('isValidCnpjFormat', () => {
@@ -78,5 +86,13 @@ describe('isValidCnpjFormat', () => {
 
   test('rejects empty string', () => {
     expect(isValidCnpjFormat('')).toBe(false);
+  });
+
+  test('rejects digits padded with letters', () => {
+    expect(isValidCnpjFormat('abc12345678000199xyz')).toBe(false);
+  });
+
+  test('rejects non-canonical punctuation', () => {
+    expect(isValidCnpjFormat('12 345 678/0001-99')).toBe(false);
   });
 });

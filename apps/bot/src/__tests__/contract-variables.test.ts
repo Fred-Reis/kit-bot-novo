@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { buildLeadAutoMap, uniquePlaceholders } from '@/services/contract-variables';
+import {
+  addCivilMonths,
+  buildLeadAutoMap,
+  formatDatePtBR,
+  getSaoPauloDateParts,
+  uniquePlaceholders,
+} from '@/services/contract-variables';
 
 const baseProperty = {
   externalId: 'KIT-01',
@@ -75,5 +81,45 @@ describe('buildLeadAutoMap', () => {
     expect('cpf_locador' in map).toBe(false);
     expect('cnpj_locador' in map).toBe(false);
     expect('endereco_locador' in map).toBe(false);
+  });
+});
+
+describe('addCivilMonths', () => {
+  test('clamps Jan 31 + 1 month to Feb 28 in a non-leap year', () => {
+    const result = addCivilMonths({ year: 2026, month: 0, day: 31 }, 1);
+    expect(formatDatePtBR(result)).toBe('28/02/2026');
+  });
+
+  test('clamps Jan 31 + 1 month to Feb 29 in a leap year', () => {
+    const result = addCivilMonths({ year: 2028, month: 0, day: 31 }, 1);
+    expect(formatDatePtBR(result)).toBe('29/02/2028');
+  });
+
+  test('rolls Dec 31 + 1 month into January of the next year', () => {
+    const result = addCivilMonths({ year: 2026, month: 11, day: 31 }, 1);
+    expect(formatDatePtBR(result)).toBe('31/01/2027');
+  });
+
+  test('clamps Jan 30 + 1 month to Feb 28', () => {
+    const result = addCivilMonths({ year: 2026, month: 0, day: 30 }, 1);
+    expect(formatDatePtBR(result)).toBe('28/02/2026');
+  });
+
+  test('preserves the day for a normal same-length-month addition', () => {
+    const result = addCivilMonths({ year: 2026, month: 2, day: 15 }, 3);
+    expect(formatDatePtBR(result)).toBe('15/06/2026');
+  });
+
+  test('adds 12 months across a year boundary without drift', () => {
+    const result = addCivilMonths({ year: 2026, month: 6, day: 20 }, 12);
+    expect(formatDatePtBR(result)).toBe('20/07/2027');
+  });
+});
+
+describe('getSaoPauloDateParts', () => {
+  test('extracts the São Paulo calendar day from a UTC instant, even when it differs from the UTC day', () => {
+    // 02:00 UTC on Jan 1 is still Dec 31 in America/Sao_Paulo (UTC-3)
+    const parts = getSaoPauloDateParts(new Date('2026-01-01T02:00:00Z'));
+    expect(parts).toEqual({ year: 2025, month: 11, day: 31 });
   });
 });
