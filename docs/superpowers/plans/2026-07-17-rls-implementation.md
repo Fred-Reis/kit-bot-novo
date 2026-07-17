@@ -14,7 +14,7 @@
 - No Python (project-wide rule).
 - No code changes to bot's request-handling logic — Prisma connects via `DATABASE_URL` as table owner (`postgres` role via `pg` `Pool` in `apps/bot/src/db/client.ts`), which bypasses RLS regardless of policies. `SUPABASE_SERVICE_KEY` is Storage-only (`apps/bot/src/services/storage.ts`), unrelated to DB RLS.
 - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` is explicitly **out of scope** for this plan — do not add it to the migration. Activation is a future, separate, gated migration.
-- Owner UUID for all test/verification code: `50ebce4b-e386-41aa-8b9f-bc2d8bb5996e` (confirmed identical between `Owner.id` in Postgres and the Supabase Auth user for `fred.rlopes@gmail.com` — no realignment migration needed, see spec).
+- Owner UUID `50ebce4b-e386-41aa-8b9f-bc2d8bb5996e` (confirmed identical between `Owner.id` in Postgres and the Supabase Auth user for `fred.rlopes@gmail.com` — no realignment migration needed, see spec) is documented in the ADR (Task 3) as a factual finding. It must **not** be hardcoded into any script — Task 2's verification script looks the owner up dynamically (`SELECT id FROM "Owner" LIMIT 1`), so it keeps working unmodified if the owner ever changes.
 - Table list (from `apps/bot/prisma/schema.prisma`), direct `ownerId`: `Property`, `PropertyMedia`, `Lead`, `LeadDocument`, `LeadResident`, `Tenant`, `Payment`, `ActivityLog`, `Event`, `Conversation`, `RuleSet`, `ContractTemplate`, `Contract`. Join-based (no direct `ownerId`): `RuleSetPolicy` (via `RuleSet`), `PropertyRuleSet` (via `Property`). Self-only: `Owner`.
 - Spec: `docs/superpowers/specs/2026-07-17-rls-implementation-design.md`. ADR: `docs/adrs/001-rls-strategy.md`.
 
@@ -159,7 +159,7 @@ git commit -m "feat(db): add RLS SELECT policies for owner-scoped tables (inacti
 - Create: `apps/bot/scripts/verify-rls.ts`
 
 **Interfaces:**
-- Consumes: the 16 policies created in Task 1 (via `pg_policies`); the table list and Owner UUID from Global Constraints.
+- Consumes: the 16 policies created in Task 1 (via `pg_policies`); the table list from Global Constraints. The owner UUID is not a constant — the script fetches it at runtime with `SELECT id FROM "Owner" LIMIT 1`.
 - Produces: a standalone, rerunnable CLI check (`bun run apps/bot/scripts/verify-rls.ts`) that exits `0` on all-pass, `1` otherwise. Reusable later, unmodified, to re-verify after the future RLS-activation migration.
 
 - [ ] **Step 1: Write the verification script**
@@ -188,8 +188,6 @@ const TABLES = [
   'Owner',
 ];
 
-const OWNER_AUTH_UUID = '50ebce4b-e386-41aa-8b9f-bc2d8bb5996e';
-
 async function main() {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -200,6 +198,12 @@ async function main() {
 
   try {
     await client.query('BEGIN');
+
+    const { rows: ownerRows } = await client.query('SELECT id FROM "Owner" LIMIT 1');
+    if (ownerRows.length === 0) {
+      throw new Error('No Owner row found — cannot verify RLS without at least one owner.');
+    }
+    const ownerId: string = ownerRows[0].id;
 
     const baseline: Record<string, number> = {};
     for (const table of TABLES) {
@@ -212,7 +216,7 @@ async function main() {
     }
 
     await client.query('SET LOCAL ROLE authenticated');
-    await client.query(`SET LOCAL request.jwt.claims = '{"sub":"${OWNER_AUTH_UUID}"}'`);
+    await client.query(`SET LOCAL request.jwt.claims = '{"sub":"${ownerId}"}'`);
 
     for (const table of TABLES) {
       const { rows } = await client.query(`SELECT count(*)::int AS count FROM "${table}"`);
@@ -231,7 +235,7 @@ async function main() {
        VALUES
          (gen_random_uuid(), $1, 'system', 'rls-verify', 'test', 'rls-verify', 'rls-verify')
        RETURNING id`,
-      [OWNER_AUTH_UUID],
+      [ownerId],
     );
     const writePass = insertResult.rowCount === 1;
     console.log(`${writePass ? 'PASS' : 'FAIL'} INSERT ActivityLog as bot's own role, RLS enabled`);
