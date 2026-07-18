@@ -1,5 +1,6 @@
 import type {
   ContractDetail,
+  ContractSummary,
   ContractTemplate,
   ContractTemplateSummary,
   Conversation,
@@ -396,7 +397,7 @@ export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLe
   return (data ?? []) as PropertyLeadSummary[];
 }
 
-export interface ContractSummary {
+export interface ContractDoc {
   id: string;
   code: string;
   status: string;
@@ -407,24 +408,24 @@ export interface ContractSummary {
   monthlyRent: number;
 }
 
-export async function fetchLeadContracts(leadId: string): Promise<ContractSummary[]> {
+export async function fetchLeadContracts(leadId: string): Promise<ContractDoc[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
     .eq('leadId', leadId)
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as ContractSummary[];
+  return (data ?? []) as ContractDoc[];
 }
 
-export async function fetchTenantContracts(tenantId: string): Promise<ContractSummary[]> {
+export async function fetchTenantContracts(tenantId: string): Promise<ContractDoc[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
     .eq('tenantId', tenantId)
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as ContractSummary[];
+  return (data ?? []) as ContractDoc[];
 }
 
 export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {
