@@ -1,4 +1,4 @@
--- CreateTable TenantDocument
+-- CreateTable
 CREATE TABLE "TenantDocument" (
     "id" TEXT NOT NULL,
     "ownerId" TEXT NOT NULL,
