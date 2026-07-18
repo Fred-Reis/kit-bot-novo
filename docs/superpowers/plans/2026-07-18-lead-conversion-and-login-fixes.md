@@ -14,7 +14,7 @@
 - Named exports only, no `export default`, in `apps/web` components.
 - No hardcoded Tailwind colors — use existing CSS variables (`text-foreground`, `border-border`, etc. — copy patterns from surrounding code).
 - **RLS is not active in production.** Policies exist but `ENABLE ROW LEVEL SECURITY` has not run (`ROADMAP.md:58`, `ROADMAP.md:323`). Frontend Supabase reads are unfiltered by owner. Do not change the login flow to let unregistered accounts reach any data-bearing route until RLS is confirmed active — this plan's login fix keeps the existing block.
-- Prisma migrations in this repo are generated via `bunx prisma migrate dev --name <name>` run from `apps/bot`, then committed. Don't hand-write migration SQL for the new table — let Prisma generate it.
+- **`bunx prisma migrate dev` cannot be used in this repo — verified 2026-07-18.** Its shadow-database replay hard-fails with P3006 on `20260522000002_ownerid_columns`, which raises an exception unless the (empty) shadow DB already has an `Owner` row. This is permanent, not a fluke — every migration since M2 (`owner_profile_fields`, `rls_policies`, etc.) was authored the same way. For any new migration: hand-write `migration.sql` matching Prisma's exact generated format (bare `-- CreateTable` / `-- AlterTable` comments, no table-name suffixes — copy the style from an existing migration doing the same DDL operation), apply it with `bunx prisma db execute --file <path>`, then record it with `bunx prisma migrate resolve --applied <migration_name>`. Always `source .env` first (`set -a && source .env && set +a`) — Prisma's config loader doesn't load it automatically.
 - This is a solo-owner app today (one `Owner` row). Don't add multi-tenant scoping as part of this plan — out of scope.
 
 ---
@@ -59,13 +59,45 @@ In `model Tenant`, add a `documents` field next to the existing `contracts` fiel
 
 In `model Owner` (`apps/bot/prisma/schema.prisma:9-24`), add `tenantDocuments TenantDocument[]` next to the existing `tenants Tenant[]` line so the reverse relation resolves.
 
-- [ ] **Step 3: Generate and apply the migration**
+- [ ] **Step 3: Write and apply the migration**
 
-Run from `apps/bot`:
-```bash
-bunx prisma migrate dev --name add_tenant_documents
+`bunx prisma migrate dev` cannot run in this repo (see Global Constraints — shadow-db P3006 on M2). Instead, from `apps/bot`, create `prisma/migrations/<timestamp>_add_tenant_documents/migration.sql` by hand, matching Prisma's exact generated style (see `prisma/migrations/20260704000002_leaddocument_unique_leadid_type/migration.sql` for the same shape — a `CREATE TABLE` + `CREATE INDEX` + `ADD CONSTRAINT` sequence):
+
+```sql
+-- CreateTable
+CREATE TABLE "TenantDocument" (
+    "id" TEXT NOT NULL,
+    "ownerId" TEXT NOT NULL,
+    "tenantId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "ocrText" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "TenantDocument_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "TenantDocument_ownerId_idx" ON "TenantDocument"("ownerId");
+
+-- CreateIndex
+CREATE INDEX "TenantDocument_tenantId_idx" ON "TenantDocument"("tenantId");
+
+-- AddForeignKey
+ALTER TABLE "TenantDocument" ADD CONSTRAINT "TenantDocument_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "Owner"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TenantDocument" ADD CONSTRAINT "TenantDocument_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ```
-Expected: a new folder under `apps/bot/prisma/migrations/` containing a `CREATE TABLE "TenantDocument"` + two `ALTER TABLE ... ADD CONSTRAINT` (owner FK, tenant FK) + two `CREATE INDEX` statements. Prisma Client regenerates automatically.
+
+Then apply and record it:
+```bash
+set -a && source .env && set +a
+bunx prisma db execute --file prisma/migrations/<timestamp>_add_tenant_documents/migration.sql
+bunx prisma migrate resolve --applied <timestamp>_add_tenant_documents
+bunx prisma generate
+```
+Expected: `bunx prisma migrate status` reports "Database schema is up to date!" with one more migration in the count.
 
 - [ ] **Step 4: Typecheck**
 
