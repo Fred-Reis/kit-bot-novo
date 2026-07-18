@@ -1,16 +1,27 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import { useUiStore } from '@/store/ui';
 
-export const Route = createFileRoute('/_auth/login')({ component: LoginPage });
+export const Route = createFileRoute('/_auth/login')({
+  validateSearch: z.object({ reason: z.enum(['not_registered']).optional() }),
+  component: LoginPage,
+});
 
 function LoginPage() {
+  const { reason } = Route.useSearch();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const { darkMode } = useUiStore();
+
+  useEffect(() => {
+    if (reason === 'not_registered') {
+      toast.error('Essa conta ainda não tem acesso ao painel. Fale com o administrador.');
+    }
+  }, [reason]);
 
   async function handleMagicLink(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
