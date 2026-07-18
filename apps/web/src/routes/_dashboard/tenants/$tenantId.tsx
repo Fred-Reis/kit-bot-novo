@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
+import { ContractsSection } from '@/components/contracts-section';
+import { DocGrid } from '@/components/doc-grid';
 import { EmptyState } from '@/components/empty-state';
 import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
-import { fetchTenant } from '@/lib/queries';
+import { fetchTenant, fetchTenantContracts, fetchTenantDocuments } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/tenants/$tenantId')({
@@ -33,6 +35,18 @@ function TenantDetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['tenant', tenantId],
     queryFn: () => fetchTenant(tenantId),
+  });
+
+  const { data: contracts = [], isLoading: contractsLoading } = useQuery({
+    queryKey: ['tenant-contracts', tenantId],
+    queryFn: () => fetchTenantContracts(tenantId),
+    enabled: !!data,
+  });
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ['tenant-documents', tenantId],
+    queryFn: () => fetchTenantDocuments(tenantId),
+    enabled: !!data,
   });
 
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
@@ -142,6 +156,16 @@ function TenantDetailPage() {
             {dateFmt.format(new Date(tenant.contractStart))}
           </p>
         </div>
+      </div>
+
+      <ContractsSection contracts={contracts} isLoading={contractsLoading} />
+
+      <div
+        className="rounded-[10px] bg-surface-raised p-5"
+        style={{ boxShadow: 'var(--shadow-sm)' }}
+      >
+        <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
+        <DocGrid docs={documents} />
       </div>
     </div>
   );
