@@ -19,6 +19,7 @@ model Owner {
   address           String?
   properties        Property[]
   tenants           Tenant[]
+  tenantDocuments   TenantDocument[]
   leads             Lead[]
   payments          Payment[]
   contracts         Contract[]
@@ -174,9 +175,25 @@ model Tenant {
   contractEnd   DateTime?
   payments      Payment[]
   contracts     Contract[]
+  documents     TenantDocument[]
   createdAt     DateTime   @default(now())
 
   @@index([ownerId])
+}
+
+model TenantDocument {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type      String
+  url       String
+  ocrText   String?
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([tenantId])
 }
 
 model Payment {
