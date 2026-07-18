@@ -700,6 +700,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           finalPdfPath,
         }));
       } catch (err) {
+        if (err instanceof Error && err.message === 'Lead is not in contract_pending stage') {
+          return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
+        }
         fastify.log.error({ err }, 'finalizeContractSigning failed');
         return reply.status(500).send({ error: 'Failed to finalize contract signing' });
       }
