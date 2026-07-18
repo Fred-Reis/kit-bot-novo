@@ -697,14 +697,27 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
       }
 
-      const { tenantId, tenantExternalId } = await finalizeContractSigning({
-        leadId: id,
-        contractId: contract.id,
-        actorLabel: request.adminUserId ?? 'admin',
-        signedPdfUrl: signedPdfUrl ?? null,
-        finalContractBody: finalBody,
-        finalPdfPath,
-      });
+      let tenantId: string;
+      let tenantExternalId: string;
+      try {
+        ({ tenantId, tenantExternalId } = await finalizeContractSigning({
+          leadId: id,
+          contractId: contract.id,
+          actorLabel: request.adminUserId ?? 'admin',
+          signedPdfUrl: signedPdfUrl ?? null,
+          finalContractBody: finalBody,
+          finalPdfPath,
+        }));
+      } catch (err) {
+        // Finalization failed after the stage claim above — revert so the lead
+        // isn't stranded in 'converted' with no tenant/contract, and can be retried.
+        await prisma.lead.updateMany({
+          where: { id, stage: 'converted' },
+          data: { stage: 'contract_pending' },
+        });
+        fastify.log.error({ err }, 'finalizeContractSigning failed; reverted lead stage');
+        return reply.status(500).send({ error: 'Failed to finalize contract signing' });
+      }
 
       if (finalPdfSignedUrl) {
         sendMedia(

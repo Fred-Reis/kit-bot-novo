@@ -5,6 +5,18 @@ import { Pool } from 'pg'
 const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 
+async function resyncSequence(seqName: string, table: string, pattern: string): Promise<void> {
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    DECLARE v INTEGER;
+    BEGIN
+      SELECT MAX(CAST(SUBSTRING("externalId" FROM '${pattern}') AS INTEGER)) INTO v
+      FROM "${table}" WHERE "externalId" ~ '^${pattern.replace('(\\d+)', '\\d+')}$';
+      IF v IS NOT NULL THEN PERFORM setval('${seqName}', v); END IF;
+    END $$;
+  `)
+}
+
 function monthStr(offsetMonths: number): string {
   const d = new Date()
   d.setDate(1)
@@ -502,6 +514,17 @@ A partir de {{data_vigencia}}, o aluguel passa de R$ {{valor_anterior}} para R$ 
   } else {
     console.log(`ActivityLog: ${activityCount} entradas existentes — pulando`)
   }
+
+  // ─── Resync sequences ─────────────────────────────────────────────────────
+  // Fixtures above use hardcoded externalIds (IQ-*, LD-*, CT-*) that bypass
+  // nextExternalId()'s nextval() call. If this seed ever runs against a DB that
+  // also gets real signups in the same id space, a stale sequence can hand out
+  // a value the fixtures already claimed, failing with P2002 on the real insert
+  // (see incident 2026-07-17: mark-signed 500 on Tenant.externalId).
+  // Push each sequence past the highest fixture value so that can't happen.
+  await resyncSequence('tenant_external_seq', 'Tenant', 'IQ-(\\d+)')
+  await resyncSequence('lead_external_seq', 'Lead', 'LD-(\\d+)')
+  await resyncSequence('contract_external_seq', 'Contract', 'CT-\\d{4}-(\\d+)')
 
   console.log('\nSeed completo ✓')
   console.log('─────────────────────────────────────────')
