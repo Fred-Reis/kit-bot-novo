@@ -16,6 +16,7 @@
 - **RLS is not active in production.** Policies exist but `ENABLE ROW LEVEL SECURITY` has not run (`ROADMAP.md:58`, `ROADMAP.md:323`). Frontend Supabase reads are unfiltered by owner. Do not change the login flow to let unregistered accounts reach any data-bearing route until RLS is confirmed active — this plan's login fix keeps the existing block.
 - **`bunx prisma migrate dev` cannot be used in this repo — verified 2026-07-18.** Its shadow-database replay hard-fails with P3006 on `20260522000002_ownerid_columns`, which raises an exception unless the (empty) shadow DB already has an `Owner` row. This is permanent, not a fluke — every migration since M2 (`owner_profile_fields`, `rls_policies`, etc.) was authored the same way. For any new migration: hand-write `migration.sql` matching Prisma's exact generated format (bare `-- CreateTable` / `-- AlterTable` comments, no table-name suffixes — copy the style from an existing migration doing the same DDL operation), apply it with `bunx prisma db execute --file <path>`, then record it with `bunx prisma migrate resolve --applied <migration_name>`. Always `source .env` first (`set -a && source .env && set +a`) — Prisma's config loader doesn't load it automatically.
 - This is a solo-owner app today (one `Owner` row). Don't add multi-tenant scoping as part of this plan — out of scope.
+- **`apps/web/tsconfig.json` is a solution-style file (`"files": []`, only `references`) — plain `bunx tsc --noEmit` from `apps/web` checks zero files and always passes vacuously.** The real command is `bunx tsc -b --force` (same as `bun run typecheck`). Running it surfaces a chunk of pre-existing, unrelated noise on unmodified `main` — stale route-tree `createFileRoute` type errors across nearly every route file, a `lead-utils.ts` `Record` gap, a `contracts/$contractId.tsx` gap — none of it caused by this plan's tasks; verified 2026-07-18 by diffing `tsc -b --force` output between `main` and each task's branch. When verifying a task, only new errors beyond that baseline matter.
 
 ---
 
@@ -373,14 +374,14 @@ git commit -m "feat(types): add TenantDocument type"
 
 **Interfaces:**
 - Consumes: `TenantDocument` from Task 3.
-- Produces: `ContractSummary` type (renamed from `LeadContract`), `fetchTenantContracts(tenantId: string): Promise<ContractSummary[]>`, `fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]>`.
+- Produces: `ContractDoc` type (renamed from `LeadContract`), `fetchTenantContracts(tenantId: string): Promise<ContractDoc[]>`, `fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]>`.
 
-- [ ] **Step 1: Rename `LeadContract` → `ContractSummary`**
+- [ ] **Step 1: Rename `LeadContract` → `ContractDoc`**
 
 In `apps/web/src/lib/queries.ts:399-408`, rename the interface:
 
 ```ts
-export interface ContractSummary {
+export interface ContractDoc {
   id: string;
   code: string;
   status: string;
@@ -392,21 +393,21 @@ export interface ContractSummary {
 }
 ```
 
-Update `fetchLeadContracts`'s return type (`apps/web/src/lib/queries.ts:410-418`) from `Promise<LeadContract[]>` to `Promise<ContractSummary[]>` and the internal cast from `as LeadContract[]` to `as ContractSummary[]`.
+Update `fetchLeadContracts`'s return type (`apps/web/src/lib/queries.ts:410-418`) from `Promise<LeadContract[]>` to `Promise<ContractDoc[]>` and the internal cast from `as LeadContract[]` to `as ContractDoc[]`.
 
 - [ ] **Step 2: Add `fetchTenantContracts`**
 
 Immediately after `fetchLeadContracts`, add:
 
 ```ts
-export async function fetchTenantContracts(tenantId: string): Promise<ContractSummary[]> {
+export async function fetchTenantContracts(tenantId: string): Promise<ContractDoc[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
     .eq('tenantId', tenantId)
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as ContractSummary[];
+  return (data ?? []) as ContractDoc[];
 }
 ```
 
@@ -432,14 +433,14 @@ In `apps/web/src/routes/_dashboard/leads/$leadId.tsx:12`, `fetchLeadContracts` i
 
 - [ ] **Step 5: Typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/lib/queries.ts
-git commit -m "feat(web): add tenant documents/contracts queries, rename LeadContract to ContractSummary"
+git commit -m "feat(web): add tenant documents/contracts queries, rename LeadContract to ContractDoc"
 ```
 
 ---
@@ -453,8 +454,8 @@ git commit -m "feat(web): add tenant documents/contracts queries, rename LeadCon
 **Context:** `LeadContractsSection` (`apps/web/src/routes/_dashboard/leads/$leadId.tsx:597-726`) is ~130 lines of PDF preview/download logic that has nothing lead-specific in it except which query function it calls. Extract it so the tenant page (Task 7) can reuse it without duplicating the preview/download logic.
 
 **Interfaces:**
-- Consumes: `ContractSummary` from Task 4.
-- Produces: `ContractsSection({ contracts, isLoading }: { contracts: ContractSummary[]; isLoading: boolean }): JSX.Element` — a named export.
+- Consumes: `ContractDoc` from Task 4.
+- Produces: `ContractsSection({ contracts, isLoading }: { contracts: ContractDoc[]; isLoading: boolean }): JSX.Element` — a named export.
 
 - [ ] **Step 1: Create the shared component**
 
@@ -464,7 +465,7 @@ Create `apps/web/src/components/contracts-section.tsx` with the full body curren
 import { Download, Eye, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi } from '@/lib/api';
-import type { ContractSummary } from '@/lib/queries';
+import type { ContractDoc } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 
 function storagePath(urlOrPath: string): string {
@@ -544,7 +545,7 @@ export function ContractsSection({
   contracts,
   isLoading,
 }: {
-  contracts: ContractSummary[];
+  contracts: ContractDoc[];
   isLoading: boolean;
 }) {
   if (!isLoading && contracts.length === 0) return null;
@@ -654,7 +655,7 @@ In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
 
 - [ ] **Step 3: Typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors, no unused-import warnings (Oxlint will also catch these — run `bunx oxlint` if available as a script).
 
 - [ ] **Step 4: Commit**
@@ -779,7 +780,7 @@ In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
 
 - [ ] **Step 3: Typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 
 - [ ] **Step 4: Commit**
 
@@ -847,7 +848,7 @@ In the JSX, after the closing `</div>` of the `grid gap-4 lg:grid-cols-[1fr_280p
 
 - [ ] **Step 3: Typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 
 - [ ] **Step 4: Manual verification**
 
@@ -891,7 +892,7 @@ Change `lg:grid-cols-5` to `lg:grid-cols-4` (4 remaining columns: `novo`, `quali
 
 - [ ] **Step 3: Typecheck and lint**
 
-Run: `cd apps/web && bunx tsc --noEmit && bunx oxlint` (use whatever the project's lint script is named in `apps/web/package.json` if `oxlint` isn't callable directly).
+Run: `cd apps/web && bunx tsc -b --force && bunx oxlint` (use whatever the project's lint script is named in `apps/web/package.json` if `oxlint` isn't callable directly).
 
 - [ ] **Step 4: Manual verification**
 
@@ -990,7 +991,7 @@ to:
 
 - [ ] **Step 4: Typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors. TanStack Router's generated route tree (`src/routeTree.gen.ts`) picks up the new `validateSearch` automatically on next dev-server/build run — if `tsc` complains about the `search` param type on `redirect(...)` in `__root.tsx`, run the dev server once (`bun run dev`) to force route-tree regeneration, then re-run the typecheck.
 
 - [ ] **Step 5: Manual verification**
@@ -1021,7 +1022,7 @@ Expected: all green — this plan didn't touch anything with existing test cover
 
 - [ ] **Step 3: Frontend typecheck**
 
-Run: `cd apps/web && bunx tsc --noEmit`
+Run: `cd apps/web && bunx tsc -b --force`
 
 - [ ] **Step 4: Frontend tests**
 
