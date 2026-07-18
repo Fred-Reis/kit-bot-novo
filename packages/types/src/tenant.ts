@@ -17,6 +17,16 @@ export interface Tenant {
   createdAt: string;
 }
 
+export interface TenantDocument {
+  id: string;
+  ownerId: string;
+  tenantId: string;
+  type: string;
+  url: string;
+  ocrText: string | null;
+  createdAt: string;
+}
+
 export interface Payment {
   id: string;
   ownerId: string;
