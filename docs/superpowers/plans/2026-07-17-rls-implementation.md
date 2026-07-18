@@ -30,7 +30,7 @@
 - Consumes: nothing from earlier tasks (first task).
 - Produces: 16 Postgres policies named `select_own_rows` (15 tables) / `select_self` (`Owner`), queryable via `SELECT * FROM pg_policies WHERE schemaname = 'public'`. Task 2's verification script assumes these exact policy predicates exist and that `Owner.id` values equal the intended `auth.uid()` values.
 
-- [ ] **Step 1: Create the empty migration skeleton**
+- [x] **Step 1: Create the empty migration skeleton**
 
 Run (from `apps/bot/`):
 ```bash
@@ -38,7 +38,7 @@ bunx prisma migrate dev --create-only --name rls_policies
 ```
 Expected: Prisma reports no schema drift (nothing changed in `schema.prisma`) and creates an empty `apps/bot/prisma/migrations/<timestamp>_rls_policies/migration.sql`. Rename the generated folder to `20260717000001_rls_policies` if the timestamp differs, so it sorts correctly among the existing migrations.
 
-- [ ] **Step 2: Write the policy SQL**
+- [x] **Step 2: Write the policy SQL**
 
 Replace the contents of `apps/bot/prisma/migrations/20260717000001_rls_policies/migration.sql` with:
 
@@ -117,7 +117,7 @@ CREATE POLICY "select_self" ON "Owner"
 
 No `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` anywhere in this file — see Global Constraints.
 
-- [ ] **Step 3: Apply the migration**
+- [x] **Step 3: Apply the migration**
 
 Run (from `apps/bot/`, with `.env` loaded):
 ```bash
@@ -126,7 +126,7 @@ bunx prisma migrate dev
 ```
 Expected: Prisma detects the already-created `20260717000001_rls_policies` migration is unapplied and applies it. Output ends with `Your database is now in sync with your schema.` No errors — `CREATE POLICY` on a table without RLS enabled is a normal DDL statement.
 
-- [ ] **Step 4: Verify policies exist and RLS is still off**
+- [x] **Step 4: Verify policies exist and RLS is still off**
 
 Run (from `apps/bot/`, with `.env` loaded):
 ```bash
@@ -144,7 +144,7 @@ await pool.end();
 ```
 Expected: `Policies created: 16` (15 `select_own_rows` + 1 `select_self`), and `relrowsecurity` is `false` for both sampled tables (RLS not yet enabled — policies are inert, matching the plan).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/bot/prisma/migrations/20260717000001_rls_policies
@@ -162,7 +162,7 @@ git commit -m "feat(db): add RLS SELECT policies for owner-scoped tables (inacti
 - Consumes: the 16 policies created in Task 1 (via `pg_policies`); the table list from Global Constraints. The owner UUID is not a constant — the script fetches it at runtime with `SELECT id FROM "Owner" LIMIT 1`.
 - Produces: a standalone, rerunnable CLI check (`bun run apps/bot/scripts/verify-rls.ts`) that exits `0` on all-pass, `1` otherwise. Reusable later, unmodified, to re-verify after the future RLS-activation migration.
 
-- [ ] **Step 1: Write the verification script**
+- [x] **Step 1: Write the verification script**
 
 Create `apps/bot/scripts/verify-rls.ts`:
 
@@ -262,7 +262,7 @@ async function main() {
 main();
 ```
 
-- [ ] **Step 2: Run it**
+- [x] **Step 2: Run it**
 
 Run (from `apps/bot/`, with `.env` loaded):
 ```bash
@@ -273,7 +273,7 @@ Expected: every line prints `PASS` (16 `SELECT` lines + 1 `INSERT` line), ending
 
 If any `SELECT` line prints `FAIL`, the policy predicate for that table is wrong (compare against Task 1 Step 2) — fix the migration SQL, apply a corrective migration, and rerun this script before continuing. Do not proceed to Task 3 with a failing table.
 
-- [ ] **Step 3: Confirm the real table state is untouched**
+- [x] **Step 3: Confirm the real table state is untouched**
 
 Run (from `apps/bot/`, with `.env` loaded):
 ```bash
@@ -288,7 +288,7 @@ await pool.end();
 ```
 Expected: `relrowsecurity` is still `false` — the script's `ROLLBACK` reverted the temporary `ENABLE ROW LEVEL SECURITY` calls, so production behavior is unchanged after verification.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/bot/scripts/verify-rls.ts
@@ -306,7 +306,7 @@ git commit -m "test(db): add RLS verification script (authenticated read, bot wr
 - Consumes: the verified policy list from Task 1/2 and the `Owner.id` alignment finding from the spec.
 - Produces: nothing consumed by later tasks — documentation only.
 
-- [ ] **Step 1: Update status line**
+- [x] **Step 1: Update status line**
 
 In `docs/adrs/001-rls-strategy.md`, replace:
 ```markdown
@@ -317,14 +317,14 @@ with:
 **Status:** Policies implementadas e verificadas (`20260717000001_rls_policies`) — desativadas até ativação em produção
 ```
 
-- [ ] **Step 2: Add `LeadResident` to the policy table**
+- [x] **Step 2: Add `LeadResident` to the policy table**
 
 In the "Tabelas com `ownerId` direto" table, add a row after `Lead`:
 ```markdown
 | `LeadResident` | `auth.uid()::text = "ownerId"` |
 ```
 
-- [ ] **Step 3: Add a note about the `Owner.id`/`auth.uid()` alignment**
+- [x] **Step 3: Add a note about the `Owner.id`/`auth.uid()` alignment**
 
 After the "## Decisão" section's closing paragraph (`O bot usa \`service_role\` que bypassa RLS, então nenhuma alteração é necessária no código do bot.`), add:
 
@@ -332,7 +332,7 @@ After the "## Decisão" section's closing paragraph (`O bot usa \`service_role\`
 **Nota (2026-07-17):** a policy `auth.uid()::text = "ownerId"` só funciona porque `Owner.id` já é idêntico ao `auth.users.id` do Supabase Auth correspondente (verificado em produção: `50ebce4b-e386-41aa-8b9f-bc2d8bb5996e` bate nos dois lados). Isso não é garantido pelo código de criação de Owner (`apps/bot/prisma/seed.ts` gera `Owner.id` via `@default(uuid())`, independente de qualquer auth UUID) — é o estado atual, não um invariante garantido. Ao criar owners futuros (fase 5, multi-tenant), o fluxo de signup precisa setar `Owner.id` = `auth.uid()` explicitamente, ou as policies deixam de bater silenciosamente.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/adrs/001-rls-strategy.md
@@ -350,7 +350,7 @@ git commit -m "docs: update RLS ADR with implementation status and Owner.id find
 - Consumes: nothing.
 - Produces: nothing — documentation only.
 
-- [ ] **Step 1: Update F0.3 checklist**
+- [x] **Step 1: Update F0.3 checklist**
 
 In `ROADMAP.md`, find (this is the committed baseline this branch was cut from — a doc-sync gap where the checkbox/path/date were never updated after the ADR was actually written on 2026-06-16):
 ```markdown
@@ -370,7 +370,7 @@ Replace with:
 - [ ] **Por quê:** dever-de-casa antes de subir produção real.
 ```
 
-- [ ] **Step 2: Update the "RLS reativar" line in the launch checklist**
+- [x] **Step 2: Update the "RLS reativar" line in the launch checklist**
 
 Find (around line 322):
 ```markdown
@@ -381,7 +381,7 @@ Replace with:
 - [ ] **RLS reativar** — policies implementadas e verificadas em `docs/adrs/001-rls-strategy.md`; falta só `ENABLE ROW LEVEL SECURITY` antes de prod com dados de terceiros
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add ROADMAP.md
