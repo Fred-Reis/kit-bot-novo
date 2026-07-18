@@ -36,7 +36,13 @@ export async function finalizeContractSigning(
 
   const lead = await prisma.lead.findUniqueOrThrow({
     where: { id: leadId },
-    select: { phone: true, name: true, ownerId: true, propertyId: true, documents: { select: { ocrText: true } } },
+    select: {
+      phone: true,
+      name: true,
+      ownerId: true,
+      propertyId: true,
+      documents: { select: { type: true, url: true, ocrText: true } },
+    },
   });
 
   if (!lead.propertyId) throw new Error('Lead has no associated property');
@@ -47,6 +53,17 @@ export async function finalizeContractSigning(
   const today = new Date();
 
   const tenant = await prisma.$transaction(async (tx) => {
+    // Claim the lead atomically inside the same transaction as tenant creation —
+    // a failure anywhere below rolls this back too, so the lead is never left
+    // stranded in 'converted' with no tenant (see incident 2026-07-17).
+    const { count } = await tx.lead.updateMany({
+      where: { id: leadId, stage: 'contract_pending' },
+      data: { stage: 'converted', archivedAt: today },
+    });
+    if (count === 0) {
+      throw new Error('Lead is not in contract_pending stage');
+    }
+
     const newTenant = await tx.tenant.create({
       data: {
         phone: lead.phone,
@@ -58,6 +75,19 @@ export async function finalizeContractSigning(
         ownerId: lead.ownerId,
       },
     });
+
+    if (lead.documents.length > 0) {
+      await tx.tenantDocument.createMany({
+        data: lead.documents.map((doc) => ({
+          ownerId: lead.ownerId,
+          tenantId: newTenant.id,
+          type: doc.type,
+          url: doc.url,
+          ocrText: doc.ocrText,
+        })),
+      });
+    }
+
     await Promise.all([
       tx.contract.update({
         where: { id: contractId },

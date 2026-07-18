@@ -665,15 +665,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'No draft contract found for this lead' });
       }
 
-      // Atomically claim the stage — prevents duplicate tenants on retries or concurrent requests
-      const { count } = await prisma.lead.updateMany({
-        where: { id, stage: 'contract_pending' },
-        data: { stage: 'converted' },
-      });
-      if (count === 0) {
-        return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
-      }
-
       const today = new Date();
       const finalBody = contract.body.replace(
         /A ser preenchida na assinatura/g,
@@ -709,13 +700,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           finalPdfPath,
         }));
       } catch (err) {
-        // Finalization failed after the stage claim above — revert so the lead
-        // isn't stranded in 'converted' with no tenant/contract, and can be retried.
-        await prisma.lead.updateMany({
-          where: { id, stage: 'converted' },
-          data: { stage: 'contract_pending' },
-        });
-        fastify.log.error({ err }, 'finalizeContractSigning failed; reverted lead stage');
+        fastify.log.error({ err }, 'finalizeContractSigning failed');
         return reply.status(500).send({ error: 'Failed to finalize contract signing' });
       }
 

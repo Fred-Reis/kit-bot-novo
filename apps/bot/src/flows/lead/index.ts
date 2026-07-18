@@ -266,12 +266,6 @@ export async function handleLeadMessage(
             return;
           }
 
-          // Only mark lead as converted after successful finalization
-          await prisma.lead.updateMany({
-            where: { id: lead.id, stage: 'contract_pending' },
-            data: { stage: 'converted' },
-          });
-
           await sendText(
             chatId,
             'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
