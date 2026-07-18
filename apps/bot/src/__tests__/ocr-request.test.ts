@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { config as realConfig } from '@/config';
 
 mock.module('@/config', () => ({
-  config: { GOOGLE_CREDENTIALS_JSON: JSON.stringify({ client_email: 'x', private_key: 'y' }) },
+  config: {
+    ...realConfig,
+    GOOGLE_CREDENTIALS_JSON: JSON.stringify({ client_email: 'x', private_key: 'y' }),
+  },
 }));
 mock.module('google-auth-library', () => ({
   GoogleAuth: class {

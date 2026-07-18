@@ -11,3 +11,4 @@ apps/bot/media/
 apps/web/.tanstack/
 codeflow.md
 *.lock
+.worktrees/

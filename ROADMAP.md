@@ -52,9 +52,10 @@
 - [ ] **Por quê:** destrava Dashboard activity feed, auditoria, in-app notif.
 
 ### F0.3 — RLS readiness
-- [ ] Documentar policies necessárias em `adrs/001-rls-strategy.md`
-- [ ] Implementar policies por `ownerId` (mas manter desativadas até produção)
-- [ ] Testar leitura como `authenticated` e escrita como `service_role`
+- [x] Documentar policies necessárias em `docs/adrs/001-rls-strategy.md` (2026-06-16)
+- [x] Implementar policies por `ownerId` (mas manter desativadas até produção) (2026-07-17)
+- [x] Testar leitura como `authenticated` e escrita como bot/Prisma (2026-07-17)
+- [ ] **Ativar RLS** (`ENABLE ROW LEVEL SECURITY`) — migration separada, antes de operar com dados reais de terceiros
 - [ ] **Por quê:** dever-de-casa antes de subir produção real.
 
 ### F0.4 — Notif infra
@@ -319,7 +320,7 @@
 - [x] **MSW removido** — handlers estavam vazios, dependência eliminada
 - [x] **Variáveis env produção** — checklist em `docs/deploy.md`; ADR RLS em `docs/adrs/001-rls-strategy.md`
 - [x] **Sentry completo** — source maps, `setUser` pós-login, router tracing (ver `docs/deploy.md` §Sentry)
-- [ ] **RLS reativar** — policies documentadas em `docs/adrs/001-rls-strategy.md`; ativar antes de prod
+- [ ] **RLS reativar** — policies implementadas e verificadas em `docs/adrs/001-rls-strategy.md`; falta só `ENABLE ROW LEVEL SECURITY` antes de prod com dados de terceiros
 - [ ] **Backups Supabase** — confirmar policy de backup automático
 - [x] **Bot deploy** — Railway (`kit-bot-novo-production.up.railway.app`)
 - [x] **Web deploy** — Vercel (login Google OAuth + dashboard funcionando; guard por `Owner.email`)
