@@ -1,6 +1,5 @@
 import type {
   ContractDetail,
-  ContractSummary,
   ContractTemplate,
   ContractTemplateSummary,
   Conversation,
@@ -13,6 +12,7 @@ import type {
   RuleSetDetail,
   RuleSetSummary,
   Tenant,
+  TenantDocument,
 } from '@kit-manager/types';
 import { supabase } from './supabase';
 import { tenantStatus } from './tenant-utils';
@@ -396,7 +396,7 @@ export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLe
   return (data ?? []) as PropertyLeadSummary[];
 }
 
-export interface LeadContract {
+export interface ContractSummary {
   id: string;
   code: string;
   status: string;
@@ -407,14 +407,34 @@ export interface LeadContract {
   monthlyRent: number;
 }
 
-export async function fetchLeadContracts(leadId: string): Promise<LeadContract[]> {
+export async function fetchLeadContracts(leadId: string): Promise<ContractSummary[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
     .eq('leadId', leadId)
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as LeadContract[];
+  return (data ?? []) as ContractSummary[];
+}
+
+export async function fetchTenantContracts(tenantId: string): Promise<ContractSummary[]> {
+  const { data, error } = await supabase
+    .from('Contract')
+    .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ContractSummary[];
+}
+
+export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {
+  const { data, error } = await supabase
+    .from('TenantDocument')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as TenantDocument[];
 }
 
 export interface VisitEntry {
