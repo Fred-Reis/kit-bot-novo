@@ -3,6 +3,7 @@ import { config } from '@/config';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
 import { logActivity } from '@/services/activity';
+import { addCivilMonths, getSaoPauloDateParts } from '@/services/contract-variables';
 import { extractCpfFromDocs } from '@/services/cpf';
 import { nextExternalId } from '@/services/external-id';
 import { notifyOwner } from '@/services/notify';
@@ -53,7 +54,7 @@ export async function finalizeContractSigning(
   const tenantExternalId = await nextExternalId('tenant');
   const today = new Date();
   const contractMonths = lead.property?.contractMonths ?? 12;
-  const contractEnd = new Date(today.getFullYear(), today.getMonth() + contractMonths, today.getDate());
+  const contractEnd = addCivilMonths(getSaoPauloDateParts(today), contractMonths);
 
   const tenant = await prisma.$transaction(async (tx) => {
     // Claim the lead atomically inside the same transaction as tenant creation —

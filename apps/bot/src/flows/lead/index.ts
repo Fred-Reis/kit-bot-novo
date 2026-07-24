@@ -248,7 +248,7 @@ export async function handleLeadMessage(
             // where the admin panel and finalizeContractSigning expect it.
             try {
               const downloadUrl = await createLeadDocumentUrl(pdfItem.url);
-              const resp = await fetch(downloadUrl);
+              const resp = await fetch(downloadUrl, { signal: AbortSignal.timeout(10_000) });
               if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
               base64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
             } catch (downloadErr) {

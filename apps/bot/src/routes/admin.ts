@@ -748,7 +748,9 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       // directly in the body) takes priority over the freshly regenerated draft —
       // the whole point of "mark signed" is to hand back what the tenant signed,
       // not the template with the date filled in.
-      const signedPdfPath = bodySignedPdfUrl ?? contract.signedPdfUrl ?? undefined;
+      // || (not ??) — an explicit empty string in the body must not win over
+      // an already-uploaded signed PDF path.
+      const signedPdfPath = bodySignedPdfUrl || contract.signedPdfUrl || undefined;
       let actualSignedUrl: string | null = null;
       if (signedPdfPath) {
         const { data, error } = await supabase.storage
