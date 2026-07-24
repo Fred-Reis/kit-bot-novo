@@ -58,6 +58,13 @@ export async function bufferMedia(
     return;
   }
 
+  // Hold the debounce window open immediately, before the (slow) upload below.
+  // Otherwise a fast text message arriving while this upload is still in
+  // flight can flush the buffer first — splitting a "PDF + confirmation text"
+  // pair sent together into two separate flushes (see incident: bot asking
+  // to resend a signed contract PDF that had already arrived, moments earlier).
+  resetDebounce(chatId);
+
   // Upload non-audio media to Supabase Storage before enqueueing
   let resolvedMedia: MediaItem = media;
   if (media.base64 && media.type !== 'audio' && media.mime) {

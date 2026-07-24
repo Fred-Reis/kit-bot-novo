@@ -41,6 +41,7 @@ export async function finalizeContractSigning(
       name: true,
       ownerId: true,
       propertyId: true,
+      property: { select: { contractMonths: true } },
       documents: { select: { type: true, url: true, ocrText: true } },
     },
   });
@@ -51,6 +52,8 @@ export async function finalizeContractSigning(
   const cpf = extractCpfFromDocs(lead.documents);
   const tenantExternalId = await nextExternalId('tenant');
   const today = new Date();
+  const contractMonths = lead.property?.contractMonths ?? 12;
+  const contractEnd = new Date(today.getFullYear(), today.getMonth() + contractMonths, today.getDate());
 
   const tenant = await prisma.$transaction(async (tx) => {
     // Claim the lead atomically inside the same transaction as tenant creation —
@@ -71,6 +74,7 @@ export async function finalizeContractSigning(
         cpf: cpf ?? undefined,
         propertyId,
         contractStart: today,
+        contractEnd,
         externalId: tenantExternalId,
         ownerId: lead.ownerId,
       },
@@ -94,6 +98,7 @@ export async function finalizeContractSigning(
         data: {
           tenantId: newTenant.id,
           startDate: today,
+          endDate: contractEnd,
           status: 'active',
           ...(finalContractBody != null ? { body: finalContractBody } : {}),
           ...(finalPdfPath != null ? { pdfUrl: finalPdfPath } : {}),
@@ -154,4 +159,14 @@ export async function uploadSignedContractPdf(
   });
   if (error) throw new Error(`Signed contract upload failed: ${error.message}`);
   return path;
+}
+
+/**
+ * Create a temporary signed URL for a path in the 'contracts' bucket
+ * (e.g. to send a signed contract PDF back to the lead via WhatsApp).
+ */
+export async function createSignedContractUrl(path: string, expiresIn = 3_600): Promise<string> {
+  const { data, error } = await supabase.storage.from('contracts').createSignedUrl(path, expiresIn);
+  if (error || !data) throw new Error(`Signed contract URL failed: ${error?.message}`);
+  return data.signedUrl;
 }
