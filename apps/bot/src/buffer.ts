@@ -2,6 +2,7 @@ import { config } from '@/config';
 import { redis } from '@/db/redis';
 import { logger } from '@/lib/logger';
 import { sendText } from '@/services/evolution';
+import { recordMediaFailure } from '@/services/media-failure-tracker';
 import { uploadLeadDocument } from '@/services/storage';
 
 const debounceHandles = new Map<string, NodeJS.Timeout>();
@@ -78,6 +79,9 @@ export async function bufferMedia(
         chatId,
         'Não consegui receber seu arquivo agora 😕 Pode reenviar, por favor?',
       ).catch((sendErr) => logger.error({ sendErr, chatId }, '[buffer] Failed to notify lead'));
+      recordMediaFailure(chatId).catch((trackErr) =>
+        logger.error({ err: trackErr, chatId }, '[buffer] recordMediaFailure failed'),
+      );
       // Sem URL a mídia é inútil no flow — não enfileirar
       resetDebounce(chatId);
       return;

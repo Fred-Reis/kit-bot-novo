@@ -3,6 +3,7 @@ import { bufferMedia, bufferMessage } from '@/buffer';
 import { config } from '@/config';
 import { logger } from '@/lib/logger';
 import { getBase64FromMediaMessage, sendText } from '@/services/evolution';
+import { recordMediaFailure } from '@/services/media-failure-tracker';
 
 export interface InboundMessage {
   chatId: string;
@@ -151,6 +152,9 @@ async function dispatch(inbound: InboundMessage): Promise<void> {
       logger.error({ chatId, messageId, messageType, mediaUrl }, `[webhook] Midia sem base64 (${reason}) — midia perdida`);
       await sendText(chatId, 'Não consegui receber seu arquivo 😕 Pode reenviar, por favor?').catch(
         (sendErr) => logger.error({ sendErr, chatId, messageId }, '[webhook] Failed to notify lead'),
+      );
+      recordMediaFailure(chatId).catch((err) =>
+        logger.error({ err, chatId }, '[webhook] recordMediaFailure failed'),
       );
       return;
     }

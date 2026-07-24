@@ -14,6 +14,7 @@ mock.module('@/db/redis', () => ({
     lrange: async () => [],
     del: async () => 1,
     get: async () => null,
+    incr: async () => 1,
   },
 }));
 
