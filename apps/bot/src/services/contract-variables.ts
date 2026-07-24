@@ -90,6 +90,7 @@ export function buildLeadAutoMap(
     endereco: fullAddress,
     endereco_imovel: fullAddress,
     complemento_imovel: property.complement ?? '',
+    complemento: property.complement ?? '',
     bairro: property.neighborhood,
     bairro_imovel: property.neighborhood,
     // valores
@@ -104,6 +105,7 @@ export function buildLeadAutoMap(
     data_hoje: formatDatePtBR(today),
     data_inicio: formatDatePtBR(today),
     data_termino: formatDatePtBR(endDate),
+    data_fim: formatDatePtBR(endDate),
     data_assinatura: 'A ser preenchida na assinatura',
     vencimento: String(paymentDayOfMonth),
     dia_vencimento: String(paymentDayOfMonth),
