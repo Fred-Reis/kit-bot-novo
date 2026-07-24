@@ -130,6 +130,16 @@ export async function fetchTenants(): Promise<Tenant[]> {
   return ((data ?? []) as TenantRow[]).map(mapTenantRow);
 }
 
+export async function fetchTenantIdByPhone(phone: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('Tenant')
+    .select('id')
+    .eq('phone', phone)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
   const [{ data: tenant, error: tenantErr }, { data: payments, error: paymentsErr }] =
     await Promise.all([
@@ -435,7 +445,21 @@ export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocu
     .eq('tenantId', tenantId)
     .order('createdAt', { ascending: true });
   if (error) throw error;
-  return (data ?? []) as TenantDocument[];
+
+  const rawDocs = (data ?? []) as TenantDocument[];
+  return Promise.all(
+    rawDocs.map(async (doc) => {
+      if (!doc.url) return doc;
+      const { data: signed, error: signErr } = await supabase.storage
+        .from('leads')
+        .createSignedUrl(doc.url, 3600);
+      if (signErr) {
+        console.error(`[fetchTenantDocuments] Failed to sign URL for document ${doc.id}:`, signErr);
+        return doc;
+      }
+      return { ...doc, url: signed.signedUrl };
+    }),
+  );
 }
 
 export interface VisitEntry {

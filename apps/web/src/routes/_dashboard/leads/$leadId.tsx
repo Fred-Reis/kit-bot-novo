@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Archive, CheckCircle, ChevronLeft, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -9,8 +9,8 @@ import { DocGrid } from '@/components/doc-grid';
 import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { adminApi, apiErrorMessage } from '@/lib/api';
-import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
-import { fetchLead, fetchLeadContracts, fetchProperty } from '@/lib/queries';
+import { formatPhone, SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
+import { fetchLead, fetchLeadContracts, fetchProperty, fetchTenantIdByPhone } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -268,12 +268,29 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
 function LeadDetailPage() {
   const { leadId } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showApproveKycModal, setShowApproveKycModal] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', leadId],
     queryFn: () => fetchLead(leadId),
+    // Converting a lead to a tenant can happen in the background (the bot's
+    // WhatsApp auto-finalize flow), with no button click on this page to hang
+    // a redirect off — poll so the effect below can catch the transition.
+    refetchInterval: 5000,
   });
+
+  const { data: convertedTenantId } = useQuery({
+    queryKey: ['lead-converted-tenant', lead?.phone],
+    queryFn: () => fetchTenantIdByPhone(lead!.phone),
+    enabled: lead?.stage === 'converted',
+  });
+
+  useEffect(() => {
+    if (convertedTenantId) {
+      void navigate({ to: '/tenants/$tenantId', params: { tenantId: convertedTenantId } });
+    }
+  }, [convertedTenantId, navigate]);
 
   const { data: contracts = [], isLoading: contractsLoading } = useQuery({
     queryKey: ['lead-contracts', leadId],
@@ -308,10 +325,12 @@ function LeadDetailPage() {
 
   const markSigned = useMutation({
     mutationFn: () => adminApi.markContractSigned(leadId),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
+      void qc.invalidateQueries({ queryKey: ['leads'] });
+      void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
@@ -350,7 +369,9 @@ function LeadDetailPage() {
           <ChevronLeft className="size-5" />
         </Link>
         <div>
-          <h1 className="text-xl font-semibold text-foreground">{lead.phone}</h1>
+          <h1 className="text-xl font-semibold text-foreground">
+            {lead.name ?? formatPhone(lead.phone)}
+          </h1>
           <p className="text-sm text-muted-foreground">Lead ID: {lead.id}</p>
         </div>
       </div>
