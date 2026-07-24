@@ -641,7 +641,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
-      const { signedPdfUrl } = request.body ?? {};
+      const { signedPdfUrl: bodySignedPdfUrl } = request.body ?? {};
 
       const lead = await prisma.lead.findUnique({
         where: { id },
@@ -688,6 +688,20 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
       }
 
+      // The actually-signed PDF (uploaded via /upload-signed-contract, or passed
+      // directly in the body) takes priority over the freshly regenerated draft —
+      // the whole point of "mark signed" is to hand back what the tenant signed,
+      // not the template with the date filled in.
+      const signedPdfPath = bodySignedPdfUrl ?? contract.signedPdfUrl ?? undefined;
+      let actualSignedUrl: string | null = null;
+      if (signedPdfPath) {
+        const { data, error } = await supabase.storage
+          .from('contracts')
+          .createSignedUrl(signedPdfPath, 3600);
+        if (!error) actualSignedUrl = data.signedUrl;
+        else fastify.log.warn({ err: error, signedPdfPath }, 'createSignedUrl failed for uploaded signed contract');
+      }
+
       let tenantId: string;
       let tenantExternalId: string;
       try {
@@ -695,7 +709,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           leadId: id,
           contractId: contract.id,
           actorLabel: request.adminUserId ?? 'admin',
-          signedPdfUrl: signedPdfUrl ?? null,
+          signedPdfUrl: signedPdfPath ?? null,
           finalContractBody: finalBody,
           finalPdfPath,
         }));
@@ -707,7 +721,14 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(500).send({ error: 'Failed to finalize contract signing' });
       }
 
-      if (finalPdfSignedUrl) {
+      if (actualSignedUrl) {
+        sendMedia(
+          lead.phone,
+          'document',
+          actualSignedUrl,
+          '✅ Contrato assinado! Aqui está sua cópia.',
+        ).catch((err) => fastify.log.warn({ err }, 'Failed to send signed contract to lead'));
+      } else if (finalPdfSignedUrl) {
         sendMedia(
           lead.phone,
           'document',
@@ -1705,6 +1726,30 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { data: signed, error: signError } = await supabase.storage
         .from('contracts')
         .createSignedUrl(path, 300);
+      if (signError || !signed) return reply.status(500).send({ error: 'Could not sign PDF URL' });
+      return reply.send({ url: signed.signedUrl });
+    },
+  );
+
+  // ─── get signed contract pdf ──────────────────────────────────────────────
+  // The 'contracts' bucket has no read policy for the anon/authenticated
+  // client — only this backend (service role) can sign URLs into it. Mirrors
+  // the /pdf route above, but for the tenant's actually-signed copy.
+  fastify.get<{ Params: { id: string } }>(
+    '/admin/contracts/:id/signed-pdf',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const contract = await prisma.contract.findUnique({
+        where: { id },
+        select: { signedPdfUrl: true },
+      });
+      if (!contract) return reply.status(404).send({ error: 'Contract not found' });
+      if (!contract.signedPdfUrl) return reply.status(404).send({ error: 'No signed PDF for this contract' });
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from('contracts')
+        .createSignedUrl(contract.signedPdfUrl, 300);
       if (signError || !signed) return reply.status(500).send({ error: 'Could not sign PDF URL' });
       return reply.send({ url: signed.signedUrl });
     },

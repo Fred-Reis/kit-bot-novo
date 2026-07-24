@@ -2,28 +2,15 @@ import { Download, Eye, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { adminApi } from '@/lib/api';
 import type { ContractDoc } from '@/lib/queries';
-import { supabase } from '@/lib/supabase';
 
-function storagePath(urlOrPath: string): string {
-  try {
-    const u = new URL(urlOrPath);
-    const match = u.pathname.match(/\/object\/(?:public\/|sign\/|authenticated\/)?contracts\/(.+)/);
-    if (match) return decodeURIComponent(match[1]);
-  } catch {
-    /* already a relative path */
-  }
-  return urlOrPath;
-}
-
+// The 'contracts' bucket has no read policy for the browser's anon/authenticated
+// client, so signed URLs must always be minted backend-side (service role) —
+// never via a direct supabase.storage.createSignedUrl() call from here.
 async function getSignedUrl(contractId: string, signedPdfPath?: string): Promise<string | null> {
-  if (signedPdfPath) {
-    const { data, error } = await supabase.storage
-      .from('contracts')
-      .createSignedUrl(storagePath(signedPdfPath), 300);
-    return error ? null : (data?.signedUrl ?? null);
-  }
   try {
-    const { data } = await adminApi.getContractPdf(contractId);
+    const { data } = signedPdfPath
+      ? await adminApi.getSignedContractPdf(contractId)
+      : await adminApi.getContractPdf(contractId);
     return data.url;
   } catch {
     return null;

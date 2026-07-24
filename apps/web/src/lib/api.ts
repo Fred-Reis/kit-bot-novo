@@ -98,7 +98,12 @@ export const adminApi = {
   }) => botApi.post('/admin/contracts', data),
   getContractPdf: (contractId: string) =>
     botApi.get<{ url: string }>(`/admin/contracts/${contractId}/pdf`),
-  markContractSigned: (leadId: string) => botApi.post(`/admin/leads/${leadId}/mark-signed`),
+  getSignedContractPdf: (contractId: string) =>
+    botApi.get<{ url: string }>(`/admin/contracts/${contractId}/signed-pdf`),
+  markContractSigned: (leadId: string) =>
+    botApi.post<{ tenantId: string; tenantExternalId: string; stage: string }>(
+      `/admin/leads/${leadId}/mark-signed`,
+    ),
   uploadSignedContract: (leadId: string, file: File) =>
     postFile(`/admin/leads/${leadId}/upload-signed-contract`, file),
   importContractTemplate: (id: string, file: File) =>
