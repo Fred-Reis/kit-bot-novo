@@ -343,7 +343,9 @@ function LeadDetailPage() {
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
       void qc.invalidateQueries({ queryKey: ['leads'] });
-      void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
+      if (data.tenantId) {
+        void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
@@ -393,7 +395,7 @@ function LeadDetailPage() {
         </Link>
         <div>
           <h1 className="text-xl font-semibold text-foreground">
-            {lead.name ?? formatPhone(lead.phone)}
+            {lead.name?.trim() || formatPhone(lead.phone)}
           </h1>
           <p className="text-sm text-muted-foreground">Lead ID: {lead.id}</p>
         </div>

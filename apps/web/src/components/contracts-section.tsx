@@ -12,7 +12,8 @@ async function getSignedUrl(contractId: string, signedPdfPath?: string): Promise
       ? await adminApi.getSignedContractPdf(contractId)
       : await adminApi.getContractPdf(contractId);
     return data.url;
-  } catch {
+  } catch (err) {
+    console.error(`[ContractsSection] Falha ao obter URL do PDF do contrato ${contractId}:`, err);
     return null;
   }
 }
@@ -58,7 +59,9 @@ async function downloadPdf(contractId: string, filename: string, signedPdfPath?:
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Some browsers haven't finished reading the blob yet when click() returns —
+    // revoking immediately can cancel the download.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   } catch {
     toast.error('Não foi possível baixar o arquivo.', { id: toastId });
   }

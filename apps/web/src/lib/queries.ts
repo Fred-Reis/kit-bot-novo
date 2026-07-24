@@ -131,10 +131,14 @@ export async function fetchTenants(): Promise<Tenant[]> {
 }
 
 export async function fetchTenantIdByPhone(phone: string): Promise<string | null> {
+  // Tenant.phone isn't unique (reconversions can leave more than one row) —
+  // maybeSingle() throws on >1 row, so order + limit to the most recent first.
   const { data, error } = await supabase
     .from('Tenant')
     .select('id')
     .eq('phone', phone)
+    .order('createdAt', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   return (data as { id: string } | null)?.id ?? null;

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Select } from '@/components/ui/select';
 
 export interface DocItem {
@@ -30,8 +30,11 @@ function DocViewerModal({
   reclassify?: ReclassifyConfig;
 }) {
   const [selectedType, setSelectedType] = useState(doc.type);
+  const [imgError, setImgError] = useState(false);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    closeRef.current?.focus();
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -41,6 +44,7 @@ function DocViewerModal({
 
   return (
     <div
+      data-slot="doc-viewer-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
       role="dialog"
@@ -52,6 +56,7 @@ function DocViewerModal({
         onClick={(e) => e.stopPropagation()}
       >
         <button
+          ref={closeRef}
           type="button"
           aria-label="Fechar"
           onClick={onClose}
@@ -59,11 +64,23 @@ function DocViewerModal({
         >
           <X className="size-6" />
         </button>
-        <img
-          src={doc.url}
-          alt={doc.type}
-          className="max-h-[80vh] w-full rounded-lg object-contain shadow-xl"
-        />
+        {imgError ? (
+          <a
+            href={doc.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex max-h-[80vh] w-full flex-col items-center justify-center gap-2 rounded-lg bg-surface-raised p-8 text-sm text-foreground-subtle shadow-xl"
+          >
+            Não foi possível exibir a prévia. Abrir arquivo em nova aba →
+          </a>
+        ) : (
+          <img
+            src={doc.url}
+            alt={doc.type}
+            onError={() => setImgError(true)}
+            className="max-h-[80vh] w-full rounded-lg object-contain shadow-xl"
+          />
+        )}
         <p className="mt-3 text-xs font-medium uppercase tracking-wide text-white/60">{doc.type}</p>
         {reclassify && (
           <div className="mt-3 flex w-full max-w-xs items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -94,6 +111,40 @@ function DocViewerModal({
   );
 }
 
+function DocCard({ doc, onSelect }: { doc: DocItem; onSelect: () => void }) {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <button
+      type="button"
+      data-slot="doc-card"
+      onClick={onSelect}
+      className="overflow-hidden rounded-lg border border-border bg-surface text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex h-36 items-center justify-center overflow-hidden bg-muted">
+        {imgError ? (
+          <span className="px-2 text-center text-xs text-muted-foreground">Sem prévia</span>
+        ) : (
+          <img
+            src={doc.url}
+            alt={doc.type}
+            onError={() => setImgError(true)}
+            className="h-full w-full object-contain"
+          />
+        )}
+      </div>
+      <div className="p-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {doc.type}
+        </p>
+        {doc.ocrText && (
+          <p className="mt-1 line-clamp-2 text-xs text-foreground-subtle">{doc.ocrText}</p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export function DocGrid({ docs, reclassify }: { docs: DocItem[]; reclassify?: ReclassifyConfig }) {
   const [selected, setSelected] = useState<DocItem | null>(null);
 
@@ -102,27 +153,9 @@ export function DocGrid({ docs, reclassify }: { docs: DocItem[]; reclassify?: Re
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div data-slot="doc-grid" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {docs.map((doc) => (
-          <button
-            key={doc.id}
-            type="button"
-            data-slot="doc-card"
-            onClick={() => setSelected(doc)}
-            className="overflow-hidden rounded-lg border border-border bg-surface text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div className="flex h-36 items-center justify-center overflow-hidden bg-muted">
-              <img src={doc.url} alt={doc.type} className="h-full w-full object-contain" />
-            </div>
-            <div className="p-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {doc.type}
-              </p>
-              {doc.ocrText && (
-                <p className="mt-1 line-clamp-2 text-xs text-foreground-subtle">{doc.ocrText}</p>
-              )}
-            </div>
-          </button>
+          <DocCard key={doc.id} doc={doc} onSelect={() => setSelected(doc)} />
         ))}
       </div>
       {selected && (

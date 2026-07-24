@@ -43,7 +43,7 @@ function TenantDetailPage() {
     enabled: !!data,
   });
 
-  const { data: documents = [] } = useQuery({
+  const { data: documents = [], isLoading: documentsLoading } = useQuery({
     queryKey: ['tenant-documents', tenantId],
     queryFn: () => fetchTenantDocuments(tenantId),
     enabled: !!data,
@@ -165,7 +165,14 @@ function TenantDetailPage() {
         style={{ boxShadow: 'var(--shadow-sm)' }}
       >
         <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
-        <DocGrid docs={documents} />
+        {documentsLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="h-36 animate-pulse rounded-lg bg-muted" />
+            <div className="h-36 animate-pulse rounded-lg bg-muted" />
+          </div>
+        ) : (
+          <DocGrid docs={documents} />
+        )}
       </div>
     </div>
   );
