@@ -14,6 +14,7 @@ import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services
 import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
+import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
 import { generateAndUploadPdf } from '@/services/pdf';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
@@ -33,6 +34,8 @@ const ALLOWED_MEDIA_TYPES = new Set([
 ]);
 
 const VALID_POLICY_VALUES = new Set(['yes', 'no', 'conditional']);
+
+const LEAD_DOCUMENT_TYPES = new Set(Object.keys(DOC_TYPE_LABEL));
 
 const PROPERTY_PATCH_FIELDS = new Set([
   'name',
@@ -574,6 +577,59 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.send({ success: true, contractId: contract.id, stage: 'contract_pending' });
   });
+
+  // ─── reclassify lead document ─────────────────────────────────────────────
+  // OCR classification isn't perfect — lets the owner correct a mislabeled
+  // document from the panel (lead-flow-v2 spec §2.4/2.5).
+  fastify.patch<{ Params: { id: string; docId: string }; Body: { type: string } }>(
+    '/admin/leads/:id/documents/:docId',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id, docId } = request.params;
+      const { type } = request.body ?? {};
+
+      if (!LEAD_DOCUMENT_TYPES.has(type)) {
+        return reply.status(400).send({
+          error: `Invalid document type. Expected one of: ${[...LEAD_DOCUMENT_TYPES].join(', ')}`,
+        });
+      }
+
+      const doc = await prisma.leadDocument.findUnique({ where: { id: docId } });
+      if (!doc || doc.leadId !== id) {
+        return reply.status(404).send({ error: 'Document not found for this lead' });
+      }
+
+      if (doc.type === type) {
+        return reply.send(doc);
+      }
+
+      const conflict = await prisma.leadDocument.findUnique({
+        where: { leadId_type: { leadId: id, type } },
+      });
+      if (conflict) {
+        return reply.status(409).send({
+          error: `Lead already has a document classified as '${type}'`,
+        });
+      }
+
+      const updated = await prisma.leadDocument.update({
+        where: { id: docId },
+        data: { type, classifiedBy: 'manual' },
+      });
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: doc.ownerId,
+        action: 'document_reclassified',
+        subject: `${doc.type} → ${type}`,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send(updated);
+    },
+  );
 
   // ─── invalidate-property-cache ────────────────────────────────────────────
   fastify.put<{ Params: { id: string } }>(

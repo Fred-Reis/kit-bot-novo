@@ -46,7 +46,8 @@ export type ActivityLogAction =
   | 'visit_completed'
   | 'visit_cancelled'
   | 'bot_globally_paused'
-  | 'bot_globally_resumed';
+  | 'bot_globally_resumed'
+  | 'document_reclassified';
 
 export interface LogActivityParams {
   ownerId: string;

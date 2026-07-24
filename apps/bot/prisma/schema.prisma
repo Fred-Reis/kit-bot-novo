@@ -133,10 +133,11 @@ model LeadDocument {
   owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   leadId    String
   lead      Lead     @relation(fields: [leadId], references: [id])
-  type      String   // "cnh" | "rg_cpf" | "cpf" | "image"
-  url       String
-  ocrText   String?
-  createdAt DateTime @default(now())
+  type        String   // cnh_front | cnh_back | cnh_full | rg_front | rg_back | cpf | income_proof | unknown
+  classifiedBy String  @default("ocr") // "ocr" | "manual" — owner can reclassify a misidentified doc
+  url         String
+  ocrText     String?
+  createdAt   DateTime @default(now())
 
   @@index([ownerId])
   @@unique([leadId, type])

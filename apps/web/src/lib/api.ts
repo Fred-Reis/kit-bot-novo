@@ -39,6 +39,8 @@ export const adminApi = {
     leadId: string,
     body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> },
   ) => botApi.post(`/admin/leads/${leadId}/approve-kyc`, body),
+  reclassifyDocument: (leadId: string, docId: string, type: string) =>
+    botApi.patch(`/admin/leads/${leadId}/documents/${docId}`, { type }),
   getContractVariables: (leadId: string, paymentDayOfMonth: number) =>
     botApi.get<{ unresolved: string[]; hasTemplate: boolean; templateName?: string }>(
       `/admin/leads/${leadId}/contract-variables`,

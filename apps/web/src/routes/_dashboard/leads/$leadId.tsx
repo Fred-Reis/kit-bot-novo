@@ -61,6 +61,19 @@ function defaultVarStates(keys: string[]): Record<string, ManualVarState> {
   return Object.fromEntries(keys.map((p) => [p, { action: 'ignore' as ManualVarAction, value: '' }]));
 }
 
+// Mirrors apps/bot/src/services/doc-classifier.ts's LeadDocumentType/DOC_TYPE_LABEL —
+// duplicated here since the bot and web apps don't share a types package for this.
+const DOC_TYPE_OPTIONS = [
+  { value: 'cnh_front', label: 'Frente da CNH' },
+  { value: 'cnh_back', label: 'Verso da CNH' },
+  { value: 'cnh_full', label: 'CNH completa (foto única)' },
+  { value: 'rg_front', label: 'Frente do RG' },
+  { value: 'rg_back', label: 'Verso do RG' },
+  { value: 'cpf', label: 'CPF' },
+  { value: 'income_proof', label: 'Comprovante de renda' },
+  { value: 'unknown', label: 'Não identificado' },
+];
+
 function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [day, setDay] = useState(10);
@@ -345,6 +358,16 @@ function LeadDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao enviar contrato assinado.')),
   });
 
+  const reclassifyDoc = useMutation({
+    mutationFn: ({ docId, type }: { docId: string; type: string }) =>
+      adminApi.reclassifyDocument(leadId, docId, type),
+    onSuccess: () => {
+      toast.success('Documento reclassificado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao reclassificar documento.')),
+  });
+
   const archiveMutation = useMutation({
     mutationFn: (archived: boolean) => adminApi.archiveLead(leadId, archived),
     onSuccess: (_, archived) => {
@@ -538,7 +561,14 @@ function LeadDetailPage() {
       {/* Documents */}
       <div className="rounded-xl border border-border bg-surface-raised p-5">
         <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
-        <DocGrid docs={lead.documents ?? []} />
+        <DocGrid
+          docs={lead.documents ?? []}
+          reclassify={{
+            options: DOC_TYPE_OPTIONS,
+            pending: reclassifyDoc.isPending,
+            onSubmit: (docId, type) => reclassifyDoc.mutate({ docId, type }),
+          }}
+        />
       </div>
     </div>
   );
