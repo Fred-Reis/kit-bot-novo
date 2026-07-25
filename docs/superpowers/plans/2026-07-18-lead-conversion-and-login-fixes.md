@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: `TenantDocument` Prisma model with fields `id, ownerId, tenantId, type, url, ocrText, createdAt`, mirroring `LeadDocument` (`apps/bot/prisma/schema.prisma:129-141`).
 
-- [ ] **Step 1: Add the model**
+- [x] **Step 1: Add the model**
 
 In `apps/bot/prisma/schema.prisma`, right after the closing brace of `model Tenant` (currently ends at line 181, just before `model Payment`), insert:
 
@@ -49,7 +49,7 @@ model TenantDocument {
 }
 ```
 
-- [ ] **Step 2: Wire the back-relations**
+- [x] **Step 2: Wire the back-relations**
 
 In `model Tenant`, add a `documents` field next to the existing `contracts` field (`apps/bot/prisma/schema.prisma:159-181`):
 
@@ -60,7 +60,7 @@ In `model Tenant`, add a `documents` field next to the existing `contracts` fiel
 
 In `model Owner` (`apps/bot/prisma/schema.prisma:9-24`), add `tenantDocuments TenantDocument[]` next to the existing `tenants Tenant[]` line so the reverse relation resolves.
 
-- [ ] **Step 3: Write and apply the migration**
+- [x] **Step 3: Write and apply the migration**
 
 `bunx prisma migrate dev` cannot run in this repo (see Global Constraints — shadow-db P3006 on M2). Instead, from `apps/bot`, create `prisma/migrations/<timestamp>_add_tenant_documents/migration.sql` by hand, matching Prisma's exact generated style (see `prisma/migrations/20260704000002_leaddocument_unique_leadid_type/migration.sql` for the same shape — a `CREATE TABLE` + `CREATE INDEX` + `ADD CONSTRAINT` sequence):
 
@@ -100,12 +100,12 @@ bunx prisma generate
 ```
 Expected: `bunx prisma migrate status` reports "Database schema is up to date!" with one more migration in the count.
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `cd apps/bot && bunx tsc --noEmit`
 Expected: no errors (schema-only change, no consumers yet).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/bot/prisma/schema.prisma apps/bot/prisma/migrations
@@ -127,7 +127,7 @@ git commit -m "feat(db): add TenantDocument model for lead->tenant document hand
 - Consumes: `TenantDocument` model from Task 1.
 - Produces: `finalizeContractSigning(params: FinalizeSigningParams): Promise<FinalizeSigningResult>` — same public signature as today, but now throws `Error('Lead is not in contract_pending stage')` if the stage claim fails (instead of relying on callers to pre-claim).
 
-- [ ] **Step 1: Widen the lead select to fetch full documents**
+- [x] **Step 1: Widen the lead select to fetch full documents**
 
 In `apps/bot/src/services/contract-signing.ts:37-40`, change:
 
@@ -153,7 +153,7 @@ to:
   });
 ```
 
-- [ ] **Step 2: Fold the stage claim, tenant create, doc copy into one transaction**
+- [x] **Step 2: Fold the stage claim, tenant create, doc copy into one transaction**
 
 In `apps/bot/src/services/contract-signing.ts:49-76`, replace:
 
@@ -245,7 +245,7 @@ with:
   });
 ```
 
-- [ ] **Step 3: Simplify the admin.ts mark-signed route**
+- [x] **Step 3: Simplify the admin.ts mark-signed route**
 
 In `apps/bot/src/routes/admin.ts`, the route currently (lines 638-712, after this session's earlier revert-patch) does: read lead → check stage → find draft contract → **claim stage via `updateMany`** → generate PDF → call `finalizeContractSigning` in a try/catch that reverts the stage claim on failure. The stage claim is now redundant (Task 2 Step 2 does it atomically inside `finalizeContractSigning`), so remove it and simplify the catch block.
 
@@ -290,7 +290,7 @@ Then replace the `finalizeContractSigning` call (added earlier this session — 
       }
 ```
 
-- [ ] **Step 4: Remove the redundant stage update in the bot flow**
+- [x] **Step 4: Remove the redundant stage update in the bot flow**
 
 In `apps/bot/src/flows/lead/index.ts:269-273`, delete:
 
@@ -305,12 +305,12 @@ In `apps/bot/src/flows/lead/index.ts:269-273`, delete:
 
 (The comment and code are now dead — `finalizeContractSigning` already did this atomically at Step 254-259 above it.)
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `cd apps/bot && bunx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 6: Manual verification**
+- [x] **Step 6: Manual verification**
 
 This touches money-path logic with no existing test harness for `finalizeContractSigning` — verify by hand against a dev/staging DB:
 1. Create a lead in `contract_pending` with a draft contract and at least one `LeadDocument` row.
@@ -318,7 +318,7 @@ This touches money-path logic with no existing test harness for `finalizeContrac
 3. Confirm: `Lead.stage = 'converted'`, `Lead.archivedAt` is set, a new `Tenant` row exists, `TenantDocument` rows exist matching the lead's documents, `Contract.tenantId` is set and `Contract.status = 'active'`, `Property.status = 'rented'`.
 4. Repeat with a duplicate call (simulate retry) — expect a clean error, not a second tenant.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/bot/src/services/contract-signing.ts apps/bot/src/routes/admin.ts apps/bot/src/flows/lead/index.ts
@@ -336,7 +336,7 @@ git commit -m "fix(bot): atomically archive lead and copy documents on contract 
 - Consumes: nothing new.
 - Produces: `TenantDocument` interface, exported from `@kit-manager/types` (re-exported via `packages/types/src/index.ts:export * from './tenant'`, already present).
 
-- [ ] **Step 1: Add the interface**
+- [x] **Step 1: Add the interface**
 
 In `packages/types/src/tenant.ts`, after the `Tenant` interface (currently ends at line 18), add:
 
@@ -352,11 +352,11 @@ export interface TenantDocument {
 }
 ```
 
-- [ ] **Step 2: Typecheck the package**
+- [x] **Step 2: Typecheck the package**
 
 Run: `cd packages/types && bunx tsc --noEmit` (or the workspace's equivalent build check if `types` has no standalone tsconfig — check `packages/types/package.json` for the `typecheck`/`build` script and use that instead if `tsc --noEmit` isn't wired directly).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/types/src/tenant.ts
@@ -376,7 +376,7 @@ git commit -m "feat(types): add TenantDocument type"
 - Consumes: `TenantDocument` from Task 3.
 - Produces: `ContractDoc` type (renamed from `LeadContract`), `fetchTenantContracts(tenantId: string): Promise<ContractDoc[]>`, `fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]>`.
 
-- [ ] **Step 1: Rename `LeadContract` → `ContractDoc`**
+- [x] **Step 1: Rename `LeadContract` → `ContractDoc`**
 
 In `apps/web/src/lib/queries.ts:399-408`, rename the interface:
 
@@ -395,7 +395,7 @@ export interface ContractDoc {
 
 Update `fetchLeadContracts`'s return type (`apps/web/src/lib/queries.ts:410-418`) from `Promise<LeadContract[]>` to `Promise<ContractDoc[]>` and the internal cast from `as LeadContract[]` to `as ContractDoc[]`.
 
-- [ ] **Step 2: Add `fetchTenantContracts`**
+- [x] **Step 2: Add `fetchTenantContracts`**
 
 Immediately after `fetchLeadContracts`, add:
 
@@ -411,7 +411,7 @@ export async function fetchTenantContracts(tenantId: string): Promise<ContractDo
 }
 ```
 
-- [ ] **Step 3: Add `fetchTenantDocuments`**
+- [x] **Step 3: Add `fetchTenantDocuments`**
 
 Add, importing `TenantDocument` at the top of the file from `@kit-manager/types` (alongside whatever is already imported there):
 
@@ -427,16 +427,16 @@ export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocu
 }
 ```
 
-- [ ] **Step 4: Fix the rename's call site**
+- [x] **Step 4: Fix the rename's call site**
 
 In `apps/web/src/routes/_dashboard/leads/$leadId.tsx:12`, `fetchLeadContracts` is imported but not `LeadContract` directly (verified — the type isn't imported there, only used as the inferred return type of `useQuery`). No further change needed there for the rename, but confirm with a typecheck.
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/lib/queries.ts
@@ -457,7 +457,7 @@ git commit -m "feat(web): add tenant documents/contracts queries, rename LeadCon
 - Consumes: `ContractDoc` from Task 4.
 - Produces: `ContractsSection({ contracts, isLoading }: { contracts: ContractDoc[]; isLoading: boolean }): JSX.Element` — a named export.
 
-- [ ] **Step 1: Create the shared component**
+- [x] **Step 1: Create the shared component**
 
 Create `apps/web/src/components/contracts-section.tsx` with the full body currently in `LeadContractsSection` (`apps/web/src/routes/_dashboard/leads/$leadId.tsx:597-726`), converted to take `contracts`/`isLoading` as props instead of owning the `useQuery` call itself (so it stays agnostic to whether the caller fetched by `leadId` or `tenantId`):
 
@@ -632,7 +632,7 @@ export function ContractsSection({
 
 `data-slot` note: this component doesn't have a single semantic root role beyond a generic panel — follow `COMPONENT_PATTERN.md` and add `data-slot="contracts-section"` on the outer `div` if the project's lint/review expects it on every component (check a couple of existing `src/components/*.tsx` files for whether plain section panels like this carry `data-slot`; if none of the non-primitive section components do, skip it — don't invent a convention this file doesn't already have).
 
-- [ ] **Step 2: Replace the lead page's local copy**
+- [x] **Step 2: Replace the lead page's local copy**
 
 In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
 - Delete `LeadContractsSection` entirely (lines 597-726).
@@ -653,12 +653,12 @@ In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
   });
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors, no unused-import warnings (Oxlint will also catch these — run `bunx oxlint` if available as a script).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/components/contracts-section.tsx apps/web/src/routes/_dashboard/leads/\$leadId.tsx
@@ -678,7 +678,7 @@ git commit -m "refactor(web): extract ContractsSection so tenant page can reuse 
 **Interfaces:**
 - Produces: `DocGrid({ docs }: { docs: DocItem[] }): JSX.Element`, `DocItem` type, both exported.
 
-- [ ] **Step 1: Create the shared component**
+- [x] **Step 1: Create the shared component**
 
 Create `apps/web/src/components/doc-grid.tsx`:
 
@@ -770,7 +770,7 @@ export function DocGrid({ docs }: { docs: DocItem[] }) {
 }
 ```
 
-- [ ] **Step 2: Replace the lead page's local copy**
+- [x] **Step 2: Replace the lead page's local copy**
 
 In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
 - Delete `DocViewerModal` (lines 53-91) and `DocGrid` (lines 93-127).
@@ -778,11 +778,11 @@ In `apps/web/src/routes/_dashboard/leads/$leadId.tsx`:
 - Add `import { DocGrid } from '@/components/doc-grid';`
 - The render site (line 591, `<DocGrid docs={lead.documents ?? []} />`) needs no change — `LeadDocument[]` structurally satisfies `DocItem[]`.
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/web/src/components/doc-grid.tsx apps/web/src/routes/_dashboard/leads/\$leadId.tsx
@@ -801,7 +801,7 @@ git commit -m "refactor(web): extract DocGrid so tenant page can reuse it"
 **Interfaces:**
 - Consumes: `ContractsSection` (Task 5), `DocGrid` (Task 6), `fetchTenantContracts`, `fetchTenantDocuments` (Task 4).
 
-- [ ] **Step 1: Add the queries**
+- [x] **Step 1: Add the queries**
 
 In `apps/web/src/routes/_dashboard/tenants/$tenantId.tsx`, add imports:
 
@@ -830,7 +830,7 @@ Inside `TenantDetailPage`, after the existing `fetchTenant` query (lines 33-36),
   });
 ```
 
-- [ ] **Step 2: Render the sections**
+- [x] **Step 2: Render the sections**
 
 In the JSX, after the closing `</div>` of the `grid gap-4 lg:grid-cols-[1fr_280px]` block (the payments+contact grid, ending at line 145), add:
 
@@ -846,15 +846,15 @@ In the JSX, after the closing `</div>` of the `grid gap-4 lg:grid-cols-[1fr_280p
       </div>
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Start the web app (`bun run dev` in `apps/web`) against a dev DB with a converted tenant that has `TenantDocument` rows (from Task 2's verification) and an active `Contract` with `signedPdfUrl` set. Open `/tenants/:id` and confirm both the contract (view/download buttons work) and the document grid render.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/routes/_dashboard/tenants/\$tenantId.tsx
@@ -872,7 +872,7 @@ git commit -m "feat(web): show contract and documents on tenant detail page"
 
 **Interfaces:** none (UI-only, no new exports).
 
-- [ ] **Step 1: Remove the column definition**
+- [x] **Step 1: Remove the column definition**
 
 In `apps/web/src/routes/_dashboard/leads/index.tsx:34-56`, delete the last entry from `KANBAN_COLUMNS`:
 
@@ -880,7 +880,7 @@ In `apps/web/src/routes/_dashboard/leads/index.tsx:34-56`, delete the last entry
   { key: 'ganho', label: 'Ganho', stages: ['converted'], droppable: false },
 ```
 
-- [ ] **Step 2: Adjust the grid column count**
+- [x] **Step 2: Adjust the grid column count**
 
 In the same file, `KanbanView`'s wrapper (`apps/web/src/routes/_dashboard/leads/index.tsx:142`) is currently:
 
@@ -890,15 +890,15 @@ In the same file, `KanbanView`'s wrapper (`apps/web/src/routes/_dashboard/leads/
 
 Change `lg:grid-cols-5` to `lg:grid-cols-4` (4 remaining columns: `novo`, `qualificacao`, `visita`, `proposta`).
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `cd apps/web && bunx tsc -b --force && bunx oxlint` (use whatever the project's lint script is named in `apps/web/package.json` if `oxlint` isn't callable directly).
 
-- [ ] **Step 4: Manual verification**
+- [x] **Step 4: Manual verification**
 
 Run the web app, open `/leads`, confirm the kanban shows 4 columns and a lead that reaches `contract_pending` → mark-signed disappears from the board entirely (rather than landing in a fifth column).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/web/src/routes/_dashboard/leads/index.tsx
@@ -917,7 +917,7 @@ git commit -m "fix(web): remove dead Ganho kanban column now that converted lead
 
 **Interfaces:** none new (route-local behavior only).
 
-- [ ] **Step 1: Add a typed search param to the login route**
+- [x] **Step 1: Add a typed search param to the login route**
 
 In `apps/web/src/routes/_auth/login.tsx`, add to the top imports:
 
@@ -934,7 +934,7 @@ export const Route = createFileRoute('/_auth/login')({
 });
 ```
 
-- [ ] **Step 2: Show the message on mount**
+- [x] **Step 2: Show the message on mount**
 
 In `LoginPage` (`apps/web/src/routes/_auth/login.tsx:9-13`), read the search param and toast once:
 
@@ -955,7 +955,7 @@ function LoginPage() {
 
 Add `useEffect` to the existing `import { useState } from 'react';` line, making it `import { useEffect, useState } from 'react';`.
 
-- [ ] **Step 3: Redirect with the reason from `__root.tsx`**
+- [x] **Step 3: Redirect with the reason from `__root.tsx`**
 
 In `apps/web/src/routes/__root.tsx:25-35`, change:
 
@@ -989,16 +989,16 @@ to:
     }
 ```
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 Expected: no errors. TanStack Router's generated route tree (`src/routeTree.gen.ts`) picks up the new `validateSearch` automatically on next dev-server/build run — if `tsc` complains about the `search` param type on `redirect(...)` in `__root.tsx`, run the dev server once (`bun run dev`) to force route-tree regeneration, then re-run the typecheck.
 
-- [ ] **Step 5: Manual verification**
+- [x] **Step 5: Manual verification**
 
 Log in with a Google account (or magic link email) that has no matching `Owner.email` row. Confirm: you land on `/login`, and a red toast reads "Essa conta ainda não tem acesso ao painel. Fale com o administrador." — not silence.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/routes/__root.tsx apps/web/src/routes/_auth/login.tsx
@@ -1011,24 +1011,24 @@ git commit -m "fix(web): show a message when a non-owner account is rejected at 
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Backend typecheck**
+- [x] **Step 1: Backend typecheck**
 
 Run: `cd apps/bot && bunx tsc --noEmit`
 
-- [ ] **Step 2: Backend tests**
+- [x] **Step 2: Backend tests**
 
 Run: `cd apps/bot && bun test`
 Expected: all green — this plan didn't touch anything with existing test coverage, but confirm no regression (in particular around `src/__tests__/contract-variables.test.ts`, which references `contractStart`/tenant fixtures).
 
-- [ ] **Step 3: Frontend typecheck**
+- [x] **Step 3: Frontend typecheck**
 
 Run: `cd apps/web && bunx tsc -b --force`
 
-- [ ] **Step 4: Frontend tests**
+- [x] **Step 4: Frontend tests**
 
 Run: `cd apps/web && bun test`
 
-- [ ] **Step 5: End-to-end manual walkthrough**
+- [x] **Step 5: End-to-end manual walkthrough**
 
 1. Convert a lead through the full flow (KYC → contract_pending → mark-signed) in a dev/staging environment.
 2. Confirm the lead vanishes from `/leads` (kanban and table view) immediately.
@@ -1036,6 +1036,6 @@ Run: `cd apps/web && bun test`
 4. Log in with a non-owner account — confirm the toast from Task 9.
 5. Confirm the leads kanban has 4 columns, none labeled "Ganho".
 
-- [ ] **Step 6: Final commit / PR**
+- [x] **Step 6: Final commit / PR**
 
 Once all of the above is green, follow this repo's normal PR flow (feature branch + `gh pr create`, per existing project convention — do not merge to `main` directly).

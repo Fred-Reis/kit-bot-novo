@@ -12,3 +12,4 @@ apps/web/.tanstack/
 codeflow.md
 *.lock
 .worktrees/
+.playwright-mcp/
