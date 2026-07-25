@@ -33,6 +33,14 @@ function DocViewerModal({
   const [imgError, setImgError] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // doc is re-derived from the live docs list (see DocGrid) by id, so once a
+  // reclassify succeeds and the query refetches, doc.type changes under us —
+  // keep the select in sync instead of showing the value from when the modal
+  // first opened.
+  useEffect(() => {
+    setSelectedType(doc.type);
+  }, [doc.type]);
+
   useEffect(() => {
     closeRef.current?.focus();
     const handler = (e: KeyboardEvent) => {
@@ -146,7 +154,11 @@ function DocCard({ doc, onSelect }: { doc: DocItem; onSelect: () => void }) {
 }
 
 export function DocGrid({ docs, reclassify }: { docs: DocItem[]; reclassify?: ReclassifyConfig }) {
-  const [selected, setSelected] = useState<DocItem | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Re-derive from the live docs prop (rather than storing the DocItem
+  // snapshot itself) so a reclassify that changes doc.type is reflected in
+  // the still-open modal once the query refetches.
+  const selected = selectedId ? (docs.find((d) => d.id === selectedId) ?? null) : null;
 
   if (docs.length === 0)
     return <p className="text-sm text-muted-foreground">Nenhum documento enviado.</p>;
@@ -155,11 +167,11 @@ export function DocGrid({ docs, reclassify }: { docs: DocItem[]; reclassify?: Re
     <>
       <div data-slot="doc-grid" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {docs.map((doc) => (
-          <DocCard key={doc.id} doc={doc} onSelect={() => setSelected(doc)} />
+          <DocCard key={doc.id} doc={doc} onSelect={() => setSelectedId(doc.id)} />
         ))}
       </div>
       {selected && (
-        <DocViewerModal doc={selected} onClose={() => setSelected(null)} reclassify={reclassify} />
+        <DocViewerModal doc={selected} onClose={() => setSelectedId(null)} reclassify={reclassify} />
       )}
     </>
   );
