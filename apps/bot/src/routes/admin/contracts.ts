@@ -144,11 +144,12 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     if (endDate && new Date(endDate) <= new Date(startDate))
       return reply.status(400).send({ error: 'endDate must be after startDate' });
 
-    let renderedBody = template.body;
-    for (const [placeholder, value] of Object.entries(variables ?? {})) {
-      renderedBody = renderedBody.replaceAll(placeholder, value);
-    }
-    renderedBody = renderedBody.replace(/\{\{[^}]+\}\}/g, 'N/A');
+    const providedVariables = variables ?? {};
+    const renderedBody = template.body.replace(/\{\{[^}]+\}\}/g, (placeholder) =>
+      Object.prototype.hasOwnProperty.call(providedVariables, placeholder)
+        ? providedVariables[placeholder]
+        : 'N/A',
+    );
 
     const code = await nextExternalId('contract');
 
