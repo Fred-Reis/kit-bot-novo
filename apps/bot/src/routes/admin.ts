@@ -612,10 +612,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      const updated = await prisma.leadDocument.update({
-        where: { id: docId },
-        data: { type, classifiedBy: 'manual' },
-      });
+      let updated;
+      try {
+        updated = await prisma.leadDocument.update({
+          where: { id: docId },
+          data: { type, classifiedBy: 'manual' },
+        });
+      } catch (err) {
+        // Concurrent request reclassified another doc to the same type between
+        // the check above and this update — @@unique([leadId, type]) catches it.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          return reply.status(409).send({
+            error: `Lead already has a document classified as '${type}'`,
+          });
+        }
+        throw err;
+      }
 
       logActivityHelper({
         actorType: 'user',

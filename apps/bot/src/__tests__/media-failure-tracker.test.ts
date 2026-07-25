@@ -36,7 +36,7 @@ mock.module('@/services/notify', () => ({
   },
 }));
 
-import { recordMediaFailure } from '@/services/media-failure-tracker';
+import { recordMediaFailure, resetMediaFailures } from '@/services/media-failure-tracker';
 
 describe('recordMediaFailure', () => {
   beforeEach(() => {
@@ -66,6 +66,26 @@ describe('recordMediaFailure', () => {
     await recordMediaFailure('5527997300401@s.whatsapp.net');
     await recordMediaFailure('5527997300401@s.whatsapp.net');
     await recordMediaFailure('5527997300401@s.whatsapp.net');
+
+    expect(notifications.length).toBe(1);
+  });
+
+  it('sucesso no meio da sequência reseta a contagem — falha→sucesso→falha não notifica', async () => {
+    await recordMediaFailure('5527997300401@s.whatsapp.net');
+    await resetMediaFailures('5527997300401@s.whatsapp.net');
+    await recordMediaFailure('5527997300401@s.whatsapp.net');
+
+    expect(notifications.length).toBe(0);
+  });
+
+  it('rajada concorrente de falhas notifica só uma vez (incr atômico, checagem por valor exato)', async () => {
+    const chatId = '5527997300401@s.whatsapp.net';
+    await Promise.all([
+      recordMediaFailure(chatId),
+      recordMediaFailure(chatId),
+      recordMediaFailure(chatId),
+      recordMediaFailure(chatId),
+    ]);
 
     expect(notifications.length).toBe(1);
   });

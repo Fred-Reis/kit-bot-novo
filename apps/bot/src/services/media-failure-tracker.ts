@@ -14,13 +14,17 @@ const FAILURE_THRESHOLD = 2;
  */
 export async function recordMediaFailure(chatId: string): Promise<void> {
   const key = `media_fail:${chatId}`;
+  // redis.incr is atomic and returns a value unique to this call — two
+  // concurrent failures can never both observe the same count, so reacting
+  // to the *exact* threshold (rather than >=) means only one caller ever
+  // notifies, even under a concurrent burst of failures.
   const count = await redis.incr(key);
   await redis.expire(key, FAILURE_TTL_SECONDS);
 
-  if (count < FAILURE_THRESHOLD) return;
+  if (count !== FAILURE_THRESHOLD) return;
 
-  // Reset so the next isolated failure doesn't immediately re-notify —
-  // only a fresh streak of FAILURE_THRESHOLD does.
+  // Reset so a later, unrelated streak still needs FAILURE_THRESHOLD of its
+  // own to notify again.
   await redis.del(key);
 
   const lead = await prisma.lead.findUnique({
@@ -34,4 +38,12 @@ export async function recordMediaFailure(chatId: string): Promise<void> {
     leadPhone: lead.phone,
     failureCount: count,
   }).catch((err) => logger.error({ err }, '[media-failure-tracker] notifyOwner failed'));
+}
+
+/**
+ * Clears the failure streak after a successful media receipt — the spec's
+ * "2 failures in a row" shouldn't accumulate across unrelated successes.
+ */
+export async function resetMediaFailures(chatId: string): Promise<void> {
+  await redis.del(`media_fail:${chatId}`);
 }
