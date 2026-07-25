@@ -136,17 +136,32 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'Lead not found' });
       }
 
+      const STAGES_PAST_VISITING = new Set([
+        'collection',
+        'kyc_pending',
+        'kyc_approved',
+        'residents_docs_complete',
+        'contract_pending',
+        'contract_signed',
+        'converted',
+      ]);
+
       let data: Prisma.LeadUpdateInput;
       let action: 'visit_completed' | 'visit_cancelled' | 'visit_scheduled';
 
       if (status === 'completed') {
-        data = { visitedAt: new Date(), archivedAt: null, stage: 'post_visit_decision' };
+        data = { visitedAt: new Date(), stage: 'post_visit_decision' };
         action = 'visit_completed';
       } else if (status === 'cancelled') {
-        data = { archivedAt: new Date(), visitedAt: null };
+        data = { scheduledVisitAt: null, visitedAt: null };
         action = 'visit_cancelled';
       } else {
-        data = { visitedAt: null, archivedAt: null, stage: 'visiting' };
+        if (STAGES_PAST_VISITING.has(lead.stage)) {
+          return reply.status(409).send({
+            error: 'Cannot set visit to upcoming: lead is already past the visiting stage',
+          });
+        }
+        data = { visitedAt: null, stage: 'visiting' };
         action = 'visit_scheduled';
       }
 

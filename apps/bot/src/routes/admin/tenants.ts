@@ -32,7 +32,34 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
     const owner = await prisma.owner.findFirst();
     if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      select: { id: true, status: true, ownerId: true },
+    });
+    if (!property || property.ownerId !== owner.id) {
+      return reply.status(404).send({ error: 'Property not found' });
+    }
+    if (property.status === 'rented') {
+      return reply.status(409).send({ error: 'Property is already rented' });
+    }
+
     const externalId = await nextExternalId('tenant');
+
+    const ALLOWED_TENANT_FIELDS = new Set([
+      'name',
+      'cpf',
+      'email',
+      'score',
+      'dueDay',
+      'onTimeRate',
+      'contractEnd',
+    ]);
+    const sanitized = Object.fromEntries(
+      Object.entries(rest).filter(([k]) => ALLOWED_TENANT_FIELDS.has(k)),
+    );
+    if (sanitized.contractEnd) {
+      sanitized.contractEnd = new Date(sanitized.contractEnd as string);
+    }
 
     const [tenant] = await prisma.$transaction([
       prisma.tenant.create({
@@ -42,7 +69,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
           contractStart: new Date(contractStart),
           externalId,
           ownerId: owner.id,
-          ...rest,
+          ...sanitized,
         },
       }),
       prisma.property.update({

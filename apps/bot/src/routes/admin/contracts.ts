@@ -23,6 +23,10 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/admin/contracts/preview', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
 
+    if (monthlyRent == null || typeof monthlyRent !== 'number' || isNaN(monthlyRent) || monthlyRent <= 0) {
+      return reply.status(400).send({ error: 'monthlyRent must be a positive number' });
+    }
+
     const [template, tenant, property] = await Promise.all([
       prisma.contractTemplate.findUnique({ where: { id: templateId } }),
       prisma.tenant.findUnique({ where: { id: tenantId } }),
@@ -31,7 +35,6 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     if (!template) return reply.status(404).send({ error: 'Template not found' });
     if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
     if (!property) return reply.status(404).send({ error: 'Property not found' });
-    if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
     if (isNaN(new Date(startDate).getTime()))
       return reply.status(400).send({ error: 'Invalid startDate' });
     if (endDate && isNaN(new Date(endDate).getTime()))
@@ -122,6 +125,10 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent, variables } =
       request.body;
 
+    if (monthlyRent == null || typeof monthlyRent !== 'number' || isNaN(monthlyRent) || monthlyRent <= 0) {
+      return reply.status(400).send({ error: 'monthlyRent must be a positive number' });
+    }
+
     const [template, tenant, property] = await Promise.all([
       prisma.contractTemplate.findUnique({ where: { id: templateId } }),
       prisma.tenant.findUnique({ where: { id: tenantId } }),
@@ -130,7 +137,6 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     if (!template) return reply.status(404).send({ error: 'Template not found' });
     if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
     if (!property) return reply.status(404).send({ error: 'Property not found' });
-    if (monthlyRent <= 0) return reply.status(400).send({ error: 'monthlyRent must be positive' });
     if (isNaN(new Date(startDate).getTime()))
       return reply.status(400).send({ error: 'Invalid startDate' });
     if (endDate && isNaN(new Date(endDate).getTime()))

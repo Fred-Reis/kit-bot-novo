@@ -9,7 +9,13 @@ import {
   LeadStageConflictError,
   TenantPhoneConflictError,
 } from '@/services/contract-signing';
-import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
+import {
+  addCivilMonths,
+  buildLeadAutoMap,
+  formatDatePtBR,
+  getSaoPauloDateParts,
+  uniquePlaceholders,
+} from '@/services/contract-variables';
 import { extractCpfFromDocs, extractRgFromDocs } from '@/services/cpf';
 import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
 import { sendMedia, sendText } from '@/services/evolution';
@@ -17,7 +23,11 @@ import { nextExternalId } from '@/services/external-id';
 import { generateAndUploadPdf } from '@/services/pdf';
 import { supabase } from './shared';
 
-const clampPaymentDay = (v: unknown): number => Math.min(28, Math.max(1, Number(v ?? 10)));
+const clampPaymentDay = (v: unknown): number => {
+  const num = Number(v ?? 10);
+  if (isNaN(num)) return 10;
+  return Math.min(28, Math.max(1, num));
+};
 
 const LEAD_DOCUMENT_TYPES = new Set(Object.keys(DOC_TYPE_LABEL));
 
@@ -222,6 +232,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
         select: {
           phone: true,
           name: true,
+          ownerId: true,
           propertyId: true,
           documents: { select: { ocrText: true } },
         },
@@ -236,8 +247,8 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
           include: { owner: true },
         }),
         prisma.contractTemplate.findFirst({
-          where: { status: 'published' },
-          orderBy: { updatedAt: 'desc' },
+          where: { status: 'published', ownerId: lead.ownerId },
+          orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
         }),
       ]);
 
@@ -330,11 +341,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
     const contractCode = await nextExternalId('contract');
     const contractMonths = property.contractMonths ?? 12;
     const startDate = new Date();
-    const endDate = new Date(
-      startDate.getFullYear(),
-      startDate.getMonth() + contractMonths,
-      startDate.getDate(),
-    );
+    const endDate = addCivilMonths(getSaoPauloDateParts(startDate), contractMonths);
 
     const contract = await prisma.contract.create({
       data: {
@@ -496,6 +503,12 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
       const { id } = request.params;
       const { paymentDayOfMonth } = request.body;
 
+      if (!Number.isInteger(paymentDayOfMonth) || paymentDayOfMonth < 1 || paymentDayOfMonth > 28) {
+        return reply
+          .status(400)
+          .send({ error: 'paymentDayOfMonth must be an integer between 1 and 28' });
+      }
+
       const lead = await prisma.lead.findUnique({
         where: { id },
         select: { phone: true, name: true, stage: true, ownerId: true },
@@ -645,7 +658,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
         );
       }
 
-      return reply.send({ success: true, tenantId, tenantExternalId, stage: 'converted' });
+      return reply.send({ success: true, tenantId, tenantExternalId, stage: 'contract_signed' });
     },
   );
 
@@ -705,7 +718,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { count } = await prisma.lead.updateMany({
         where: { id, stage: 'contract_signed' },
-        data: { stage: 'converted' },
+        data: { stage: 'converted', archivedAt: new Date() },
       });
 
       if (count === 0) {

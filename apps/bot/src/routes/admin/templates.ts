@@ -46,7 +46,9 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { name } = request.body;
       if (!name) return reply.status(400).send({ error: 'name is required' });
-      const owner = await prisma.owner.findFirst();
+      const owner = await prisma.owner.findFirst({
+        where: request.adminUserId ? { adminUserId: request.adminUserId } : undefined,
+      });
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
       const template = await prisma.contractTemplate.create({
         data: { name, ownerId: owner.id },

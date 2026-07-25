@@ -127,6 +127,10 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       externalId = await nextExternalId('property');
     }
 
+    const sanitizedRest = Object.fromEntries(
+      Object.entries(rest).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
+    );
+
     const property = await prisma.property.create({
       data: {
         name,
@@ -138,8 +142,8 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         depositInstallmentsMax,
         rooms,
         bathrooms,
-        ownerId: rest.ownerId ?? owner.id,
-        ...rest,
+        ownerId: owner.id,
+        ...sanitizedRest,
       },
     });
 
@@ -219,10 +223,19 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       const media = await prisma.propertyMedia.findUnique({ where: { id: mediaId } });
       if (!media) return reply.status(404).send({ error: 'Media not found' });
 
-      const urlPath = new URL(media.url).pathname;
-      const storagePath = urlPath.split('/storage/v1/object/public/properties/')[1];
+      let storagePath: string | undefined;
+      try {
+        const urlPath = new URL(media.url).pathname;
+        storagePath = urlPath.split('/storage/v1/object/public/properties/')[1];
+      } catch (urlErr) {
+        fastify.log.warn({ err: urlErr, url: media.url, mediaId }, 'Invalid media URL — deleting record without storage cleanup');
+      }
+
       if (storagePath) {
-        await supabase.storage.from('properties').remove([storagePath]);
+        const { error: removeErr } = await supabase.storage.from('properties').remove([storagePath]);
+        if (removeErr) {
+          fastify.log.error({ err: removeErr, storagePath, mediaId }, 'Failed to remove media from storage');
+        }
       }
 
       await prisma.propertyMedia.delete({ where: { id: mediaId } });
@@ -273,13 +286,18 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
     const { id } = request.params;
     const { path, type, label } = request.body;
 
-    if (!path.startsWith(`${id}/`)) {
+    if (!type || !['photo', 'video'].includes(type)) {
+      return reply.status(400).send({ error: 'type must be photo or video' });
+    }
+
+    const normalizedPath = path.replace(/\\/g, '/').replace(/\/\.\.\//g, '/').replace(/\/\//g, '/');
+    if (!normalizedPath.startsWith(`${id}/`) || normalizedPath.includes('..')) {
       return reply.status(400).send({ error: 'Invalid path for this property' });
     }
 
     const {
       data: { publicUrl },
-    } = supabase.storage.from('properties').getPublicUrl(path);
+    } = supabase.storage.from('properties').getPublicUrl(normalizedPath);
 
     const property = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
     if (!property) return reply.status(404).send({ error: 'Property not found' });

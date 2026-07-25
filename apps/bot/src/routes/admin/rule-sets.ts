@@ -96,6 +96,8 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         .status(400)
         .send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
     }
+    const ruleSet = await prisma.ruleSet.findUnique({ where: { id }, select: { id: true } });
+    if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
     const policy = await prisma.ruleSetPolicy.create({
       data: { ruleSetId: id, name, description, value, appliesToProperty },
     });
@@ -159,6 +161,17 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         select: { ownerId: true, name: true },
       });
       if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
+      const property = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true },
+      });
+      if (!property) return reply.status(404).send({ error: 'Property not found' });
+      const existing = await prisma.propertyRuleSet.findUnique({
+        where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+      });
+      if (existing) {
+        return reply.status(409).send({ error: 'Property is already linked to this rule set' });
+      }
       await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
       await logActivityHelper({
         actorType: 'user',
@@ -180,6 +193,10 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id, propertyId } = request.params;
+      const existing = await prisma.propertyRuleSet.findUnique({
+        where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+      });
+      if (!existing) return reply.status(404).send({ error: 'Link not found' });
       await prisma.propertyRuleSet.delete({
         where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
       });

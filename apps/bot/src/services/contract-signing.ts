@@ -77,10 +77,10 @@ export async function finalizeContractSigning(
   const tenant = await prisma.$transaction(async (tx) => {
     // Claim the lead atomically inside the same transaction as tenant creation —
     // a failure anywhere below rolls this back too, so the lead is never left
-    // stranded in 'converted' with no tenant (see incident 2026-07-17).
+    // stranded in 'contract_signed' with no tenant (see incident 2026-07-17).
     const { count } = await tx.lead.updateMany({
       where: { id: leadId, stage: 'contract_pending' },
-      data: { stage: 'converted', archivedAt: today },
+      data: { stage: 'contract_signed' },
     });
     if (count === 0) {
       throw new LeadStageConflictError();
