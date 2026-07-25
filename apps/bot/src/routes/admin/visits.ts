@@ -233,6 +233,10 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         }
 
         // Atomic re-check, same reasoning as completeVisit()/schedule above.
+        // Deliberately leaves stage at 'visiting' with no scheduledVisitAt —
+        // forces an explicit reschedule (POST /admin/visits or
+        // /scheduled-visit) rather than guessing which prior stage to
+        // revert to, which isn't tracked anywhere in this model.
         const { count } = await prisma.lead.updateMany({
           where: { id, archivedAt: null, stage: { notIn: [...STAGES_PAST_VISITING] } },
           data: { scheduledVisitAt: null, visitedAt: null },

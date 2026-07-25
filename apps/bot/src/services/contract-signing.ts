@@ -14,6 +14,7 @@ const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 export interface FinalizeSigningParams {
   leadId: string;
   contractId: string;
+  actorId?: string;
   actorLabel: string;
   /** Storage path of the signed PDF in the 'contracts' bucket, if available */
   signedPdfUrl?: string | null;
@@ -51,7 +52,8 @@ export class TenantPhoneConflictError extends Error {
 export async function finalizeContractSigning(
   params: FinalizeSigningParams,
 ): Promise<FinalizeSigningResult> {
-  const { leadId, contractId, actorLabel, signedPdfUrl, finalContractBody, finalPdfPath } = params;
+  const { leadId, contractId, actorId, actorLabel, signedPdfUrl, finalContractBody, finalPdfPath } =
+    params;
 
   const lead = await prisma.lead.findUniqueOrThrow({
     where: { id: leadId },
@@ -146,6 +148,7 @@ export async function finalizeContractSigning(
 
   logActivity({
     actorType: 'user',
+    actorId,
     actorLabel,
     ownerId: lead.ownerId,
     action: 'contract_signed',
@@ -156,6 +159,7 @@ export async function finalizeContractSigning(
 
   logActivity({
     actorType: 'user',
+    actorId,
     actorLabel,
     ownerId: lead.ownerId,
     action: 'tenant_created',

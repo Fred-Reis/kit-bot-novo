@@ -86,6 +86,10 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
     if (status !== undefined) data.status = status;
     if (isDefault !== undefined) data.isDefault = isDefault;
 
+    // Known limitation: without a DB-level unique constraint or Serializable
+    // isolation, two literally-concurrent PATCHes setting isDefault:true on
+    // different templates could race. Accepted as-is — this is a low-traffic
+    // single-admin panel and the action is manual and rare.
     const template = await prisma.$transaction(async (tx) => {
       // Unset default on other templates before setting this one
       if (isDefault === true) {

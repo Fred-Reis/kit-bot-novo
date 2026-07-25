@@ -631,6 +631,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
         ({ tenantId, tenantExternalId } = await finalizeContractSigning({
           leadId: id,
           contractId: contract.id,
+          actorId: request.adminUserId ?? undefined,
           actorLabel: request.adminUserId ?? 'admin',
           signedPdfUrl: signedPdfPath ?? null,
           finalContractBody: finalBody,

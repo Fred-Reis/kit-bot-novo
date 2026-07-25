@@ -100,7 +100,6 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       includesIptu?: boolean;
       individualElectricity?: boolean;
       contractMonths?: number;
-      ownerId?: string;
     };
   }>('/admin/properties', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const {
