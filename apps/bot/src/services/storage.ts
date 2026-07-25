@@ -3,6 +3,23 @@ import { config } from '@/config';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 
+const UPLOAD_TIMEOUT_MS = 15_000;
+
+// supabase-js's storage upload doesn't take an AbortSignal, so this can't
+// truly cancel a stalled request — but it does bound how long callers wait.
+// Without this, buffer.ts's pendingUploads guard (see buffer.ts) would
+// re-arm the debounce forever if a Storage request never settles, silently
+// stalling that lead's messages instead of hitting the existing
+// catch/recordMediaFailure path within a bounded time.
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 export async function uploadLeadDocument(
   chatId: string,
   base64Content: string,
@@ -15,10 +32,14 @@ export async function uploadLeadDocument(
 
   const buffer = Buffer.from(base64Content, 'base64');
 
-  const { error } = await supabase.storage.from('leads').upload(storagePath, buffer, {
-    contentType: mimeType,
-    upsert: false,
-  });
+  const { error } = await withTimeout(
+    supabase.storage.from('leads').upload(storagePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    }),
+    UPLOAD_TIMEOUT_MS,
+    'Supabase Storage upload',
+  );
 
   if (error) {
     throw new Error(`Supabase Storage upload failed: ${error.message}`);

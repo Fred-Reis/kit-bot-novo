@@ -12,9 +12,9 @@ import { normalizeLookupText } from '@/services/catalog';
 import { finalizeContractSigning } from '@/services/contract-signing';
 import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
 import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
+import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
-import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
 import { generateAndUploadPdf } from '@/services/pdf';
 
 const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
