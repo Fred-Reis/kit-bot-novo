@@ -66,10 +66,6 @@ async function annotate(image: VisionImage): Promise<string> {
   }
 }
 
-export async function extractTextFromImage(imageUrl: string): Promise<string> {
-  return annotate({ source: { imageUri: imageUrl } });
-}
-
 export async function extractTextFromBase64(base64: string): Promise<string> {
   return annotate({ content: base64 });
 }

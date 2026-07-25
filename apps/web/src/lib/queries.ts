@@ -155,16 +155,6 @@ export async function fetchTenant(id: string): Promise<Tenant & { payments: Paym
   return { ...mapTenantRow(tenant as TenantRow), payments: (payments as Payment[]) ?? [] };
 }
 
-export async function fetchPayments(tenantId: string): Promise<Payment[]> {
-  const { data, error } = await supabase
-    .from('Payment')
-    .select('*')
-    .eq('tenantId', tenantId)
-    .order('month', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as Payment[];
-}
-
 export async function fetchAllPayments(): Promise<Payment[]> {
   const { data, error } = await supabase
     .from('Payment')
@@ -300,27 +290,6 @@ export async function fetchContract(id: string): Promise<ContractDetail> {
     tenant: { name: r.tenant?.name ?? null, phone: r.tenant?.phone ?? '' },
     property: { name: r.property?.name ?? '' },
   };
-}
-
-export async function fetchPublishedTemplates(): Promise<ContractTemplateSummary[]> {
-  const { data, error } = await supabase
-    .from('ContractTemplate')
-    .select('id, name, status, updatedAt')
-    .eq('status', 'published')
-    .order('updatedAt', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((t) => ({ ...t, usageCount: 0 })) as unknown as ContractTemplateSummary[];
-}
-
-export async function fetchPropertyActivityLog(propertyId: string): Promise<ActivityLogEntry[]> {
-  const { data, error } = await supabase
-    .from('ActivityLog')
-    .select('id, actorLabel, action, subject, subjectType, createdAt')
-    .eq('subjectId', propertyId)
-    .order('createdAt', { ascending: false })
-    .limit(20);
-  if (error) throw error;
-  return (data ?? []) as ActivityLogEntry[];
 }
 
 export interface PropertyTenantSummary {

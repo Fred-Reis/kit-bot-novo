@@ -15,36 +15,6 @@ const MEDIA_CONFIRMATION_TERMS = new Set([
   'cade o',
 ]);
 
-const NON_MEDIA_INFO_TERMS = new Set([
-  'agendar',
-  'caucao',
-  'caução',
-  'condicao',
-  'condição',
-  'contrato',
-  'documento',
-  'endereco',
-  'endereço',
-  'exigencia',
-  'exigência',
-  'horario',
-  'horário',
-  'pagamento',
-  'preco',
-  'preço',
-  'requisito',
-  'valor',
-  'visita',
-  'pq',
-  'por que',
-  'porque',
-  'por que mandou',
-  'mandando de novo',
-  'mandou de novo',
-  'de novo',
-  'novamente',
-]);
-
 const SENDABLE_MEDIA_TYPES = new Set(['audio', 'document', 'image', 'video']);
 
 export interface LeadContextForMedia {
@@ -67,17 +37,6 @@ export function getRequestedMediaType(
   }
 
   return null;
-}
-
-export function isMediaOnlyRequest(message: string | null, mediaType: string | null): boolean {
-  if (mediaType !== 'video') return false;
-  const normalized = normalizeLookupText(message ?? '');
-  if (!normalized) return false;
-  if ([...NON_MEDIA_INFO_TERMS].some((t) => normalized.includes(t))) return false;
-  return (
-    normalized.includes('video') ||
-    [...MEDIA_CONFIRMATION_TERMS].some((t) => normalized.includes(t))
-  );
 }
 
 export function findPropertyMedia(

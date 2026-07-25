@@ -1,5 +1,4 @@
 // Port of services/lead_context.py
-import { prisma } from '@/db/client';
 import type { PropertyData } from '@/services/catalog';
 import {
   describeProperty,

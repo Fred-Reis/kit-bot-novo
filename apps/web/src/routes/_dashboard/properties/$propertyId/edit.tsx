@@ -86,6 +86,10 @@ function EditPropertyPage() {
       listingUrl: property.listingUrl ?? '',
       active: property.active ? 'true' : 'false',
     });
+    // Seed the form once per property id — not on every field. Re-running
+    // this on every property change would clobber in-progress user edits
+    // whenever something else invalidates this query (e.g. deleteMedia below).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [property?.id]);
 
   function set(key: keyof FormState) {

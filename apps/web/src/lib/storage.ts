@@ -30,7 +30,3 @@ export async function uploadPropertyMedia(
   return { url: urlData.publicUrl, path };
 }
 
-export async function deletePropertyMediaFile(path: string): Promise<void> {
-  const { error } = await supabase.storage.from('properties').remove([path]);
-  if (error) throw new Error(`Storage delete failed: ${error.message}`);
-}

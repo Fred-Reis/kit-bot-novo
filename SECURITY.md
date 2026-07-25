@@ -5,6 +5,19 @@
 
 ---
 
+## Atualização 2026-07-25 (code-sanitization pass, Fase 6)
+
+- **Resolvido — H2 (axios):** `bun update axios` em `apps/web`, 1.15.0 → 1.18.1. Zero CVEs restantes pro axios no `bun audit`.
+- **Resolvido — L4 (langsmith/@langchain):** `bun update @langchain/core @langchain/openai` no bot. Confirmado que tracing nunca esteve ativo (`LANGCHAIN_TRACING_V2`/`LANGSMITH_API_KEY` ausentes do `.env`) — dependência estava presente mas dormant mesmo antes do update.
+- **Resolvido — M1 (`paymentDayOfMonth` sem validação):** já implementado no código atual (`apps/bot/src/routes/admin/leads.ts`, rota `approve-kyc`) — o checklist deste doc estava desatualizado em relação ao código.
+- **Reavaliado — H3 (`fast-uri`):** `bun update fastify` (5.0→5.10) **não resolveu** — o CVE está em `fast-uri@3.1.0`, travado pela própria dependência de `@fastify/ajv-compiler` (`^3.0.0`), upstream do Fastify. Não dá pra corrigir sem esperar release deles. Reavaliação de risco prático: nenhuma das 50 rotas do admin define `schema` ajv — o código-caminho que usa `fast-uri` pra parsing de URI nunca é exercitado nesta aplicação. CVE presente, mas inalcançável hoje.
+- **Reavaliado — H4 (`$queryRawUnsafe`):** confirmado que `seq` em `external-id.ts:26` só pode vir de um `Record<Entity, ...>` com union type fechado (`'property'|'tenant'|'lead'|'contract'`) — nunca de input de request. Risco prático baixo (não zero — ainda é o padrão perigoso, só sem alcance hoje). A correção sugerida no doc continua válida como defesa em profundidade.
+- **Ainda aberto — H1 (ownership não vinculado a `adminUserId`):** confirmado que continua exatamente como descrito — qualquer sessão Supabase válida opera sobre todos os dados, não só a do dono. Não corrigido nesta passada.
+- **Novo achado, resolvido — bucket `leads` do Storage lia `TO public`:** achado fora do escopo original deste doc (é Storage policy, não código). Policy `Authenticated users can read lead documents` permitia leitura anônima (sem login) de todo documento de KYC (CPF, RG, comprovante) de qualquer lead — bastava a anon key, que é pública por design no bundle do web. Corrigida pra `TO authenticated` via migration `scope_leads_bucket_read_to_authenticated`, aplicada direto no projeto Supabase em produção. Verificado antes de aplicar: os dois únicos call sites (`fetchLead`, `fetchTenantDocuments` em `apps/web/src/lib/queries.ts`) só rodam atrás do guard de login em `__root.tsx`, então a mudança não quebra nenhum fluxo legítimo.
+- **M6 (RLS) segue gated** — sem mudança, ver `docs/adrs/001-rls-strategy.md` e PR #29.
+
+---
+
 ## Resumo executivo
 
 | Severidade | Qtd |
@@ -317,8 +330,8 @@ Correto tecnicamente. Confirmar que as configurações do projeto Supabase têm 
 - [ ] Ativar RLS em todas as tabelas Supabase
 
 ### Antes do go-live
-- [ ] `bun add axios@latest` em `apps/web` (ou substituir por `fetch`)
-- [ ] `bun update fastify` em `apps/bot` (fix `fast-uri` CVEs)
+- [x] `bun add axios@latest` em `apps/web` (ou substituir por `fetch`) — feito 2026-07-25, 1.18.1
+- [x] `bun update fastify` em `apps/bot` (fix `fast-uri` CVEs) — feito, mas não resolveu o CVE (travado por `@fastify/ajv-compiler`); ver Atualização 2026-07-25
 - [ ] Substituir `$queryRawUnsafe` por template literal do Prisma
 - [ ] Instalar `@fastify/rate-limit` no bot
 - [ ] Adicionar MIME type validation em `uploadLeadDocument`

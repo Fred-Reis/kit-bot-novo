@@ -87,23 +87,6 @@ function extractPolicies(result: PolicyIncludeResult): PolicyEntry[] {
   );
 }
 
-export async function getProperty(id: string): Promise<PropertyData | null> {
-  const cacheKey = `property:${id}`;
-  const cached = await cacheGet<PropertyData>(cacheKey);
-  if (cached) return cached;
-
-  const property = await prisma.property.findUnique({
-    where: { id },
-    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
-  });
-
-  if (!property) return null;
-  const { ruleSets: _, ...rest } = property;
-  const propertyData: PropertyData = { ...rest, policies: extractPolicies(property) };
-  await cacheSet(cacheKey, propertyData, PROPERTY_CACHE_TTL);
-  return propertyData;
-}
-
 export async function getPropertyByExternalId(externalId: string): Promise<PropertyData | null> {
   const property = await prisma.property.findUnique({
     where: { externalId: externalId.toUpperCase() },
