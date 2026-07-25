@@ -75,6 +75,9 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       if (isNaN(parsedContractEnd.getTime())) {
         return reply.status(400).send({ error: 'contractEnd must be a valid date' });
       }
+      if (parsedContractEnd < parsedContractStart) {
+        return reply.status(400).send({ error: 'contractEnd must not be earlier than contractStart' });
+      }
       sanitized.contractEnd = parsedContractEnd;
     }
 
