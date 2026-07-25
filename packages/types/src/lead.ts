@@ -51,11 +51,26 @@ export interface Conversation {
   updatedAt: string;
 }
 
+// Single source of truth for valid document classifications — the bot's OCR
+// classifier and the admin panel's manual-reclassify dropdown both type their
+// label maps against this union, so an app-specific map missing (or adding)
+// a value fails to compile instead of drifting silently out of sync.
+export type LeadDocumentType =
+  | 'cnh_front'
+  | 'cnh_back'
+  | 'cnh_full'
+  | 'rg_front'
+  | 'rg_back'
+  | 'cpf'
+  | 'income_proof'
+  | 'unknown';
+
 export interface LeadDocument {
   id: string;
   ownerId: string;
   leadId: string;
   type: string;
+  classifiedBy: string;
   url: string;
   ocrText: string | null;
   createdAt: string;

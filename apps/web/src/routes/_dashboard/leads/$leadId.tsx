@@ -1,3 +1,4 @@
+import type { LeadDocumentType } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { AlertCircle, Archive, CheckCircle, ChevronLeft, FileText, MapPin, X } from 'lucide-react';
@@ -61,18 +62,24 @@ function defaultVarStates(keys: string[]): Record<string, ManualVarState> {
   return Object.fromEntries(keys.map((p) => [p, { action: 'ignore' as ManualVarAction, value: '' }]));
 }
 
-// Mirrors apps/bot/src/services/doc-classifier.ts's LeadDocumentType/DOC_TYPE_LABEL —
-// duplicated here since the bot and web apps don't share a types package for this.
-const DOC_TYPE_OPTIONS = [
-  { value: 'cnh_front', label: 'Frente da CNH' },
-  { value: 'cnh_back', label: 'Verso da CNH' },
-  { value: 'cnh_full', label: 'CNH completa (foto única)' },
-  { value: 'rg_front', label: 'Frente do RG' },
-  { value: 'rg_back', label: 'Verso do RG' },
-  { value: 'cpf', label: 'CPF' },
-  { value: 'income_proof', label: 'Comprovante de renda' },
-  { value: 'unknown', label: 'Não identificado' },
-];
+// The dropdown's wording is Title Case for standalone display (vs. the bot's
+// lowercase-in-sentence labels), but the *values* are typed against the
+// shared LeadDocumentType — a value missing or extra here fails to compile
+// instead of silently drifting from what the bot's OCR classifier produces.
+const DOC_TYPE_LABEL_WEB: Record<LeadDocumentType, string> = {
+  cnh_front: 'Frente da CNH',
+  cnh_back: 'Verso da CNH',
+  cnh_full: 'CNH completa (foto única)',
+  rg_front: 'Frente do RG',
+  rg_back: 'Verso do RG',
+  cpf: 'CPF',
+  income_proof: 'Comprovante de renda',
+  unknown: 'Não identificado',
+};
+const DOC_TYPE_OPTIONS = Object.entries(DOC_TYPE_LABEL_WEB).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
