@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
@@ -13,6 +12,36 @@ const STAGES_PAST_VISITING = new Set([
   'contract_signed',
   'converted',
 ]);
+
+class VisitConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VisitConflictError';
+  }
+}
+
+// Shared by the dedicated complete-visit endpoint and visit-status's
+// 'completed' branch — same semantic action, and they drifted apart once
+// already (one checked archived/no-visit-scheduled/already-completed, the
+// other didn't). Re-asserts every precondition atomically at write time to
+// close the race with the bot's concurrent stage writes (flows/lead/index.ts
+// advances Lead.stage in response to WhatsApp messages independently of
+// these admin routes).
+async function completeVisit(leadId: string): Promise<Date> {
+  const visitedAt = new Date();
+  const { count } = await prisma.lead.updateMany({
+    where: {
+      id: leadId,
+      archivedAt: null,
+      visitedAt: null,
+      scheduledVisitAt: { not: null },
+      stage: { notIn: [...STAGES_PAST_VISITING] },
+    },
+    data: { visitedAt, stage: 'post_visit_decision' },
+  });
+  if (count === 0) throw new VisitConflictError('Lead state changed — refresh and try again');
+  return visitedAt;
+}
 
 export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{
@@ -53,10 +82,15 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'Property not found' });
     }
 
-    const updated = await prisma.lead.update({
-      where: { id: leadId },
+    // Re-assert archived/stage atomically at write time — closes the race
+    // between the reads above and this write.
+    const { count } = await prisma.lead.updateMany({
+      where: { id: leadId, archivedAt: null, stage: { notIn: [...STAGES_PAST_VISITING] } },
       data: { scheduledVisitAt: visitDate, stage: 'visiting', propertyId },
     });
+    if (count === 0) {
+      return reply.status(409).send({ error: 'Lead state changed — refresh and try again' });
+    }
 
     logActivityHelper({
       actorType: 'user',
@@ -70,7 +104,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       metadata: { scheduledVisitAt, note: note ?? null },
     }).catch(fastify.log.warn.bind(fastify.log));
 
-    return reply.status(201).send({ leadId, scheduledVisitAt: updated.scheduledVisitAt });
+    return reply.status(201).send({ leadId, scheduledVisitAt: visitDate });
   });
 
   fastify.patch<{ Params: { id: string } }>(
@@ -86,23 +120,30 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       if (!lead || lead.ownerId !== owner.id) {
         return reply.status(404).send({ error: 'Lead not found' });
       }
-
       if (lead.archivedAt) {
         return reply.status(409).send({ error: 'Cannot complete visit for archived lead' });
       }
-
+      if (STAGES_PAST_VISITING.has(lead.stage)) {
+        return reply.status(409).send({
+          error: 'Cannot complete visit: lead is already past the visiting stage',
+        });
+      }
       if (!lead.scheduledVisitAt) {
         return reply.status(409).send({ error: 'No visit scheduled for this lead' });
       }
-
       if (lead.visitedAt) {
         return reply.status(409).send({ error: 'Visit already completed' });
       }
 
-      const updated = await prisma.lead.update({
-        where: { id },
-        data: { visitedAt: new Date(), stage: 'post_visit_decision' },
-      });
+      let visitedAt: Date;
+      try {
+        visitedAt = await completeVisit(id);
+      } catch (err) {
+        if (err instanceof VisitConflictError) {
+          return reply.status(409).send({ error: err.message });
+        }
+        throw err;
+      }
 
       logActivityHelper({
         actorType: 'user',
@@ -115,7 +156,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         subjectType: 'lead',
       }).catch(fastify.log.warn.bind(fastify.log));
 
-      return reply.send({ leadId: id, visitedAt: updated.visitedAt, stage: updated.stage });
+      return reply.send({ leadId: id, visitedAt, stage: 'post_visit_decision' });
     },
   );
 
@@ -139,43 +180,98 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'Lead not found' });
       }
 
-      let data: Prisma.LeadUpdateInput;
-      let action: 'visit_completed' | 'visit_cancelled' | 'visit_scheduled';
-
       if (status === 'completed') {
+        // Same preconditions as the dedicated /complete-visit endpoint —
+        // this branch does the identical semantic action and must not drift.
+        if (lead.archivedAt) {
+          return reply.status(409).send({ error: 'Cannot complete visit for archived lead' });
+        }
         if (STAGES_PAST_VISITING.has(lead.stage)) {
           return reply.status(409).send({
             error: 'Cannot complete visit: lead is already past the visiting stage',
           });
         }
-        data = { visitedAt: new Date(), stage: 'post_visit_decision' };
-        action = 'visit_completed';
-      } else if (status === 'cancelled') {
-        data = { scheduledVisitAt: null, visitedAt: null };
-        action = 'visit_cancelled';
-      } else {
-        if (STAGES_PAST_VISITING.has(lead.stage)) {
-          return reply.status(409).send({
-            error: 'Cannot set visit to upcoming: lead is already past the visiting stage',
-          });
-        }
         if (!lead.scheduledVisitAt) {
-          return reply.status(409).send({
-            error: 'Cannot set visit to upcoming: no scheduledVisitAt on this lead',
-          });
+          return reply.status(409).send({ error: 'No visit scheduled for this lead' });
         }
-        data = { visitedAt: null, stage: 'visiting' };
-        action = 'visit_scheduled';
+        if (lead.visitedAt) {
+          return reply.status(409).send({ error: 'Visit already completed' });
+        }
+
+        try {
+          await completeVisit(id);
+        } catch (err) {
+          if (err instanceof VisitConflictError) {
+            return reply.status(409).send({ error: err.message });
+          }
+          throw err;
+        }
+
+        logActivityHelper({
+          actorType: 'user',
+          actorId: request.adminUserId ?? undefined,
+          actorLabel: request.adminUserId ?? 'Admin',
+          ownerId: owner.id,
+          action: 'visit_completed',
+          subject: lead.name ?? lead.phone,
+          subjectId: id,
+          subjectType: 'lead',
+          metadata: { status },
+        }).catch(fastify.log.warn.bind(fastify.log));
+
+        return reply.send({ leadId: id, status });
       }
 
-      await prisma.lead.update({ where: { id }, data });
+      if (status === 'cancelled') {
+        if (STAGES_PAST_VISITING.has(lead.stage)) {
+          return reply.status(409).send({
+            error: 'Cannot cancel visit: lead is already past the visiting stage',
+          });
+        }
+
+        await prisma.lead.update({
+          where: { id },
+          data: { scheduledVisitAt: null, visitedAt: null },
+        });
+
+        logActivityHelper({
+          actorType: 'user',
+          actorId: request.adminUserId ?? undefined,
+          actorLabel: request.adminUserId ?? 'Admin',
+          ownerId: owner.id,
+          action: 'visit_cancelled',
+          subject: lead.name ?? lead.phone,
+          subjectId: id,
+          subjectType: 'lead',
+          metadata: { status },
+        }).catch(fastify.log.warn.bind(fastify.log));
+
+        return reply.send({ leadId: id, status });
+      }
+
+      // status === 'upcoming'
+      if (STAGES_PAST_VISITING.has(lead.stage)) {
+        return reply.status(409).send({
+          error: 'Cannot set visit to upcoming: lead is already past the visiting stage',
+        });
+      }
+      if (!lead.scheduledVisitAt) {
+        return reply.status(409).send({
+          error: 'Cannot set visit to upcoming: no scheduledVisitAt on this lead',
+        });
+      }
+
+      await prisma.lead.update({
+        where: { id },
+        data: { visitedAt: null, stage: 'visiting' },
+      });
 
       logActivityHelper({
         actorType: 'user',
         actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         ownerId: owner.id,
-        action,
+        action: 'visit_scheduled',
         subject: lead.name ?? lead.phone,
         subjectId: id,
         subjectType: 'lead',

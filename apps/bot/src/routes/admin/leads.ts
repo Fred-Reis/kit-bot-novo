@@ -25,7 +25,7 @@ import { supabase } from './shared';
 
 const clampPaymentDay = (v: unknown): number => {
   const num = Number(v ?? 10);
-  if (isNaN(num)) return 10;
+  if (!Number.isInteger(num)) return 10;
   return Math.min(28, Math.max(1, num));
 };
 

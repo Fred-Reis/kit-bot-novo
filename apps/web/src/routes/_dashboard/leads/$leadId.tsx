@@ -572,14 +572,15 @@ function LeadDetailPage() {
       )}
       {lead.stage === 'contract_signed' && (
         <div className="flex gap-2">
-          <CustomButton
-            variant="primary"
+          <ConfirmButton
+            label="Confirmar pagamento"
+            confirmLabel="Confirmar"
+            onConfirm={() => confirmPayment.mutate()}
             disabled={confirmPayment.isPending}
-            onClick={() => confirmPayment.mutate()}
           >
-            <CheckCircle className="size-4" />
+            <CheckCircle className="mr-1.5 size-4" />
             {confirmPayment.isPending ? 'Confirmando…' : 'Confirmar pagamento'}
-          </CustomButton>
+          </ConfirmButton>
         </div>
       )}
 

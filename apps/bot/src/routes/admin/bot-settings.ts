@@ -93,10 +93,10 @@ export async function botSettingsRoutes(fastify: FastifyInstance): Promise<void>
       if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
         return reply.status(400).send({ error: 'name must not be empty' });
       }
-      if (cpf != null && cpf !== '' && !isValidCpfFormat(cpf)) {
+      if (cpf != null && cpf !== '' && (typeof cpf !== 'string' || !isValidCpfFormat(cpf))) {
         return reply.status(400).send({ error: 'cpf must be 11 digits or 000.000.000-00' });
       }
-      if (cnpj != null && cnpj !== '' && !isValidCnpjFormat(cnpj)) {
+      if (cnpj != null && cnpj !== '' && (typeof cnpj !== 'string' || !isValidCnpjFormat(cnpj))) {
         return reply.status(400).send({ error: 'cnpj must be 14 digits or 00.000.000/0000-00' });
       }
 

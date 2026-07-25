@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
@@ -173,7 +174,14 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
       if (existing) {
         return reply.status(409).send({ error: 'Property is already linked to this rule set' });
       }
-      await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      try {
+        await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          return reply.status(409).send({ error: 'Property is already linked to this rule set' });
+        }
+        throw err;
+      }
       await logActivityHelper({
         actorType: 'user',
         actorId: request.adminUserId ?? undefined,
@@ -199,9 +207,16 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
       });
       if (!existing) return reply.status(404).send({ error: 'Link not found' });
-      await prisma.propertyRuleSet.delete({
-        where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
-      });
+      try {
+        await prisma.propertyRuleSet.delete({
+          where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          return reply.status(404).send({ error: 'Link not found' });
+        }
+        throw err;
+      }
       return reply.send({ success: true });
     },
   );

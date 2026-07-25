@@ -36,6 +36,11 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
         .send({ error: 'Missing required fields: phone, propertyId, contractStart' });
     }
 
+    const parsedContractStart = new Date(contractStart);
+    if (isNaN(parsedContractStart.getTime())) {
+      return reply.status(400).send({ error: 'contractStart must be a valid date' });
+    }
+
     const owner = await prisma.owner.findFirst();
     if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
@@ -85,7 +90,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
           data: {
             phone,
             propertyId,
-            contractStart: new Date(contractStart),
+            contractStart: parsedContractStart,
             externalId,
             ownerId: owner.id,
             ...sanitized,
