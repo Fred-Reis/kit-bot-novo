@@ -223,16 +223,23 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       if (status === 'cancelled') {
+        if (lead.archivedAt) {
+          return reply.status(409).send({ error: 'Cannot cancel visit for archived lead' });
+        }
         if (STAGES_PAST_VISITING.has(lead.stage)) {
           return reply.status(409).send({
             error: 'Cannot cancel visit: lead is already past the visiting stage',
           });
         }
 
-        await prisma.lead.update({
-          where: { id },
+        // Atomic re-check, same reasoning as completeVisit()/schedule above.
+        const { count } = await prisma.lead.updateMany({
+          where: { id, archivedAt: null, stage: { notIn: [...STAGES_PAST_VISITING] } },
           data: { scheduledVisitAt: null, visitedAt: null },
         });
+        if (count === 0) {
+          return reply.status(409).send({ error: 'Lead state changed — refresh and try again' });
+        }
 
         logActivityHelper({
           actorType: 'user',
@@ -250,6 +257,9 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // status === 'upcoming'
+      if (lead.archivedAt) {
+        return reply.status(409).send({ error: 'Cannot set visit to upcoming for archived lead' });
+      }
       if (STAGES_PAST_VISITING.has(lead.stage)) {
         return reply.status(409).send({
           error: 'Cannot set visit to upcoming: lead is already past the visiting stage',
@@ -261,10 +271,19 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      await prisma.lead.update({
-        where: { id },
+      // Atomic re-check, same reasoning as completeVisit()/schedule above.
+      const { count: upcomingCount } = await prisma.lead.updateMany({
+        where: {
+          id,
+          archivedAt: null,
+          stage: { notIn: [...STAGES_PAST_VISITING] },
+          scheduledVisitAt: { not: null },
+        },
         data: { visitedAt: null, stage: 'visiting' },
       });
+      if (upcomingCount === 0) {
+        return reply.status(409).send({ error: 'Lead state changed — refresh and try again' });
+      }
 
       logActivityHelper({
         actorType: 'user',
