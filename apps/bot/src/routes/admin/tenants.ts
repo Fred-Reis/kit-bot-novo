@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
@@ -102,6 +103,14 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
     } catch (err) {
       if (err instanceof PropertyAlreadyRentedError) {
         return reply.status(409).send({ error: 'Property is already rented' });
+      }
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const target = err.meta?.target;
+        const message =
+          Array.isArray(target) && target.includes('phone')
+            ? 'A tenant with this phone already exists'
+            : 'A tenant with conflicting unique data already exists';
+        return reply.status(409).send({ error: message });
       }
       throw err;
     }

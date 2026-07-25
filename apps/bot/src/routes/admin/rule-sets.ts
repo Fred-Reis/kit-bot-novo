@@ -165,9 +165,11 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
       if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
       const property = await prisma.property.findUnique({
         where: { id: propertyId },
-        select: { id: true },
+        select: { id: true, ownerId: true },
       });
-      if (!property) return reply.status(404).send({ error: 'Property not found' });
+      if (!property || property.ownerId !== ruleSet.ownerId) {
+        return reply.status(404).send({ error: 'Property not found' });
+      }
       const existing = await prisma.propertyRuleSet.findUnique({
         where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
       });
