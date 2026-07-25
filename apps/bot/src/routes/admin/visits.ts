@@ -3,6 +3,9 @@ import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 
+// Deliberately does NOT include 'post_visit_decision': a lead that just
+// finished a visit can still get a second one scheduled (product decision,
+// not a gap — see PR #32 review discussion).
 const STAGES_PAST_VISITING = new Set([
   'collection',
   'kyc_pending',

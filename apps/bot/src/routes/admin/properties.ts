@@ -239,6 +239,9 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       try {
         const urlPath = new URL(media.url).pathname;
         storagePath = urlPath.split('/storage/v1/object/public/properties/')[1];
+        if (!storagePath) {
+          fastify.log.warn({ url: media.url, mediaId }, 'Could not derive storage path from media URL — deleting record without storage cleanup');
+        }
       } catch (urlErr) {
         fastify.log.warn({ err: urlErr, url: media.url, mediaId }, 'Invalid media URL — deleting record without storage cleanup');
       }
@@ -306,7 +309,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       return reply.status(400).send({ error: 'path is required' });
     }
 
-    const normalizedPath = path.replace(/\\/g, '/').replace(/\/\.\.\//g, '/').replace(/\/\//g, '/');
+    const normalizedPath = path.replace(/\\/g, '/').replace(/\/\.\.\//g, '/').replace(/\/{2,}/g, '/');
     if (!normalizedPath.startsWith(`${id}/`) || normalizedPath.includes('..')) {
       return reply.status(400).send({ error: 'Invalid path for this property' });
     }

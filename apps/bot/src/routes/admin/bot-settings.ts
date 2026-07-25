@@ -99,6 +99,9 @@ export async function botSettingsRoutes(fastify: FastifyInstance): Promise<void>
       if (cnpj != null && cnpj !== '' && (typeof cnpj !== 'string' || !isValidCnpjFormat(cnpj))) {
         return reply.status(400).send({ error: 'cnpj must be 14 digits or 00.000.000/0000-00' });
       }
+      if (address != null && typeof address !== 'string') {
+        return reply.status(400).send({ error: 'address must be a string' });
+      }
 
       const owner = await prisma.owner.findFirst();
       if (!owner) return reply.status(404).send({ error: 'Owner not found' });

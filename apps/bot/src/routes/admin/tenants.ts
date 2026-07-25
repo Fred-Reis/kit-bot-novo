@@ -13,6 +13,16 @@ class PropertyAlreadyRentedError extends Error {
   }
 }
 
+const ALLOWED_TENANT_FIELDS = new Set([
+  'name',
+  'cpf',
+  'email',
+  'score',
+  'dueDay',
+  'onTimeRate',
+  'contractEnd',
+]);
+
 export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── create tenant ────────────────────────────────────────────────────────
   fastify.post<{
@@ -55,15 +65,6 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
 
     const externalId = await nextExternalId('tenant');
 
-    const ALLOWED_TENANT_FIELDS = new Set([
-      'name',
-      'cpf',
-      'email',
-      'score',
-      'dueDay',
-      'onTimeRate',
-      'contractEnd',
-    ]);
     const sanitized: Record<string, string | number | Date | undefined> = Object.fromEntries(
       Object.entries(rest).filter(([k]) => ALLOWED_TENANT_FIELDS.has(k)),
     );
