@@ -20,13 +20,30 @@ class VisitConflictError extends Error {
   }
 }
 
-// Shared by the dedicated complete-visit endpoint and visit-status's
-// 'completed' branch — same semantic action, and they drifted apart once
-// already (one checked archived/no-visit-scheduled/already-completed, the
-// other didn't). Re-asserts every precondition atomically at write time to
-// close the race with the bot's concurrent stage writes (flows/lead/index.ts
-// advances Lead.stage in response to WhatsApp messages independently of
-// these admin routes).
+// Shared read-time preconditions for completing a visit — used by both the
+// dedicated /complete-visit endpoint and visit-status's 'completed' branch.
+// Returns an error message if the lead can't have its visit completed, or
+// null if it can. Kept in lockstep with completeVisit()'s atomic write
+// preconditions to avoid the two drifting apart again.
+function assertCanCompleteVisit(lead: {
+  archivedAt: Date | null;
+  stage: string;
+  scheduledVisitAt: Date | null;
+  visitedAt: Date | null;
+}): string | null {
+  if (lead.archivedAt) return 'Cannot complete visit for archived lead';
+  if (STAGES_PAST_VISITING.has(lead.stage)) {
+    return 'Cannot complete visit: lead is already past the visiting stage';
+  }
+  if (!lead.scheduledVisitAt) return 'No visit scheduled for this lead';
+  if (lead.visitedAt) return 'Visit already completed';
+  return null;
+}
+
+// Re-asserts assertCanCompleteVisit()'s preconditions atomically at write
+// time, closing the race with the bot's concurrent stage writes
+// (flows/lead/index.ts advances Lead.stage in response to WhatsApp messages
+// independently of these admin routes).
 async function completeVisit(leadId: string): Promise<Date> {
   const visitedAt = new Date();
   const { count } = await prisma.lead.updateMany({
@@ -120,19 +137,9 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       if (!lead || lead.ownerId !== owner.id) {
         return reply.status(404).send({ error: 'Lead not found' });
       }
-      if (lead.archivedAt) {
-        return reply.status(409).send({ error: 'Cannot complete visit for archived lead' });
-      }
-      if (STAGES_PAST_VISITING.has(lead.stage)) {
-        return reply.status(409).send({
-          error: 'Cannot complete visit: lead is already past the visiting stage',
-        });
-      }
-      if (!lead.scheduledVisitAt) {
-        return reply.status(409).send({ error: 'No visit scheduled for this lead' });
-      }
-      if (lead.visitedAt) {
-        return reply.status(409).send({ error: 'Visit already completed' });
+      const completeVisitError = assertCanCompleteVisit(lead);
+      if (completeVisitError) {
+        return reply.status(409).send({ error: completeVisitError });
       }
 
       let visitedAt: Date;
@@ -183,19 +190,9 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       if (status === 'completed') {
         // Same preconditions as the dedicated /complete-visit endpoint —
         // this branch does the identical semantic action and must not drift.
-        if (lead.archivedAt) {
-          return reply.status(409).send({ error: 'Cannot complete visit for archived lead' });
-        }
-        if (STAGES_PAST_VISITING.has(lead.stage)) {
-          return reply.status(409).send({
-            error: 'Cannot complete visit: lead is already past the visiting stage',
-          });
-        }
-        if (!lead.scheduledVisitAt) {
-          return reply.status(409).send({ error: 'No visit scheduled for this lead' });
-        }
-        if (lead.visitedAt) {
-          return reply.status(409).send({ error: 'Visit already completed' });
+        const completeVisitError = assertCanCompleteVisit(lead);
+        if (completeVisitError) {
+          return reply.status(409).send({ error: completeVisitError });
         }
 
         try {

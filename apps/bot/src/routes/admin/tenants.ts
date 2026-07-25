@@ -66,7 +66,9 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
     const sanitized: Record<string, string | number | Date | undefined> = Object.fromEntries(
       Object.entries(rest).filter(([k]) => ALLOWED_TENANT_FIELDS.has(k)),
     );
-    if (sanitized.contractEnd) {
+    if (sanitized.contractEnd === '') {
+      delete sanitized.contractEnd;
+    } else if (sanitized.contractEnd !== undefined) {
       const parsedContractEnd = new Date(sanitized.contractEnd as string);
       if (isNaN(parsedContractEnd.getTime())) {
         return reply.status(400).send({ error: 'contractEnd must be a valid date' });

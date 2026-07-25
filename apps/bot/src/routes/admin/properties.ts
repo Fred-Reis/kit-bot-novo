@@ -247,6 +247,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         const { error: removeErr } = await supabase.storage.from('properties').remove([storagePath]);
         if (removeErr) {
           fastify.log.error({ err: removeErr, storagePath, mediaId }, 'Failed to remove media from storage');
+          return reply.status(502).send({ error: 'Failed to remove media from storage; try again' });
         }
       }
 
