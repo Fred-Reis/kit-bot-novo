@@ -54,7 +54,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       'onTimeRate',
       'contractEnd',
     ]);
-    const sanitized = Object.fromEntries(
+    const sanitized: Record<string, string | number | Date | undefined> = Object.fromEntries(
       Object.entries(rest).filter(([k]) => ALLOWED_TENANT_FIELDS.has(k)),
     );
     if (sanitized.contractEnd) {
@@ -84,6 +84,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
     await logActivityHelper({
       ownerId: owner.id,
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'Admin',
       action: 'tenant_created',
       subjectType: 'tenant',

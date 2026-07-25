@@ -4,6 +4,16 @@ import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 
+const STAGES_PAST_VISITING = new Set([
+  'collection',
+  'kyc_pending',
+  'kyc_approved',
+  'residents_docs_complete',
+  'contract_pending',
+  'contract_signed',
+  'converted',
+]);
+
 export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.post<{
     Body: { leadId: string; propertyId: string; scheduledVisitAt: string; note?: string };
@@ -34,15 +44,6 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
     if (lead.archivedAt) {
       return reply.status(409).send({ error: 'Cannot schedule visit for archived lead' });
     }
-    const STAGES_PAST_VISITING = new Set([
-      'collection',
-      'kyc_pending',
-      'kyc_approved',
-      'residents_docs_complete',
-      'contract_pending',
-      'contract_signed',
-      'converted',
-    ]);
     if (STAGES_PAST_VISITING.has(lead.stage)) {
       return reply
         .status(409)
@@ -59,6 +60,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logActivityHelper({
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'Admin',
       ownerId: owner.id,
       action: 'visit_scheduled',
@@ -104,6 +106,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         ownerId: owner.id,
         action: 'visit_completed',
@@ -136,16 +139,6 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'Lead not found' });
       }
 
-      const STAGES_PAST_VISITING = new Set([
-        'collection',
-        'kyc_pending',
-        'kyc_approved',
-        'residents_docs_complete',
-        'contract_pending',
-        'contract_signed',
-        'converted',
-      ]);
-
       let data: Prisma.LeadUpdateInput;
       let action: 'visit_completed' | 'visit_cancelled' | 'visit_scheduled';
 
@@ -169,6 +162,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         ownerId: owner.id,
         action,
@@ -218,6 +212,7 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         ownerId: owner.id,
         action: 'visit_scheduled',

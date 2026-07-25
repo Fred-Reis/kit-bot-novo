@@ -4,7 +4,7 @@ import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 
-const MONTH_REGEX = /^\d{4}-\d{2}$/;
+const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── list payments ────────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/admin/payments', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { type, period, limit: limitStr } = request.query;
     const parsed = parseInt(limitStr ?? '', 10);
-    const limit = !isNaN(parsed) ? Math.min(parsed, 200) : 50;
+    const limit = !isNaN(parsed) && parsed > 0 ? Math.min(parsed, 200) : 50;
 
     const owner = await prisma.owner.findFirst();
     if (!owner) return reply.send([]);
@@ -95,6 +95,7 @@ export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logActivityHelper({
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'admin',
       ownerId: owner.id,
       action: 'payment_recorded',

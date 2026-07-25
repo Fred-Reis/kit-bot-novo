@@ -46,9 +46,7 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const { name } = request.body;
       if (!name) return reply.status(400).send({ error: 'name is required' });
-      const owner = await prisma.owner.findFirst({
-        where: request.adminUserId ? { adminUserId: request.adminUserId } : undefined,
-      });
+      const owner = await prisma.owner.findFirst();
       if (!owner) return reply.status(400).send({ error: 'No owner found' });
       const template = await prisma.contractTemplate.create({
         data: { name, ownerId: owner.id },
@@ -56,6 +54,7 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
       logActivityHelper({
         ownerId: owner.id,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'template_created',
         subjectType: 'template',
@@ -85,21 +84,23 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
     if (name !== undefined) data.name = name;
     if (body !== undefined) data.body = body;
     if (status !== undefined) data.status = status;
-    if (isDefault === true) data.isDefault = true;
+    if (isDefault !== undefined) data.isDefault = isDefault;
 
-    // Unset default on other templates before setting this one
-    if (isDefault === true) {
-      await prisma.contractTemplate.updateMany({
-        where: { ownerId: existing.ownerId, id: { not: id } },
-        data: { isDefault: false },
-      });
-    }
-
-    const template = await prisma.contractTemplate.update({ where: { id }, data });
+    const template = await prisma.$transaction(async (tx) => {
+      // Unset default on other templates before setting this one
+      if (isDefault === true) {
+        await tx.contractTemplate.updateMany({
+          where: { ownerId: existing.ownerId, id: { not: id } },
+          data: { isDefault: false },
+        });
+      }
+      return tx.contractTemplate.update({ where: { id }, data });
+    });
     if (status === 'published' && existing.status !== 'published') {
       logActivityHelper({
         ownerId: existing.ownerId,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'template_published',
         subjectType: 'template',

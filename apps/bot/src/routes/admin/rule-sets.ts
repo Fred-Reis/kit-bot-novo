@@ -29,6 +29,7 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
       });
       await logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: ruleSet.ownerId,
         action: 'rule_set_created',
@@ -175,6 +176,7 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
       await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
       await logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: ruleSet.ownerId,
         action: 'rule_set_linked',

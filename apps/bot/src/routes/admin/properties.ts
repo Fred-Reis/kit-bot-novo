@@ -150,6 +150,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
     await logActivityHelper({
       ownerId: property.ownerId,
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'Admin',
       action: 'property_created',
       subjectType: 'property',
@@ -202,6 +203,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       await logActivityHelper({
         ownerId: existing.ownerId,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'property_archived',
         subjectType: 'property',

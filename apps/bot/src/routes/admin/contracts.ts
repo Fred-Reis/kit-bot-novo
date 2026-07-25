@@ -148,6 +148,7 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     for (const [placeholder, value] of Object.entries(variables ?? {})) {
       renderedBody = renderedBody.replaceAll(placeholder, value);
     }
+    renderedBody = renderedBody.replace(/\{\{[^}]+\}\}/g, 'N/A');
 
     const code = await nextExternalId('contract');
 
@@ -168,6 +169,7 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logActivityHelper({
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'admin',
       ownerId: property.ownerId,
       action: 'contract_created',

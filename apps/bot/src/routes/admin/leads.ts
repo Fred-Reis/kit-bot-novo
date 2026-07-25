@@ -79,6 +79,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
     if (source !== undefined) {
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: lead.ownerId,
         action: 'lead_source_corrected',
@@ -119,6 +120,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
       const action = paused ? 'bot_paused' : 'bot_resumed';
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: lead.ownerId,
         action,
@@ -162,6 +164,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
       const action = archived ? 'lead_archived' : 'lead_unarchived';
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: updated.ownerId,
         action,
@@ -203,6 +206,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: updated.ownerId,
         action: 'lead_stage_changed',
@@ -409,6 +413,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logActivityHelper({
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'admin',
       ownerId: lead.ownerId,
       action: 'kyc_approved',
@@ -419,6 +424,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logActivityHelper({
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'admin',
       ownerId: lead.ownerId,
       action: 'contract_created',
@@ -483,6 +489,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: doc.ownerId,
         action: 'document_reclassified',
@@ -535,6 +542,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: lead.ownerId,
         action: 'contract_created',
@@ -729,6 +737,7 @@ export async function leadsRoutes(fastify: FastifyInstance): Promise<void> {
 
       logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: lead.ownerId,
         action: 'payment_confirmed',
