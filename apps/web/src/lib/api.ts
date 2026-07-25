@@ -39,6 +39,8 @@ export const adminApi = {
     leadId: string,
     body: { paymentDayOfMonth: number; manualVariables?: Record<string, string | null> },
   ) => botApi.post(`/admin/leads/${leadId}/approve-kyc`, body),
+  reclassifyDocument: (leadId: string, docId: string, type: string) =>
+    botApi.patch(`/admin/leads/${leadId}/documents/${docId}`, { type }),
   getContractVariables: (leadId: string, paymentDayOfMonth: number) =>
     botApi.get<{ unresolved: string[]; hasTemplate: boolean; templateName?: string }>(
       `/admin/leads/${leadId}/contract-variables`,
@@ -98,7 +100,12 @@ export const adminApi = {
   }) => botApi.post('/admin/contracts', data),
   getContractPdf: (contractId: string) =>
     botApi.get<{ url: string }>(`/admin/contracts/${contractId}/pdf`),
-  markContractSigned: (leadId: string) => botApi.post(`/admin/leads/${leadId}/mark-signed`),
+  getSignedContractPdf: (contractId: string) =>
+    botApi.get<{ url: string }>(`/admin/contracts/${contractId}/signed-pdf`),
+  markContractSigned: (leadId: string) =>
+    botApi.post<{ tenantId: string; tenantExternalId: string; stage: string }>(
+      `/admin/leads/${leadId}/mark-signed`,
+    ),
   uploadSignedContract: (leadId: string, file: File) =>
     postFile(`/admin/leads/${leadId}/upload-signed-contract`, file),
   importContractTemplate: (id: string, file: File) =>

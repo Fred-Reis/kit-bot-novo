@@ -29,9 +29,14 @@ import {
   summarizeProperty,
 } from '@/services/catalog';
 import { extractCpfFromDocs } from '@/services/cpf';
-import { finalizeContractSigning, uploadSignedContractPdf } from '@/services/contract-signing';
+import {
+  createSignedContractUrl,
+  finalizeContractSigning,
+  uploadSignedContractPdf,
+} from '@/services/contract-signing';
 import { sendMedia, sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
+import { createLeadDocumentUrl } from '@/services/storage';
 
 const CHAT_HISTORY_LIMIT = 10;
 
@@ -130,6 +135,16 @@ export async function handleLeadMessage(
       logger.error({ chatId }, '[lead.flow] No lead record');
       return;
     }
+    if (lead.archivedAt) {
+      // Already converted (or manually archived) — the router's tenant lookup
+      // should have already routed this phone to the tenant flow, but a
+      // message that was mid-flight in a separate buffer flush when the
+      // conversion committed can still land here. Drop it rather than run
+      // the full lead agent against a stage that no longer applies (it has
+      // no branch for 'converted' and falls through to a generic reply).
+      logger.info({ chatId }, '[lead.flow] Lead already archived — skipping');
+      return;
+    }
 
     const context = await loadOrCreateConversation(chatId);
     const chatHistory = await loadChatHistory(chatId);
@@ -223,21 +238,36 @@ export async function handleLeadMessage(
           select: { id: true, code: true },
         });
         if (contract) {
-          // Ensure we have a persisted storage URL before finalizing
+          // Ensure we have a persisted storage URL (in the 'contracts' bucket) before finalizing
           let signedPdfUrl: string | undefined;
-          if (pdfItem.base64) {
+          let base64: string | undefined = pdfItem.base64;
+          if (!base64 && pdfItem.url) {
+            // The buffer already uploaded this PDF to the 'leads' bucket (see
+            // buffer.ts's bufferMedia) and only kept that storage path — fetch
+            // it back so it can be re-uploaded into the 'contracts' bucket,
+            // where the admin panel and finalizeContractSigning expect it.
+            try {
+              const downloadUrl = await createLeadDocumentUrl(pdfItem.url);
+              const resp = await fetch(downloadUrl, { signal: AbortSignal.timeout(10_000) });
+              if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+              base64 = Buffer.from(await resp.arrayBuffer()).toString('base64');
+            } catch (downloadErr) {
+              logger.warn(
+                { err: downloadErr },
+                '[lead.flow] Failed to download signed contract PDF from leads bucket',
+              );
+            }
+          }
+          if (base64) {
             try {
               signedPdfUrl = await uploadSignedContractPdf(
                 contract.id,
-                pdfItem.base64,
+                base64,
                 `${contract.code}-assinado.pdf`,
               );
             } catch (uploadErr) {
               logger.warn({ err: uploadErr }, '[lead.flow] Failed to upload signed contract PDF');
             }
-          } else if (pdfItem.url) {
-            // PDF arrived as a media URL (no base64) — use the URL directly as reference
-            signedPdfUrl = pdfItem.url;
           }
 
           // Only proceed if we have a storage URL
@@ -266,16 +296,18 @@ export async function handleLeadMessage(
             return;
           }
 
-          // Only mark lead as converted after successful finalization
-          await prisma.lead.updateMany({
-            where: { id: lead.id, stage: 'contract_pending' },
-            data: { stage: 'converted' },
-          });
-
-          await sendText(
-            chatId,
-            'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
-          );
+          const confirmationCaption =
+            'Contrato recebido e assinado! ✅ Sua locação está confirmada. Aqui está sua cópia.';
+          try {
+            const signedUrl = await createSignedContractUrl(signedPdfUrl);
+            await sendMedia(chatId, 'document', signedUrl, confirmationCaption);
+          } catch (sendErr) {
+            logger.warn({ err: sendErr }, '[lead.flow] Failed to send signed contract copy back');
+            await sendText(
+              chatId,
+              'Contrato recebido e assinado! ✅ Sua locação está confirmada. Em breve entraremos em contato para alinhar os próximos passos.',
+            );
+          }
           return;
         }
       }

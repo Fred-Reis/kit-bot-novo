@@ -12,6 +12,7 @@ type NotifyPayloadMap = {
   contract_signed: { leadName: string; tenantExternalId: string };
   payment_overdue: { tenantName: string; propertyName: string; daysOverdue: number };
   human_needed: { leadName: string; leadPhone: string; reason: string };
+  media_receive_failure: { leadName: string; leadPhone: string; failureCount: number };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -67,6 +68,15 @@ function buildChannelContent(
           `Lead: ${p.leadName} (${p.leadPhone})\n` +
           `Motivo: ${p.reason}\n` +
           `O bot foi pausado para este contato.`,
+        email: null,
+      };
+    }
+    case 'media_receive_failure': {
+      const p = payload as NotifyPayloadMap['media_receive_failure'];
+      return {
+        whatsapp:
+          `⚠️ Falha ao receber arquivo de ${p.leadName} (${p.leadPhone}) — ` +
+          `${p.failureCount} tentativas sem sucesso. O bot NÃO foi pausado, pode ser só uma instabilidade — vale conferir com o lead.`,
         email: null,
       };
     }

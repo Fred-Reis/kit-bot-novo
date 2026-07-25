@@ -30,7 +30,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         .maybeSingle();
       if (!owner) {
         await supabase.auth.signOut();
-        throw redirect({ to: '/login' });
+        throw redirect({ to: '/login', search: { reason: 'not_registered' } });
       }
     }
   },

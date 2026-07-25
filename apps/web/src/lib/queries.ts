@@ -13,6 +13,7 @@ import type {
   RuleSetDetail,
   RuleSetSummary,
   Tenant,
+  TenantDocument,
 } from '@kit-manager/types';
 import { supabase } from './supabase';
 import { tenantStatus } from './tenant-utils';
@@ -127,6 +128,20 @@ export async function fetchTenants(): Promise<Tenant[]> {
     .order('contractStart', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as TenantRow[]).map(mapTenantRow);
+}
+
+export async function fetchTenantIdByPhone(phone: string): Promise<string | null> {
+  // Tenant.phone isn't unique (reconversions can leave more than one row) —
+  // maybeSingle() throws on >1 row, so order + limit to the most recent first.
+  const { data, error } = await supabase
+    .from('Tenant')
+    .select('id')
+    .eq('phone', phone)
+    .order('createdAt', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
@@ -396,7 +411,7 @@ export async function fetchPropertyLeads(propertyId: string): Promise<PropertyLe
   return (data ?? []) as PropertyLeadSummary[];
 }
 
-export interface LeadContract {
+export interface ContractDoc {
   id: string;
   code: string;
   status: string;
@@ -407,14 +422,48 @@ export interface LeadContract {
   monthlyRent: number;
 }
 
-export async function fetchLeadContracts(leadId: string): Promise<LeadContract[]> {
+export async function fetchLeadContracts(leadId: string): Promise<ContractDoc[]> {
   const { data, error } = await supabase
     .from('Contract')
     .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
     .eq('leadId', leadId)
     .order('createdAt', { ascending: false });
   if (error) throw error;
-  return (data ?? []) as LeadContract[];
+  return (data ?? []) as ContractDoc[];
+}
+
+export async function fetchTenantContracts(tenantId: string): Promise<ContractDoc[]> {
+  const { data, error } = await supabase
+    .from('Contract')
+    .select('id, code, status, pdfUrl, signedPdfUrl, startDate, endDate, monthlyRent')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ContractDoc[];
+}
+
+export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {
+  const { data, error } = await supabase
+    .from('TenantDocument')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+
+  const rawDocs = (data ?? []) as TenantDocument[];
+  return Promise.all(
+    rawDocs.map(async (doc) => {
+      if (!doc.url) return doc;
+      const { data: signed, error: signErr } = await supabase.storage
+        .from('leads')
+        .createSignedUrl(doc.url, 3600);
+      if (signErr) {
+        console.error(`[fetchTenantDocuments] Failed to sign URL for document ${doc.id}:`, signErr);
+        return doc;
+      }
+      return { ...doc, url: signed.signedUrl };
+    }),
+  );
 }
 
 export interface VisitEntry {

@@ -9,9 +9,14 @@ import { redis } from '@/db/redis';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
-import { finalizeContractSigning } from '@/services/contract-signing';
+import {
+  finalizeContractSigning,
+  LeadStageConflictError,
+  TenantPhoneConflictError,
+} from '@/services/contract-signing';
 import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
 import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
+import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
 import { sendMedia, sendText } from '@/services/evolution';
 import { nextExternalId } from '@/services/external-id';
 import { generateAndUploadPdf } from '@/services/pdf';
@@ -33,6 +38,8 @@ const ALLOWED_MEDIA_TYPES = new Set([
 ]);
 
 const VALID_POLICY_VALUES = new Set(['yes', 'no', 'conditional']);
+
+const LEAD_DOCUMENT_TYPES = new Set(Object.keys(DOC_TYPE_LABEL));
 
 const PROPERTY_PATCH_FIELDS = new Set([
   'name',
@@ -575,6 +582,71 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.send({ success: true, contractId: contract.id, stage: 'contract_pending' });
   });
 
+  // ─── reclassify lead document ─────────────────────────────────────────────
+  // OCR classification isn't perfect — lets the owner correct a mislabeled
+  // document from the panel (lead-flow-v2 spec §2.4/2.5).
+  fastify.patch<{ Params: { id: string; docId: string }; Body: { type: string } }>(
+    '/admin/leads/:id/documents/:docId',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id, docId } = request.params;
+      const { type } = request.body ?? {};
+
+      if (!LEAD_DOCUMENT_TYPES.has(type)) {
+        return reply.status(400).send({
+          error: `Invalid document type. Expected one of: ${[...LEAD_DOCUMENT_TYPES].join(', ')}`,
+        });
+      }
+
+      const doc = await prisma.leadDocument.findUnique({ where: { id: docId } });
+      if (!doc || doc.leadId !== id) {
+        return reply.status(404).send({ error: 'Document not found for this lead' });
+      }
+
+      if (doc.type === type) {
+        return reply.send(doc);
+      }
+
+      const conflict = await prisma.leadDocument.findUnique({
+        where: { leadId_type: { leadId: id, type } },
+      });
+      if (conflict) {
+        return reply.status(409).send({
+          error: `Lead already has a document classified as '${type}'`,
+        });
+      }
+
+      let updated;
+      try {
+        updated = await prisma.leadDocument.update({
+          where: { id: docId },
+          data: { type, classifiedBy: 'manual' },
+        });
+      } catch (err) {
+        // Concurrent request reclassified another doc to the same type between
+        // the check above and this update — @@unique([leadId, type]) catches it.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          return reply.status(409).send({
+            error: `Lead already has a document classified as '${type}'`,
+          });
+        }
+        throw err;
+      }
+
+      logActivityHelper({
+        actorType: 'user',
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: doc.ownerId,
+        action: 'document_reclassified',
+        subject: `${doc.type} → ${type}`,
+        subjectId: id,
+        subjectType: 'lead',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send(updated);
+    },
+  );
+
   // ─── invalidate-property-cache ────────────────────────────────────────────
   fastify.put<{ Params: { id: string } }>(
     '/admin/properties/:id/invalidate-cache',
@@ -641,7 +713,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id } = request.params;
-      const { signedPdfUrl } = request.body ?? {};
+      const { signedPdfUrl: bodySignedPdfUrl } = request.body ?? {};
 
       const lead = await prisma.lead.findUnique({
         where: { id },
@@ -663,15 +735,6 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       });
       if (!contract) {
         return reply.status(404).send({ error: 'No draft contract found for this lead' });
-      }
-
-      // Atomically claim the stage — prevents duplicate tenants on retries or concurrent requests
-      const { count } = await prisma.lead.updateMany({
-        where: { id, stage: 'contract_pending' },
-        data: { stage: 'converted' },
-      });
-      if (count === 0) {
-        return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
       }
 
       const today = new Date();
@@ -697,6 +760,22 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.warn({ err: pdfErr }, 'Failed to regenerate signed contract PDF');
       }
 
+      // The actually-signed PDF (uploaded via /upload-signed-contract, or passed
+      // directly in the body) takes priority over the freshly regenerated draft —
+      // the whole point of "mark signed" is to hand back what the tenant signed,
+      // not the template with the date filled in.
+      // || (not ??) — an explicit empty string in the body must not win over
+      // an already-uploaded signed PDF path.
+      const signedPdfPath = bodySignedPdfUrl || contract.signedPdfUrl || undefined;
+      let actualSignedUrl: string | null = null;
+      if (signedPdfPath) {
+        const { data, error } = await supabase.storage
+          .from('contracts')
+          .createSignedUrl(signedPdfPath, 3600);
+        if (!error) actualSignedUrl = data.signedUrl;
+        else fastify.log.warn({ err: error, signedPdfPath }, 'createSignedUrl failed for uploaded signed contract');
+      }
+
       let tenantId: string;
       let tenantExternalId: string;
       try {
@@ -704,22 +783,29 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           leadId: id,
           contractId: contract.id,
           actorLabel: request.adminUserId ?? 'admin',
-          signedPdfUrl: signedPdfUrl ?? null,
+          signedPdfUrl: signedPdfPath ?? null,
           finalContractBody: finalBody,
           finalPdfPath,
         }));
       } catch (err) {
-        // Finalization failed after the stage claim above — revert so the lead
-        // isn't stranded in 'converted' with no tenant/contract, and can be retried.
-        await prisma.lead.updateMany({
-          where: { id, stage: 'converted' },
-          data: { stage: 'contract_pending' },
-        });
-        fastify.log.error({ err }, 'finalizeContractSigning failed; reverted lead stage');
+        if (err instanceof LeadStageConflictError) {
+          return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
+        }
+        if (err instanceof TenantPhoneConflictError) {
+          return reply.status(409).send({ error: err.message });
+        }
+        fastify.log.error({ err }, 'finalizeContractSigning failed');
         return reply.status(500).send({ error: 'Failed to finalize contract signing' });
       }
 
-      if (finalPdfSignedUrl) {
+      if (actualSignedUrl) {
+        sendMedia(
+          lead.phone,
+          'document',
+          actualSignedUrl,
+          '✅ Contrato assinado! Aqui está sua cópia.',
+        ).catch((err) => fastify.log.warn({ err }, 'Failed to send signed contract to lead'));
+      } else if (finalPdfSignedUrl) {
         sendMedia(
           lead.phone,
           'document',
@@ -1717,6 +1803,30 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
       const { data: signed, error: signError } = await supabase.storage
         .from('contracts')
         .createSignedUrl(path, 300);
+      if (signError || !signed) return reply.status(500).send({ error: 'Could not sign PDF URL' });
+      return reply.send({ url: signed.signedUrl });
+    },
+  );
+
+  // ─── get signed contract pdf ──────────────────────────────────────────────
+  // The 'contracts' bucket has no read policy for the anon/authenticated
+  // client — only this backend (service role) can sign URLs into it. Mirrors
+  // the /pdf route above, but for the tenant's actually-signed copy.
+  fastify.get<{ Params: { id: string } }>(
+    '/admin/contracts/:id/signed-pdf',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const contract = await prisma.contract.findUnique({
+        where: { id },
+        select: { signedPdfUrl: true },
+      });
+      if (!contract) return reply.status(404).send({ error: 'Contract not found' });
+      if (!contract.signedPdfUrl) return reply.status(404).send({ error: 'No signed PDF for this contract' });
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from('contracts')
+        .createSignedUrl(contract.signedPdfUrl, 300);
       if (signError || !signed) return reply.status(500).send({ error: 'Could not sign PDF URL' });
       return reply.send({ url: signed.signedUrl });
     },

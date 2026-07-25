@@ -1,12 +1,6 @@
-export type LeadDocumentType =
-  | 'cnh_front'
-  | 'cnh_back'
-  | 'cnh_full'
-  | 'rg_front'
-  | 'rg_back'
-  | 'cpf'
-  | 'income_proof'
-  | 'unknown';
+import type { LeadDocumentType } from '@kit-manager/types';
+
+export type { LeadDocumentType };
 
 export const DOC_TYPE_LABEL: Record<LeadDocumentType, string> = {
   cnh_front: 'frente da CNH',

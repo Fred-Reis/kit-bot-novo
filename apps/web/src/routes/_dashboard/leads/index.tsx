@@ -52,7 +52,6 @@ const KANBAN_COLUMNS = [
     ],
     droppable: false,
   },
-  { key: 'ganho', label: 'Ganho', stages: ['converted'], droppable: false },
 ];
 
 const COL_DROP_STAGE: Record<string, LeadStage> = Object.fromEntries(
@@ -139,7 +138,7 @@ function KanbanView({
       onDragEnd={onDragEnd}
       onDragCancel={() => onDragStart(null)}
     >
-      <div className="grid grid-cols-2 gap-3 overflow-x-auto pb-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 overflow-x-auto pb-4 sm:grid-cols-3 lg:grid-cols-4">
         {KANBAN_COLUMNS.map((col) => {
           const cards = leads.filter((l) => (col.stages as readonly string[]).includes(l.stage));
           return (

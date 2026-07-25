@@ -1,16 +1,17 @@
-import type { LeadDocument } from '@kit-manager/types';
+import type { LeadDocumentType } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { AlertCircle, Archive, CheckCircle, ChevronLeft, Download, Eye, FileText, MapPin, X } from 'lucide-react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { AlertCircle, Archive, CheckCircle, ChevronLeft, FileText, MapPin, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
+import { ContractsSection } from '@/components/contracts-section';
+import { DocGrid } from '@/components/doc-grid';
 import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
 import { adminApi, apiErrorMessage } from '@/lib/api';
-import { SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
-import { fetchLead, fetchLeadContracts, fetchProperty } from '@/lib/queries';
-import { supabase } from '@/lib/supabase';
+import { formatPhone, SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
+import { fetchLead, fetchLeadContracts, fetchProperty, fetchTenantIdByPhone } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/leads/$leadId')({ component: LeadDetailPage });
 
@@ -50,82 +51,6 @@ function StageStepper({ current }: { current: string }) {
   );
 }
 
-function DocViewerModal({ doc, onClose }: { doc: LeadDocument; onClose: () => void }) {
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Documento: ${doc.type}`}
-    >
-      <div
-        className="relative flex max-h-[90vh] max-w-3xl w-full flex-col items-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          aria-label="Fechar"
-          onClick={onClose}
-          className="mb-3 self-end rounded-full p-1 text-white/70 transition-colors hover:text-white"
-        >
-          <X className="size-6" />
-        </button>
-        <img
-          src={doc.url}
-          alt={doc.type}
-          className="max-h-[80vh] w-full rounded-lg object-contain shadow-xl"
-        />
-        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-white/60">
-          {doc.type}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function DocGrid({ docs }: { docs: LeadDocument[] }) {
-  const [selected, setSelected] = useState<LeadDocument | null>(null);
-
-  if (docs.length === 0)
-    return <p className="text-sm text-muted-foreground">Nenhum documento enviado.</p>;
-
-  return (
-    <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {docs.map((doc) => (
-          <button
-            key={doc.id}
-            type="button"
-            data-slot="doc-card"
-            onClick={() => setSelected(doc)}
-            className="overflow-hidden rounded-lg border border-border bg-surface text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <div className="flex h-36 items-center justify-center overflow-hidden bg-muted">
-              <img src={doc.url} alt={doc.type} className="h-full w-full object-contain" />
-            </div>
-            <div className="p-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {doc.type}
-              </p>
-              {doc.ocrText && (
-                <p className="mt-1 line-clamp-2 text-xs text-foreground-subtle">{doc.ocrText}</p>
-              )}
-            </div>
-          </button>
-        ))}
-      </div>
-      {selected && <DocViewerModal doc={selected} onClose={() => setSelected(null)} />}
-    </>
-  );
-}
-
 type ManualVarAction = 'fill' | 'remove' | 'ignore';
 
 interface ManualVarState {
@@ -136,6 +61,25 @@ interface ManualVarState {
 function defaultVarStates(keys: string[]): Record<string, ManualVarState> {
   return Object.fromEntries(keys.map((p) => [p, { action: 'ignore' as ManualVarAction, value: '' }]));
 }
+
+// The dropdown's wording is Title Case for standalone display (vs. the bot's
+// lowercase-in-sentence labels), but the *values* are typed against the
+// shared LeadDocumentType — a value missing or extra here fails to compile
+// instead of silently drifting from what the bot's OCR classifier produces.
+const DOC_TYPE_LABEL_WEB: Record<LeadDocumentType, string> = {
+  cnh_front: 'Frente da CNH',
+  cnh_back: 'Verso da CNH',
+  cnh_full: 'CNH completa (foto única)',
+  rg_front: 'Frente do RG',
+  rg_back: 'Verso do RG',
+  cpf: 'CPF',
+  income_proof: 'Comprovante de renda',
+  unknown: 'Não identificado',
+};
+const DOC_TYPE_OPTIONS = Object.entries(DOC_TYPE_LABEL_WEB).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => void }) {
   const [step, setStep] = useState<1 | 2>(1);
@@ -344,11 +288,33 @@ function ApproveKycModal({ leadId, onClose }: { leadId: string; onClose: () => v
 function LeadDetailPage() {
   const { leadId } = Route.useParams();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showApproveKycModal, setShowApproveKycModal] = useState(false);
 
   const { data: lead, isLoading } = useQuery({
     queryKey: ['lead', leadId],
     queryFn: () => fetchLead(leadId),
+    // Converting a lead to a tenant can happen in the background (the bot's
+    // WhatsApp auto-finalize flow), with no button click on this page to hang
+    // a redirect off — poll so the effect below can catch the transition.
+    refetchInterval: 5000,
+  });
+
+  const { data: convertedTenantId } = useQuery({
+    queryKey: ['lead-converted-tenant', lead?.phone],
+    queryFn: () => fetchTenantIdByPhone(lead!.phone),
+    enabled: lead?.stage === 'converted',
+  });
+
+  useEffect(() => {
+    if (convertedTenantId) {
+      void navigate({ to: '/tenants/$tenantId', params: { tenantId: convertedTenantId } });
+    }
+  }, [convertedTenantId, navigate]);
+
+  const { data: contracts = [], isLoading: contractsLoading } = useQuery({
+    queryKey: ['lead-contracts', leadId],
+    queryFn: () => fetchLeadContracts(leadId),
   });
 
   const { data: property, isError: isPropertyError } = useQuery({
@@ -379,10 +345,14 @@ function LeadDetailPage() {
 
   const markSigned = useMutation({
     mutationFn: () => adminApi.markContractSigned(leadId),
-    onSuccess: () => {
+    onSuccess: ({ data }) => {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
+      void qc.invalidateQueries({ queryKey: ['leads'] });
+      if (data.tenantId) {
+        void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
+      }
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
@@ -395,6 +365,16 @@ function LeadDetailPage() {
       markSigned.mutate();
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao enviar contrato assinado.')),
+  });
+
+  const reclassifyDoc = useMutation({
+    mutationFn: ({ docId, type }: { docId: string; type: string }) =>
+      adminApi.reclassifyDocument(leadId, docId, type),
+    onSuccess: () => {
+      toast.success('Documento reclassificado.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao reclassificar documento.')),
   });
 
   const archiveMutation = useMutation({
@@ -421,7 +401,9 @@ function LeadDetailPage() {
           <ChevronLeft className="size-5" />
         </Link>
         <div>
-          <h1 className="text-xl font-semibold text-foreground">{lead.phone}</h1>
+          <h1 className="text-xl font-semibold text-foreground">
+            {lead.name?.trim() || formatPhone(lead.phone)}
+          </h1>
           <p className="text-sm text-muted-foreground">Lead ID: {lead.id}</p>
         </div>
       </div>
@@ -583,144 +565,20 @@ function LeadDetailPage() {
       )}
 
       {/* Contracts */}
-      <LeadContractsSection leadId={leadId} />
+      <ContractsSection contracts={contracts} isLoading={contractsLoading} />
 
       {/* Documents */}
       <div className="rounded-xl border border-border bg-surface-raised p-5">
         <h2 className="mb-4 text-sm font-medium text-foreground">Documentos</h2>
-        <DocGrid docs={lead.documents ?? []} />
+        <DocGrid
+          docs={lead.documents ?? []}
+          reclassify={{
+            options: DOC_TYPE_OPTIONS,
+            pending: reclassifyDoc.isPending,
+            onSubmit: (docId, type) => reclassifyDoc.mutate({ docId, type }),
+          }}
+        />
       </div>
-    </div>
-  );
-}
-
-function LeadContractsSection({ leadId }: { leadId: string }) {
-  const { data: contracts = [], isLoading } = useQuery({
-    queryKey: ['lead-contracts', leadId],
-    queryFn: () => fetchLeadContracts(leadId),
-  });
-
-  if (!isLoading && contracts.length === 0) return null;
-
-  function storagePath(urlOrPath: string): string {
-    try {
-      const u = new URL(urlOrPath);
-      const match = u.pathname.match(/\/object\/(?:public\/|sign\/|authenticated\/)?contracts\/(.+)/);
-      if (match) return decodeURIComponent(match[1]);
-    } catch { /* already a relative path */ }
-    return urlOrPath;
-  }
-
-  async function getSignedUrl(contractId: string, signedPdfPath?: string): Promise<string | null> {
-    if (signedPdfPath) {
-      const { data, error } = await supabase.storage
-        .from('contracts')
-        .createSignedUrl(storagePath(signedPdfPath), 300);
-      return error ? null : (data?.signedUrl ?? null);
-    }
-    try {
-      const { data } = await adminApi.getContractPdf(contractId);
-      return data.url;
-    } catch {
-      return null;
-    }
-  }
-
-  async function previewPdf(contractId: string, signedPdfPath?: string) {
-    const tab = window.open('', '_blank');
-    const signedUrl = await getSignedUrl(contractId, signedPdfPath);
-    if (!signedUrl) { tab?.close(); toast.error('Não foi possível abrir o arquivo.'); return; }
-    try {
-      const resp = await fetch(signedUrl);
-      if (!resp.ok) throw new Error();
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      if (tab) tab.location.href = url;
-      else window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      tab?.close();
-      toast.error('Não foi possível abrir o arquivo.');
-    }
-  }
-
-  async function downloadPdf(contractId: string, filename: string, signedPdfPath?: string) {
-    const toastId = toast.loading('Baixando arquivo...');
-    const signedUrl = await getSignedUrl(contractId, signedPdfPath);
-    if (!signedUrl) { toast.error('Não foi possível baixar o arquivo.', { id: toastId }); return; }
-    try {
-      const resp = await fetch(signedUrl);
-      if (!resp.ok) throw new Error();
-      const blob = await resp.blob();
-      toast.dismiss(toastId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Não foi possível baixar o arquivo.', { id: toastId });
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-border bg-surface-raised p-5">
-      <h2 className="mb-4 text-sm font-medium text-foreground">Contrato</h2>
-      {isLoading ? (
-        <div className="space-y-2">
-          <div className="h-10 animate-pulse rounded-lg bg-muted" />
-          <div className="h-10 animate-pulse rounded-lg bg-muted" />
-        </div>
-      ) : (
-      <div className="space-y-3">
-        {contracts.map((c) => (
-          <div key={c.id} className="space-y-2">
-            {c.pdfUrl && (
-              <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
-                <FileText className="size-5 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{c.code}.pdf</p>
-                  <p className="text-xs text-muted-foreground">Contrato emitido</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" aria-label="Visualizar contrato" onClick={() => void previewPdf(c.id)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
-                    <Eye className="size-4" />
-                  </button>
-                  <button type="button" aria-label="Baixar contrato" onClick={() => void downloadPdf(c.id, `${c.code}.pdf`)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
-                    <Download className="size-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-            {c.signedPdfUrl ? (
-              <div className="flex w-full items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5">
-                <FileText className="size-5 shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground">{c.code}-assinado.pdf</p>
-                  <p className="text-xs text-muted-foreground">Contrato assinado</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button type="button" aria-label="Visualizar contrato assinado" onClick={() => void previewPdf(c.id, c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
-                    <Eye className="size-4" />
-                  </button>
-                  <button type="button" aria-label="Baixar contrato assinado" onClick={() => void downloadPdf(c.id, `${c.code}-assinado.pdf`, c.signedPdfUrl!)} className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground">
-                    <Download className="size-4" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2.5">
-                <FileText className="size-5 shrink-0 text-muted-foreground/40" />
-                <p className="text-xs text-muted-foreground">Aguardando contrato assinado</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      )}
     </div>
   );
 }
