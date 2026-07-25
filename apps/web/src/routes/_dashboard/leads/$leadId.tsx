@@ -357,6 +357,16 @@ function LeadDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });
 
+  const confirmPayment = useMutation({
+    mutationFn: () => adminApi.confirmPayment(leadId),
+    onSuccess: () => {
+      toast.success('Pagamento confirmado — lead convertido.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      void qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao confirmar pagamento.')),
+  });
+
   const uploadSigned = useMutation({
     mutationFn: (file: File) => adminApi.uploadSignedContract(leadId, file),
     onSuccess: () => {
@@ -557,6 +567,18 @@ function LeadDetailPage() {
               e.target.value = '';
             }}
           />
+        </div>
+      )}
+      {lead.stage === 'contract_signed' && (
+        <div className="flex gap-2">
+          <CustomButton
+            variant="primary"
+            disabled={confirmPayment.isPending}
+            onClick={() => confirmPayment.mutate()}
+          >
+            <CheckCircle className="size-4" />
+            {confirmPayment.isPending ? 'Confirmando…' : 'Confirmar pagamento'}
+          </CustomButton>
         </div>
       )}
 
