@@ -345,14 +345,15 @@ function LeadDetailPage() {
 
   const markSigned = useMutation({
     mutationFn: () => adminApi.markContractSigned(leadId),
-    onSuccess: ({ data }) => {
+    onSuccess: () => {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
       void qc.invalidateQueries({ queryKey: ['leads'] });
-      if (data.tenantId) {
-        void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
-      }
+      // Stays on this page — stage is now 'contract_signed', not 'converted'.
+      // The tenant record already exists, but conversion isn't final until
+      // confirm-payment. The redirect-to-tenant effect below fires once
+      // stage actually reaches 'converted'.
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
   });

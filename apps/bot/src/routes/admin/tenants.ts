@@ -5,6 +5,13 @@ import { logActivity as logActivityHelper } from '@/services/activity';
 import { invalidateAvailablePropertiesCache, invalidatePropertyCache } from '@/services/catalog';
 import { nextExternalId } from '@/services/external-id';
 
+class PropertyAlreadyRentedError extends Error {
+  constructor() {
+    super('Property is already rented');
+    this.name = 'PropertyAlreadyRentedError';
+  }
+}
+
 export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── create tenant ────────────────────────────────────────────────────────
   fastify.post<{
@@ -34,13 +41,10 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
 
     const property = await prisma.property.findUnique({
       where: { id: propertyId },
-      select: { id: true, status: true, ownerId: true },
+      select: { id: true, ownerId: true },
     });
     if (!property || property.ownerId !== owner.id) {
       return reply.status(404).send({ error: 'Property not found' });
-    }
-    if (property.status === 'rented') {
-      return reply.status(409).send({ error: 'Property is already rented' });
     }
 
     const externalId = await nextExternalId('tenant');
@@ -58,25 +62,42 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       Object.entries(rest).filter(([k]) => ALLOWED_TENANT_FIELDS.has(k)),
     );
     if (sanitized.contractEnd) {
-      sanitized.contractEnd = new Date(sanitized.contractEnd as string);
+      const parsedContractEnd = new Date(sanitized.contractEnd as string);
+      if (isNaN(parsedContractEnd.getTime())) {
+        return reply.status(400).send({ error: 'contractEnd must be a valid date' });
+      }
+      sanitized.contractEnd = parsedContractEnd;
     }
 
-    const [tenant] = await prisma.$transaction([
-      prisma.tenant.create({
-        data: {
-          phone,
-          propertyId,
-          contractStart: new Date(contractStart),
-          externalId,
-          ownerId: owner.id,
-          ...sanitized,
-        },
-      }),
-      prisma.property.update({
-        where: { id: propertyId },
-        data: { status: 'rented', active: false },
-      }),
-    ]);
+    let tenant;
+    try {
+      tenant = await prisma.$transaction(async (tx) => {
+        // Conditional update — atomically claims the property only if it
+        // isn't already rented, closing the race window between the
+        // findUnique check above and this write.
+        const { count } = await tx.property.updateMany({
+          where: { id: propertyId, status: { not: 'rented' } },
+          data: { status: 'rented', active: false },
+        });
+        if (count === 0) throw new PropertyAlreadyRentedError();
+
+        return tx.tenant.create({
+          data: {
+            phone,
+            propertyId,
+            contractStart: new Date(contractStart),
+            externalId,
+            ownerId: owner.id,
+            ...sanitized,
+          },
+        });
+      });
+    } catch (err) {
+      if (err instanceof PropertyAlreadyRentedError) {
+        return reply.status(409).send({ error: 'Property is already rented' });
+      }
+      throw err;
+    }
 
     await invalidatePropertyCache(propertyId);
     await invalidateAvailablePropertiesCache();

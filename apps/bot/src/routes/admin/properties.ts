@@ -43,6 +43,16 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'active',
 ]);
 
+const PROPERTY_CREATE_FIELDS = new Set([
+  ...PROPERTY_PATCH_FIELDS,
+  'title',
+  'parkingSpots',
+  'amenities',
+  'type',
+  'purpose',
+  'status',
+]);
+
 export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── invalidate-property-cache ────────────────────────────────────────────
   fastify.put<{ Params: { id: string } }>(
@@ -128,7 +138,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
     }
 
     const sanitizedRest = Object.fromEntries(
-      Object.entries(rest).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
+      Object.entries(rest).filter(([k]) => PROPERTY_CREATE_FIELDS.has(k)),
     );
 
     const property = await prisma.property.create({
@@ -290,6 +300,9 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
 
     if (!type || !['photo', 'video'].includes(type)) {
       return reply.status(400).send({ error: 'type must be photo or video' });
+    }
+    if (!path || typeof path !== 'string') {
+      return reply.status(400).send({ error: 'path is required' });
     }
 
     const normalizedPath = path.replace(/\\/g, '/').replace(/\/\.\.\//g, '/').replace(/\/\//g, '/');

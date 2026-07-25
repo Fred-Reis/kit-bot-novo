@@ -23,7 +23,7 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
   }>('/admin/contracts/preview', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent } = request.body;
 
-    if (monthlyRent == null || typeof monthlyRent !== 'number' || isNaN(monthlyRent) || monthlyRent <= 0) {
+    if (monthlyRent == null || !Number.isFinite(monthlyRent) || monthlyRent <= 0) {
       return reply.status(400).send({ error: 'monthlyRent must be a positive number' });
     }
 
@@ -125,7 +125,7 @@ export async function contractsRoutes(fastify: FastifyInstance): Promise<void> {
     const { templateId, tenantId, propertyId, startDate, endDate, monthlyRent, variables } =
       request.body;
 
-    if (monthlyRent == null || typeof monthlyRent !== 'number' || isNaN(monthlyRent) || monthlyRent <= 0) {
+    if (monthlyRent == null || !Number.isFinite(monthlyRent) || monthlyRent <= 0) {
       return reply.status(400).send({ error: 'monthlyRent must be a positive number' });
     }
 

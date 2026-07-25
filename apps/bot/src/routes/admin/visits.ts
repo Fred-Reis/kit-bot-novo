@@ -143,6 +143,11 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       let action: 'visit_completed' | 'visit_cancelled' | 'visit_scheduled';
 
       if (status === 'completed') {
+        if (STAGES_PAST_VISITING.has(lead.stage)) {
+          return reply.status(409).send({
+            error: 'Cannot complete visit: lead is already past the visiting stage',
+          });
+        }
         data = { visitedAt: new Date(), stage: 'post_visit_decision' };
         action = 'visit_completed';
       } else if (status === 'cancelled') {
@@ -152,6 +157,11 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
         if (STAGES_PAST_VISITING.has(lead.stage)) {
           return reply.status(409).send({
             error: 'Cannot set visit to upcoming: lead is already past the visiting stage',
+          });
+        }
+        if (!lead.scheduledVisitAt) {
+          return reply.status(409).send({
+            error: 'Cannot set visit to upcoming: no scheduledVisitAt on this lead',
           });
         }
         data = { visitedAt: null, stage: 'visiting' };
