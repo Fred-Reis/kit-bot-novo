@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
@@ -29,6 +30,7 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
       });
       await logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: ruleSet.ownerId,
         action: 'rule_set_created',
@@ -96,6 +98,8 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         .status(400)
         .send({ error: `value must be one of: ${[...VALID_POLICY_VALUES].join(', ')}` });
     }
+    const ruleSet = await prisma.ruleSet.findUnique({ where: { id }, select: { id: true } });
+    if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
     const policy = await prisma.ruleSetPolicy.create({
       data: { ruleSetId: id, name, description, value, appliesToProperty },
     });
@@ -159,9 +163,34 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         select: { ownerId: true, name: true },
       });
       if (!ruleSet) return reply.status(404).send({ error: 'Rule set not found' });
-      await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      const property = await prisma.property.findUnique({
+        where: { id: propertyId },
+        select: { id: true, ownerId: true },
+      });
+      if (!property || property.ownerId !== ruleSet.ownerId) {
+        return reply.status(404).send({ error: 'Property not found' });
+      }
+      const existing = await prisma.propertyRuleSet.findUnique({
+        where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+      });
+      if (existing) {
+        return reply.status(409).send({ error: 'Property is already linked to this rule set' });
+      }
+      try {
+        await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          fastify.log.warn(
+            { propertyId, ruleSetId: id },
+            'Rule-set link conflict: property already linked',
+          );
+          return reply.status(409).send({ error: 'Property is already linked to this rule set' });
+        }
+        throw err;
+      }
       await logActivityHelper({
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'admin',
         ownerId: ruleSet.ownerId,
         action: 'rule_set_linked',
@@ -180,9 +209,24 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
     { preHandler: verifyAdminJwt },
     async (request, reply) => {
       const { id, propertyId } = request.params;
-      await prisma.propertyRuleSet.delete({
+      const existing = await prisma.propertyRuleSet.findUnique({
         where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
       });
+      if (!existing) return reply.status(404).send({ error: 'Link not found' });
+      try {
+        await prisma.propertyRuleSet.delete({
+          where: { propertyId_ruleSetId: { propertyId, ruleSetId: id } },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          fastify.log.warn(
+            { propertyId, ruleSetId: id },
+            'Rule-set unlink conflict: link already removed',
+          );
+          return reply.status(404).send({ error: 'Link not found' });
+        }
+        throw err;
+      }
       return reply.send({ success: true });
     },
   );

@@ -54,6 +54,7 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
       logActivityHelper({
         ownerId: owner.id,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'template_created',
         subjectType: 'template',
@@ -83,21 +84,27 @@ export async function templatesRoutes(fastify: FastifyInstance): Promise<void> {
     if (name !== undefined) data.name = name;
     if (body !== undefined) data.body = body;
     if (status !== undefined) data.status = status;
-    if (isDefault === true) data.isDefault = true;
+    if (isDefault !== undefined) data.isDefault = isDefault;
 
-    // Unset default on other templates before setting this one
-    if (isDefault === true) {
-      await prisma.contractTemplate.updateMany({
-        where: { ownerId: existing.ownerId, id: { not: id } },
-        data: { isDefault: false },
-      });
-    }
-
-    const template = await prisma.contractTemplate.update({ where: { id }, data });
+    // Known limitation: without a DB-level unique constraint or Serializable
+    // isolation, two literally-concurrent PATCHes setting isDefault:true on
+    // different templates could race. Accepted as-is — this is a low-traffic
+    // single-admin panel and the action is manual and rare.
+    const template = await prisma.$transaction(async (tx) => {
+      // Unset default on other templates before setting this one
+      if (isDefault === true) {
+        await tx.contractTemplate.updateMany({
+          where: { ownerId: existing.ownerId, id: { not: id } },
+          data: { isDefault: false },
+        });
+      }
+      return tx.contractTemplate.update({ where: { id }, data });
+    });
     if (status === 'published' && existing.status !== 'published') {
       logActivityHelper({
         ownerId: existing.ownerId,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'template_published',
         subjectType: 'template',

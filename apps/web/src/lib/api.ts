@@ -106,6 +106,8 @@ export const adminApi = {
     botApi.post<{ tenantId: string; tenantExternalId: string; stage: string }>(
       `/admin/leads/${leadId}/mark-signed`,
     ),
+  confirmPayment: (leadId: string) =>
+    botApi.post<{ success: true; stage: string }>(`/admin/leads/${leadId}/confirm-payment`),
   uploadSignedContract: (leadId: string, file: File) =>
     postFile(`/admin/leads/${leadId}/upload-signed-contract`, file),
   importContractTemplate: (id: string, file: File) =>

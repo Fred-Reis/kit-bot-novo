@@ -43,6 +43,16 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'active',
 ]);
 
+const PROPERTY_CREATE_FIELDS = new Set([
+  ...PROPERTY_PATCH_FIELDS,
+  'title',
+  'parkingSpots',
+  'amenities',
+  'type',
+  'purpose',
+  'status',
+]);
+
 export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── invalidate-property-cache ────────────────────────────────────────────
   fastify.put<{ Params: { id: string } }>(
@@ -90,7 +100,6 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       includesIptu?: boolean;
       individualElectricity?: boolean;
       contractMonths?: number;
-      ownerId?: string;
     };
   }>('/admin/properties', { preHandler: verifyAdminJwt }, async (request, reply) => {
     const {
@@ -127,6 +136,10 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       externalId = await nextExternalId('property');
     }
 
+    const sanitizedRest = Object.fromEntries(
+      Object.entries(rest).filter(([k]) => PROPERTY_CREATE_FIELDS.has(k)),
+    );
+
     const property = await prisma.property.create({
       data: {
         name,
@@ -138,14 +151,15 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         depositInstallmentsMax,
         rooms,
         bathrooms,
-        ownerId: rest.ownerId ?? owner.id,
-        ...rest,
+        ownerId: owner.id,
+        ...sanitizedRest,
       },
     });
 
     await logActivityHelper({
       ownerId: property.ownerId,
       actorType: 'user',
+      actorId: request.adminUserId ?? undefined,
       actorLabel: request.adminUserId ?? 'Admin',
       action: 'property_created',
       subjectType: 'property',
@@ -198,6 +212,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       await logActivityHelper({
         ownerId: existing.ownerId,
         actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: 'property_archived',
         subjectType: 'property',
@@ -219,10 +234,23 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       const media = await prisma.propertyMedia.findUnique({ where: { id: mediaId } });
       if (!media) return reply.status(404).send({ error: 'Media not found' });
 
-      const urlPath = new URL(media.url).pathname;
-      const storagePath = urlPath.split('/storage/v1/object/public/properties/')[1];
+      let storagePath: string | undefined;
+      try {
+        const urlPath = new URL(media.url).pathname;
+        storagePath = urlPath.split('/storage/v1/object/public/properties/')[1];
+        if (!storagePath) {
+          fastify.log.warn({ url: media.url, mediaId }, 'Could not derive storage path from media URL — deleting record without storage cleanup');
+        }
+      } catch (urlErr) {
+        fastify.log.warn({ err: urlErr, url: media.url, mediaId }, 'Invalid media URL — deleting record without storage cleanup');
+      }
+
       if (storagePath) {
-        await supabase.storage.from('properties').remove([storagePath]);
+        const { error: removeErr } = await supabase.storage.from('properties').remove([storagePath]);
+        if (removeErr) {
+          fastify.log.error({ err: removeErr, storagePath, mediaId }, 'Failed to remove media from storage');
+          return reply.status(502).send({ error: 'Failed to remove media from storage; try again' });
+        }
       }
 
       await prisma.propertyMedia.delete({ where: { id: mediaId } });
@@ -273,13 +301,21 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
     const { id } = request.params;
     const { path, type, label } = request.body;
 
-    if (!path.startsWith(`${id}/`)) {
+    if (!type || !['photo', 'video'].includes(type)) {
+      return reply.status(400).send({ error: 'type must be photo or video' });
+    }
+    if (!path || typeof path !== 'string') {
+      return reply.status(400).send({ error: 'path is required' });
+    }
+
+    const normalizedPath = path.replace(/\\/g, '/').replace(/\/\.\.\//g, '/').replace(/\/{2,}/g, '/');
+    if (!normalizedPath.startsWith(`${id}/`) || normalizedPath.includes('..')) {
       return reply.status(400).send({ error: 'Invalid path for this property' });
     }
 
     const {
       data: { publicUrl },
-    } = supabase.storage.from('properties').getPublicUrl(path);
+    } = supabase.storage.from('properties').getPublicUrl(normalizedPath);
 
     const property = await prisma.property.findUnique({ where: { id }, select: { ownerId: true } });
     if (!property) return reply.status(404).send({ error: 'Property not found' });

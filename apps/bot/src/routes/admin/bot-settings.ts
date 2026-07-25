@@ -24,7 +24,8 @@ export async function botSettingsRoutes(fastify: FastifyInstance): Promise<void>
 
       logActivityHelper({
         ownerId: owner.id,
-        actorType: 'owner',
+        actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: enabled ? 'bot_globally_resumed' : 'bot_globally_paused',
         subjectType: 'workspace',
@@ -89,14 +90,17 @@ export async function botSettingsRoutes(fastify: FastifyInstance): Promise<void>
     async (request, reply) => {
       const { name, cpf, cnpj, address } = request.body;
 
-      if (name !== undefined && name.trim() === '') {
+      if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
         return reply.status(400).send({ error: 'name must not be empty' });
       }
-      if (cpf != null && cpf !== '' && !isValidCpfFormat(cpf)) {
-        return reply.status(400).send({ error: 'cpf must have 11 digits' });
+      if (cpf != null && cpf !== '' && (typeof cpf !== 'string' || !isValidCpfFormat(cpf))) {
+        return reply.status(400).send({ error: 'cpf must be 11 digits or 000.000.000-00' });
       }
-      if (cnpj != null && cnpj !== '' && !isValidCnpjFormat(cnpj)) {
-        return reply.status(400).send({ error: 'cnpj must have 14 digits' });
+      if (cnpj != null && cnpj !== '' && (typeof cnpj !== 'string' || !isValidCnpjFormat(cnpj))) {
+        return reply.status(400).send({ error: 'cnpj must be 14 digits or 00.000.000/0000-00' });
+      }
+      if (address != null && typeof address !== 'string') {
+        return reply.status(400).send({ error: 'address must be a string' });
       }
 
       const owner = await prisma.owner.findFirst();
