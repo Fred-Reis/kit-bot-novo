@@ -9,7 +9,11 @@ import { redis } from '@/db/redis';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { normalizeLookupText } from '@/services/catalog';
-import { finalizeContractSigning } from '@/services/contract-signing';
+import {
+  finalizeContractSigning,
+  LeadStageConflictError,
+  TenantPhoneConflictError,
+} from '@/services/contract-signing';
 import { buildLeadAutoMap, formatDatePtBR, uniquePlaceholders } from '@/services/contract-variables';
 import { extractCpfFromDocs, extractRgFromDocs, isValidCnpjFormat, isValidCpfFormat } from '@/services/cpf';
 import { DOC_TYPE_LABEL } from '@/services/doc-classifier';
@@ -784,8 +788,11 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
           finalPdfPath,
         }));
       } catch (err) {
-        if (err instanceof Error && err.message === 'Lead is not in contract_pending stage') {
+        if (err instanceof LeadStageConflictError) {
           return reply.status(409).send({ error: `Lead is already past 'contract_pending' stage` });
+        }
+        if (err instanceof TenantPhoneConflictError) {
+          return reply.status(409).send({ error: err.message });
         }
         fastify.log.error({ err }, 'finalizeContractSigning failed');
         return reply.status(500).send({ error: 'Failed to finalize contract signing' });

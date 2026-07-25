@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
@@ -23,6 +24,23 @@ export interface FinalizeSigningParams {
 export interface FinalizeSigningResult {
   tenantId: string;
   tenantExternalId: string;
+}
+
+// Distinguishable error types instead of matching on Error#message strings —
+// callers (admin.ts, the bot's inbound flow) can `instanceof` these instead
+// of comparing text that could silently drift out of sync with this file.
+export class LeadStageConflictError extends Error {
+  constructor() {
+    super('Lead is not in contract_pending stage');
+    this.name = 'LeadStageConflictError';
+  }
+}
+
+export class TenantPhoneConflictError extends Error {
+  constructor(phone: string) {
+    super(`A tenant with phone ${phone} already exists`);
+    this.name = 'TenantPhoneConflictError';
+  }
 }
 
 /**
@@ -65,21 +83,32 @@ export async function finalizeContractSigning(
       data: { stage: 'converted', archivedAt: today },
     });
     if (count === 0) {
-      throw new Error('Lead is not in contract_pending stage');
+      throw new LeadStageConflictError();
     }
 
-    const newTenant = await tx.tenant.create({
-      data: {
-        phone: lead.phone,
-        name: lead.name ?? undefined,
-        cpf: cpf ?? undefined,
-        propertyId,
-        contractStart: today,
-        contractEnd,
-        externalId: tenantExternalId,
-        ownerId: lead.ownerId,
-      },
-    });
+    let newTenant;
+    try {
+      newTenant = await tx.tenant.create({
+        data: {
+          phone: lead.phone,
+          name: lead.name ?? undefined,
+          cpf: cpf ?? undefined,
+          propertyId,
+          contractStart: today,
+          contractEnd,
+          externalId: tenantExternalId,
+          ownerId: lead.ownerId,
+        },
+      });
+    } catch (err) {
+      // Tenant.phone is unique — a lead whose phone already belongs to an
+      // existing (e.g. past) tenancy hits this instead of silently
+      // surfacing as an unhandled 500.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new TenantPhoneConflictError(lead.phone);
+      }
+      throw err;
+    }
 
     if (lead.documents.length > 0) {
       await tx.tenantDocument.createMany({
