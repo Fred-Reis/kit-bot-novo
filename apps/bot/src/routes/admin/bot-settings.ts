@@ -24,7 +24,7 @@ export async function botSettingsRoutes(fastify: FastifyInstance): Promise<void>
 
       logActivityHelper({
         ownerId: owner.id,
-        actorType: 'owner',
+        actorType: 'user',
         actorId: request.adminUserId ?? undefined,
         actorLabel: request.adminUserId ?? 'Admin',
         action: enabled ? 'bot_globally_resumed' : 'bot_globally_paused',

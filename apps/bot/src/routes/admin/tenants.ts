@@ -103,6 +103,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
       });
     } catch (err) {
       if (err instanceof PropertyAlreadyRentedError) {
+        fastify.log.warn({ propertyId }, 'Tenant creation conflict: property already rented');
         return reply.status(409).send({ error: 'Property is already rented' });
       }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -111,6 +112,7 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
           Array.isArray(target) && target.includes('phone')
             ? 'A tenant with this phone already exists'
             : 'A tenant with conflicting unique data already exists';
+        fastify.log.warn({ target, phone }, 'Tenant creation conflict: unique constraint violated');
         return reply.status(409).send({ error: message });
       }
       throw err;

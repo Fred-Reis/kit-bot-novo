@@ -180,6 +180,10 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         await prisma.propertyRuleSet.create({ data: { ruleSetId: id, propertyId } });
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          fastify.log.warn(
+            { propertyId, ruleSetId: id },
+            'Rule-set link conflict: property already linked',
+          );
           return reply.status(409).send({ error: 'Property is already linked to this rule set' });
         }
         throw err;
@@ -215,6 +219,10 @@ export async function ruleSetsRoutes(fastify: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          fastify.log.warn(
+            { propertyId, ruleSetId: id },
+            'Rule-set unlink conflict: link already removed',
+          );
           return reply.status(404).send({ error: 'Link not found' });
         }
         throw err;
