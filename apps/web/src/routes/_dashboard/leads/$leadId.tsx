@@ -345,16 +345,27 @@ function LeadDetailPage() {
 
   const markSigned = useMutation({
     mutationFn: () => adminApi.markContractSigned(leadId),
-    onSuccess: ({ data }) => {
+    onSuccess: () => {
       toast.success('Contrato marcado como assinado.');
       void qc.invalidateQueries({ queryKey: ['lead', leadId] });
       void qc.invalidateQueries({ queryKey: ['lead-contracts', leadId] });
       void qc.invalidateQueries({ queryKey: ['leads'] });
-      if (data.tenantId) {
-        void navigate({ to: '/tenants/$tenantId', params: { tenantId: data.tenantId } });
-      }
+      // Stays on this page — stage is now 'contract_signed', not 'converted'.
+      // The tenant record already exists, but conversion isn't final until
+      // confirm-payment. The redirect-to-tenant effect below fires once
+      // stage actually reaches 'converted'.
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao marcar contrato.')),
+  });
+
+  const confirmPayment = useMutation({
+    mutationFn: () => adminApi.confirmPayment(leadId),
+    onSuccess: () => {
+      toast.success('Pagamento confirmado — lead convertido.');
+      void qc.invalidateQueries({ queryKey: ['lead', leadId] });
+      void qc.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao confirmar pagamento.')),
   });
 
   const uploadSigned = useMutation({
@@ -557,6 +568,19 @@ function LeadDetailPage() {
               e.target.value = '';
             }}
           />
+        </div>
+      )}
+      {lead.stage === 'contract_signed' && (
+        <div className="flex gap-2">
+          <ConfirmButton
+            label="Confirmar pagamento"
+            confirmLabel="Confirmar"
+            onConfirm={() => confirmPayment.mutate()}
+            disabled={confirmPayment.isPending}
+          >
+            <CheckCircle className="mr-1.5 size-4" />
+            {confirmPayment.isPending ? 'Confirmando…' : 'Confirmar pagamento'}
+          </ConfirmButton>
         </div>
       )}
 

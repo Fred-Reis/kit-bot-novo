@@ -16,8 +16,8 @@
     "format:check": "biome format apps/bot/src apps/web/src packages"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
-    "oxlint": "^0.16.0"
+    "@biomejs/biome": "^2.5.5",
+    "oxlint": "^0.16.12"
   },
   "msw": {
     "workerDirectory": [

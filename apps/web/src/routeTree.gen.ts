@@ -9,35 +9,40 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DashboardRouteImport } from './routes/_dashboard'
 import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as DashboardRouteImport } from './routes/_dashboard'
+import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
-import { Route as AuthLoginRouteImport } from './routes/_auth/login'
-import { Route as DashboardVisitsIndexRouteImport } from './routes/_dashboard/visits/index'
-import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
-import { Route as DashboardTemplatesIndexRouteImport } from './routes/_dashboard/templates/index'
-import { Route as DashboardRulesIndexRouteImport } from './routes/_dashboard/rules/index'
-import { Route as DashboardPropertiesIndexRouteImport } from './routes/_dashboard/properties/index'
-import { Route as DashboardLeadsIndexRouteImport } from './routes/_dashboard/leads/index'
-import { Route as DashboardFinanceIndexRouteImport } from './routes/_dashboard/finance/index'
-import { Route as DashboardContractsIndexRouteImport } from './routes/_dashboard/contracts/index'
 import { Route as DashboardConfigIndexRouteImport } from './routes/_dashboard/config/index'
-import { Route as DashboardTenantsNewRouteImport } from './routes/_dashboard/tenants/new'
-import { Route as DashboardTenantsTenantIdRouteImport } from './routes/_dashboard/tenants/$tenantId'
-import { Route as DashboardPropertiesNewRouteImport } from './routes/_dashboard/properties/new'
-import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
+import { Route as DashboardContractsIndexRouteImport } from './routes/_dashboard/contracts/index'
 import { Route as DashboardContractsContractIdRouteImport } from './routes/_dashboard/contracts/$contractId'
+import { Route as DashboardFinanceIndexRouteImport } from './routes/_dashboard/finance/index'
+import { Route as DashboardLeadsIndexRouteImport } from './routes/_dashboard/leads/index'
+import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
+import { Route as DashboardPropertiesIndexRouteImport } from './routes/_dashboard/properties/index'
+import { Route as DashboardPropertiesNewRouteImport } from './routes/_dashboard/properties/new'
+import { Route as DashboardRulesIndexRouteImport } from './routes/_dashboard/rules/index'
+import { Route as DashboardTemplatesIndexRouteImport } from './routes/_dashboard/templates/index'
+import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
+import { Route as DashboardTenantsTenantIdRouteImport } from './routes/_dashboard/tenants/$tenantId'
+import { Route as DashboardTenantsNewRouteImport } from './routes/_dashboard/tenants/new'
+import { Route as DashboardVisitsIndexRouteImport } from './routes/_dashboard/visits/index'
 import { Route as DashboardPropertiesPropertyIdIndexRouteImport } from './routes/_dashboard/properties/$propertyId/index'
 import { Route as DashboardPropertiesPropertyIdEditRouteImport } from './routes/_dashboard/properties/$propertyId/edit'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/_dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
-  getParentRoute: () => rootRouteImport,
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AuthRoute,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
@@ -49,76 +54,14 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => AuthRoute,
-} as any)
-const DashboardVisitsIndexRoute = DashboardVisitsIndexRouteImport.update({
-  id: '/visits/',
-  path: '/visits/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardTenantsIndexRoute = DashboardTenantsIndexRouteImport.update({
-  id: '/tenants/',
-  path: '/tenants/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardTemplatesIndexRoute = DashboardTemplatesIndexRouteImport.update({
-  id: '/templates/',
-  path: '/templates/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardRulesIndexRoute = DashboardRulesIndexRouteImport.update({
-  id: '/rules/',
-  path: '/rules/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardPropertiesIndexRoute =
-  DashboardPropertiesIndexRouteImport.update({
-    id: '/properties/',
-    path: '/properties/',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardLeadsIndexRoute = DashboardLeadsIndexRouteImport.update({
-  id: '/leads/',
-  path: '/leads/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardFinanceIndexRoute = DashboardFinanceIndexRouteImport.update({
-  id: '/finance/',
-  path: '/finance/',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardContractsIndexRoute = DashboardContractsIndexRouteImport.update({
-  id: '/contracts/',
-  path: '/contracts/',
-  getParentRoute: () => DashboardRoute,
-} as any)
 const DashboardConfigIndexRoute = DashboardConfigIndexRouteImport.update({
   id: '/config/',
   path: '/config/',
   getParentRoute: () => DashboardRoute,
 } as any)
-const DashboardTenantsNewRoute = DashboardTenantsNewRouteImport.update({
-  id: '/tenants/new',
-  path: '/tenants/new',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardTenantsTenantIdRoute =
-  DashboardTenantsTenantIdRouteImport.update({
-    id: '/tenants/$tenantId',
-    path: '/tenants/$tenantId',
-    getParentRoute: () => DashboardRoute,
-  } as any)
-const DashboardPropertiesNewRoute = DashboardPropertiesNewRouteImport.update({
-  id: '/properties/new',
-  path: '/properties/new',
-  getParentRoute: () => DashboardRoute,
-} as any)
-const DashboardLeadsLeadIdRoute = DashboardLeadsLeadIdRouteImport.update({
-  id: '/leads/$leadId',
-  path: '/leads/$leadId',
+const DashboardContractsIndexRoute = DashboardContractsIndexRouteImport.update({
+  id: '/contracts/',
+  path: '/contracts/',
   getParentRoute: () => DashboardRoute,
 } as any)
 const DashboardContractsContractIdRoute =
@@ -127,6 +70,63 @@ const DashboardContractsContractIdRoute =
     path: '/contracts/$contractId',
     getParentRoute: () => DashboardRoute,
   } as any)
+const DashboardFinanceIndexRoute = DashboardFinanceIndexRouteImport.update({
+  id: '/finance/',
+  path: '/finance/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardLeadsIndexRoute = DashboardLeadsIndexRouteImport.update({
+  id: '/leads/',
+  path: '/leads/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardLeadsLeadIdRoute = DashboardLeadsLeadIdRouteImport.update({
+  id: '/leads/$leadId',
+  path: '/leads/$leadId',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardPropertiesIndexRoute =
+  DashboardPropertiesIndexRouteImport.update({
+    id: '/properties/',
+    path: '/properties/',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardPropertiesNewRoute = DashboardPropertiesNewRouteImport.update({
+  id: '/properties/new',
+  path: '/properties/new',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardRulesIndexRoute = DashboardRulesIndexRouteImport.update({
+  id: '/rules/',
+  path: '/rules/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTemplatesIndexRoute = DashboardTemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTenantsIndexRoute = DashboardTenantsIndexRouteImport.update({
+  id: '/tenants/',
+  path: '/tenants/',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardTenantsTenantIdRoute =
+  DashboardTenantsTenantIdRouteImport.update({
+    id: '/tenants/$tenantId',
+    path: '/tenants/$tenantId',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardTenantsNewRoute = DashboardTenantsNewRouteImport.update({
+  id: '/tenants/new',
+  path: '/tenants/new',
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardVisitsIndexRoute = DashboardVisitsIndexRouteImport.update({
+  id: '/visits/',
+  path: '/visits/',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardPropertiesPropertyIdIndexRoute =
   DashboardPropertiesPropertyIdIndexRouteImport.update({
     id: '/properties/$propertyId/',
@@ -282,6 +282,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_dashboard': {
       id: '/_dashboard'
       path: ''
@@ -289,12 +296,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth': {
-      id: '/_auth'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_dashboard/': {
       id: '/_dashboard/'
@@ -310,60 +317,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/login': {
-      id: '/_auth/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_dashboard/visits/': {
-      id: '/_dashboard/visits/'
-      path: '/visits'
-      fullPath: '/visits/'
-      preLoaderRoute: typeof DashboardVisitsIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/tenants/': {
-      id: '/_dashboard/tenants/'
-      path: '/tenants'
-      fullPath: '/tenants/'
-      preLoaderRoute: typeof DashboardTenantsIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/templates/': {
-      id: '/_dashboard/templates/'
-      path: '/templates'
-      fullPath: '/templates/'
-      preLoaderRoute: typeof DashboardTemplatesIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/rules/': {
-      id: '/_dashboard/rules/'
-      path: '/rules'
-      fullPath: '/rules/'
-      preLoaderRoute: typeof DashboardRulesIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/properties/': {
-      id: '/_dashboard/properties/'
-      path: '/properties'
-      fullPath: '/properties/'
-      preLoaderRoute: typeof DashboardPropertiesIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/leads/': {
-      id: '/_dashboard/leads/'
-      path: '/leads'
-      fullPath: '/leads/'
-      preLoaderRoute: typeof DashboardLeadsIndexRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/finance/': {
-      id: '/_dashboard/finance/'
-      path: '/finance'
-      fullPath: '/finance/'
-      preLoaderRoute: typeof DashboardFinanceIndexRouteImport
+    '/_dashboard/config/': {
+      id: '/_dashboard/config/'
+      path: '/config'
+      fullPath: '/config/'
+      preLoaderRoute: typeof DashboardConfigIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/contracts/': {
@@ -373,32 +331,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardContractsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/config/': {
-      id: '/_dashboard/config/'
-      path: '/config'
-      fullPath: '/config/'
-      preLoaderRoute: typeof DashboardConfigIndexRouteImport
+    '/_dashboard/contracts/$contractId': {
+      id: '/_dashboard/contracts/$contractId'
+      path: '/contracts/$contractId'
+      fullPath: '/contracts/$contractId'
+      preLoaderRoute: typeof DashboardContractsContractIdRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/tenants/new': {
-      id: '/_dashboard/tenants/new'
-      path: '/tenants/new'
-      fullPath: '/tenants/new'
-      preLoaderRoute: typeof DashboardTenantsNewRouteImport
+    '/_dashboard/finance/': {
+      id: '/_dashboard/finance/'
+      path: '/finance'
+      fullPath: '/finance/'
+      preLoaderRoute: typeof DashboardFinanceIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/tenants/$tenantId': {
-      id: '/_dashboard/tenants/$tenantId'
-      path: '/tenants/$tenantId'
-      fullPath: '/tenants/$tenantId'
-      preLoaderRoute: typeof DashboardTenantsTenantIdRouteImport
-      parentRoute: typeof DashboardRoute
-    }
-    '/_dashboard/properties/new': {
-      id: '/_dashboard/properties/new'
-      path: '/properties/new'
-      fullPath: '/properties/new'
-      preLoaderRoute: typeof DashboardPropertiesNewRouteImport
+    '/_dashboard/leads/': {
+      id: '/_dashboard/leads/'
+      path: '/leads'
+      fullPath: '/leads/'
+      preLoaderRoute: typeof DashboardLeadsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/leads/$leadId': {
@@ -408,11 +359,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardLeadsLeadIdRouteImport
       parentRoute: typeof DashboardRoute
     }
-    '/_dashboard/contracts/$contractId': {
-      id: '/_dashboard/contracts/$contractId'
-      path: '/contracts/$contractId'
-      fullPath: '/contracts/$contractId'
-      preLoaderRoute: typeof DashboardContractsContractIdRouteImport
+    '/_dashboard/properties/': {
+      id: '/_dashboard/properties/'
+      path: '/properties'
+      fullPath: '/properties/'
+      preLoaderRoute: typeof DashboardPropertiesIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/properties/new': {
+      id: '/_dashboard/properties/new'
+      path: '/properties/new'
+      fullPath: '/properties/new'
+      preLoaderRoute: typeof DashboardPropertiesNewRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/rules/': {
+      id: '/_dashboard/rules/'
+      path: '/rules'
+      fullPath: '/rules/'
+      preLoaderRoute: typeof DashboardRulesIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/templates/': {
+      id: '/_dashboard/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof DashboardTemplatesIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/tenants/': {
+      id: '/_dashboard/tenants/'
+      path: '/tenants'
+      fullPath: '/tenants/'
+      preLoaderRoute: typeof DashboardTenantsIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/tenants/$tenantId': {
+      id: '/_dashboard/tenants/$tenantId'
+      path: '/tenants/$tenantId'
+      fullPath: '/tenants/$tenantId'
+      preLoaderRoute: typeof DashboardTenantsTenantIdRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/tenants/new': {
+      id: '/_dashboard/tenants/new'
+      path: '/tenants/new'
+      fullPath: '/tenants/new'
+      preLoaderRoute: typeof DashboardTenantsNewRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/visits/': {
+      id: '/_dashboard/visits/'
+      path: '/visits'
+      fullPath: '/visits/'
+      preLoaderRoute: typeof DashboardVisitsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/properties/$propertyId/': {

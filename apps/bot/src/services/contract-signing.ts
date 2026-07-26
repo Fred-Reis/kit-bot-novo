@@ -14,6 +14,7 @@ const supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
 export interface FinalizeSigningParams {
   leadId: string;
   contractId: string;
+  actorId?: string;
   actorLabel: string;
   /** Storage path of the signed PDF in the 'contracts' bucket, if available */
   signedPdfUrl?: string | null;
@@ -51,7 +52,8 @@ export class TenantPhoneConflictError extends Error {
 export async function finalizeContractSigning(
   params: FinalizeSigningParams,
 ): Promise<FinalizeSigningResult> {
-  const { leadId, contractId, actorLabel, signedPdfUrl, finalContractBody, finalPdfPath } = params;
+  const { leadId, contractId, actorId, actorLabel, signedPdfUrl, finalContractBody, finalPdfPath } =
+    params;
 
   const lead = await prisma.lead.findUniqueOrThrow({
     where: { id: leadId },
@@ -77,10 +79,10 @@ export async function finalizeContractSigning(
   const tenant = await prisma.$transaction(async (tx) => {
     // Claim the lead atomically inside the same transaction as tenant creation —
     // a failure anywhere below rolls this back too, so the lead is never left
-    // stranded in 'converted' with no tenant (see incident 2026-07-17).
+    // stranded in 'contract_signed' with no tenant (see incident 2026-07-17).
     const { count } = await tx.lead.updateMany({
       where: { id: leadId, stage: 'contract_pending' },
-      data: { stage: 'converted', archivedAt: today },
+      data: { stage: 'contract_signed' },
     });
     if (count === 0) {
       throw new LeadStageConflictError();
@@ -146,6 +148,7 @@ export async function finalizeContractSigning(
 
   logActivity({
     actorType: 'user',
+    actorId,
     actorLabel,
     ownerId: lead.ownerId,
     action: 'contract_signed',
@@ -156,6 +159,7 @@ export async function finalizeContractSigning(
 
   logActivity({
     actorType: 'user',
+    actorId,
     actorLabel,
     ownerId: lead.ownerId,
     action: 'tenant_created',

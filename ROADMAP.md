@@ -372,6 +372,9 @@
 - [ ] **Tenant flow Phase 2** — `handleTenantMessage` real: manutenção → classifica responsabilidade owner vs tenant → recomenda prestador ou vídeo
 - [ ] **Model `ServiceProvider`** (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot para recomendação
 - [ ] **Boleto mensal automático** — integração com provedor (Asaas, Efí, etc.); cron mensal; inquilino notificado via WhatsApp
+- [ ] **Confirmação de pagamento via comprovante PIX (OCR)** — inquilino (Tenant, Phase 2) manda print/foto do comprovante de PIX pelo WhatsApp; bot dispara OCR (Google Cloud Vision, já integrado) e extrai chave/e2eId, valor e data. **Pesquisado:** o Bacen não expõe API pública pra terceiros validarem uma transação PIX por chave/e2eId livremente (só instituições autorizadas via SPI/DICT) — validação real exige integração contratual com um provedor (Asaas, Efí, Sicoob etc.) que ofereça webhook/API de PIX recebido na conta cadastrada; ver item **Boleto mensal automático** acima, mesma integração serve pras duas coisas. Dois caminhos:
+  - **Com provedor integrado:** confirma valor batendo com `Payment.amount` do mês do inquilino e webhook do provedor confirmando o recebimento → atualiza `Payment.status = 'paid'` automaticamente, notifica owner via WhatsApp ("Fulano pagou o aluguel deste mês").
+  - **Sem provedor integrado (fallback via OCR só):** não dá pra confirmar o recebimento de fato, só extrair o que o comprovante diz. Bot notifica owner ("Fulano sinalizou que fez o pagamento deste mês") sem marcar como confirmado; dashboard ganha ação "Confirmar pagamento" pro owner validar manualmente (mesmo padrão de `ConfirmButton` já usado no fluxo lead→tenant).
 - [ ] OCR avançado — extração estruturada de CNH/RG/CPF (Slice 10 usa regex simples no ocrText existente)
 
 ### Infraestrutura e observabilidade

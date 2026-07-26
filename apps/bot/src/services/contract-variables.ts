@@ -1,3 +1,5 @@
+import { formatBRL } from '@/lib/format';
+
 const TEMPLATE_VAR_RE = /\{\{([^}]+)\}\}/g;
 
 export const formatDatePtBR = (d: Date): string =>
@@ -50,8 +52,8 @@ export function buildLeadAutoMap(
     address: string;
     complement: string | null;
     neighborhood: string;
-    rent: unknown;
-    deposit: unknown;
+    rent: number | { toString(): string };
+    deposit: number | { toString(): string };
     contractMonths: number | null;
     owner?: { name: string; cpf?: string | null; cnpj?: string | null; address?: string | null } | null;
   },
@@ -59,8 +61,7 @@ export function buildLeadAutoMap(
   cpf: string | null,
   rg: string | null = null,
 ): Record<string, string> {
-  const fmt = (n: unknown) =>
-    Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmt = formatBRL;
   const today = new Date();
   const months = property.contractMonths ?? 12;
   const endDate = addCivilMonths(getSaoPauloDateParts(today), months);

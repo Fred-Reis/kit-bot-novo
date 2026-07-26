@@ -3,7 +3,6 @@ import multipart from '@fastify/multipart';
 import * as Sentry from '@sentry/node';
 import Fastify from 'fastify';
 import { config } from '@/config';
-import { prisma } from '@/db/client';
 import adminAuthPlugin from '@/plugins/admin-auth';
 import { adminRoutes } from '@/routes/admin';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
