@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@/db/client';
 import { VALID_RESPONSIBILITIES, validateResponsibilities } from '@/lib/coordinator-responsibilities';
@@ -132,9 +133,16 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
       if (existing) {
         return reply.status(409).send({ error: 'Property is already linked to this coordinator' });
       }
-      await prisma.propertyCoordinator.create({
-        data: { coordinatorId: id, propertyId, responsibilities },
-      });
+      try {
+        await prisma.propertyCoordinator.create({
+          data: { coordinatorId: id, propertyId, responsibilities },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          return reply.status(409).send({ error: 'Property is already linked to this coordinator' });
+        }
+        throw err;
+      }
       await invalidatePropertyCache(propertyId);
       await invalidateAvailablePropertiesCache();
       await logActivityHelper({
