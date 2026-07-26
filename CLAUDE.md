@@ -203,3 +203,5 @@ Resumo das regras:
 - ❌ Prometer mídia em texto — enviar via integração
 - ❌ Caminhos locais de arquivo — sempre URLs Supabase
 - ❌ Mídia binária versionada no Git
+
+Fluxo de tenant: @docs/tenant-flow.md
