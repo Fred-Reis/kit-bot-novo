@@ -24,6 +24,7 @@ model Owner {
   payments          Payment[]
   contracts         Contract[]
   ruleSets          RuleSet[]
+  coordinators      Coordinator[]
   contractTemplates ContractTemplate[]
   propertyMedias    PropertyMedia[]
   leadDocuments     LeadDocument[]
@@ -74,6 +75,7 @@ model Property {
   leads                  Lead[]
   tenants                Tenant[]
   ruleSets               PropertyRuleSet[]
+  coordinators           PropertyCoordinator[]
   contracts              Contract[]
   payments               Payment[]
   createdAt              DateTime        @default(now())
@@ -293,6 +295,28 @@ model PropertyRuleSet {
   ruleSet    RuleSet  @relation(fields: [ruleSetId], references: [id], onDelete: Cascade)
 
   @@id([propertyId, ruleSetId])
+}
+
+model Coordinator {
+  id         String                @id @default(uuid())
+  ownerId    String
+  owner      Owner                 @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  name       String
+  phone      String
+  properties PropertyCoordinator[]
+  createdAt  DateTime              @default(now())
+
+  @@index([ownerId])
+}
+
+model PropertyCoordinator {
+  propertyId       String
+  property         Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  coordinatorId    String
+  coordinator      Coordinator @relation(fields: [coordinatorId], references: [id], onDelete: Cascade)
+  responsibilities String[]    @default([])
+
+  @@id([propertyId, coordinatorId])
 }
 
 model ContractTemplate {
