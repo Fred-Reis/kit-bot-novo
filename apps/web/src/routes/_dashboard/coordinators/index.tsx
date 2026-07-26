@@ -155,7 +155,13 @@ function LinkPropertyForm({
   });
 
   return (
-    <div className="space-y-2 pt-1">
+    <div
+      className="space-y-3 rounded-[10px] border border-dashed border-border bg-surface-raised p-3"
+      style={{ boxShadow: 'var(--shadow-sm)' }}
+    >
+      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Vincular a um imóvel
+      </p>
       <ResponsibilityCheckboxes selected={responsibilities} onChange={setResponsibilities} />
       <form
         onSubmit={(e) => {
@@ -188,7 +194,7 @@ function LinkPropertyForm({
       </form>
       <CustomButton
         type="button"
-        variant="ghost"
+        variant="secondary"
         size="sm"
         disabled={responsibilities.length === 0 || bulkMutation.isPending}
         onClick={() => bulkMutation.mutate()}
