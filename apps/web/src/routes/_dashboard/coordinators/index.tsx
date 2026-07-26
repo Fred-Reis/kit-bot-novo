@@ -232,24 +232,29 @@ function AddCoordinatorForm() {
         e.preventDefault();
         if (name.trim() && phone.trim()) mutation.mutate();
       }}
-      className="flex gap-2"
+      className="flex flex-col gap-2"
     >
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Nome..."
-        className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+        name="responsavel-1"
+        autoComplete="new-password"
+        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
       />
       <input
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="WhatsApp (11999990000)"
-        className="w-48 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+        name="responsavel-2"
+        autoComplete="new-password"
+        className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
       />
       <CustomButton
         type="submit"
         variant="secondary"
         size="sm"
+        className="w-full justify-center"
         disabled={!name.trim() || !phone.trim() || mutation.isPending}
       >
         <Plus className="size-3.5" />
