@@ -56,11 +56,11 @@ function DashboardPage() {
     queryFn: fetchAllPayments,
     staleTime: 30_000,
   });
-  const { data: activityLog = [] } = useQuery({
+  const { data: fullActivityLog = [] } = useQuery({
     queryKey: ['activity-log'],
-    queryFn: () => fetchActivityLog(10),
-    refetchInterval: 10_000,
+    queryFn: () => fetchActivityLog(50),
   });
+  const activityLog = fullActivityLog.slice(0, 10);
 
   const activeLeads = leads.filter((l) => l.stage !== 'converted').length;
   const summary = computePaymentsSummary(payments);

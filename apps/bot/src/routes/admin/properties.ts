@@ -202,6 +202,10 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         }
       }
 
+      if (data.active !== undefined && typeof data.active !== 'boolean') {
+        return reply.status(400).send({ error: 'Invalid active' });
+      }
+
       // Optimistic concurrency: only update if current status/active match expected
       const whereCondition = {
         id,
