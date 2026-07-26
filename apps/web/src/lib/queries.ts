@@ -130,16 +130,23 @@ export async function fetchProperty(id: string): Promise<Property> {
   if (propErr) throw propErr;
   if (mediaErr) throw mediaErr;
   if (coordErr) throw coordErr;
-  type CoordRow = { responsibilities: string[]; coordinator: { id: string; name: string; phone: string }[] };
+  type CoordRow = {
+    responsibilities: string[];
+    coordinator: { id: string; name: string; phone: string } | null;
+  };
   return {
     ...(prop as Property),
     media: (media as PropertyMedia[]) ?? [],
-    coordinators: ((coordinators ?? []) as unknown as CoordRow[])
-      .filter((row) => row.coordinator[0])
-      .map((row) => ({
-        responsibilities: row.responsibilities as PropertyCoordinatorLink['responsibilities'],
-        coordinator: row.coordinator[0],
-      })),
+    coordinators: ((coordinators ?? []) as unknown as CoordRow[]).flatMap((row) =>
+      row.coordinator
+        ? [
+            {
+              responsibilities: row.responsibilities as PropertyCoordinatorLink['responsibilities'],
+              coordinator: row.coordinator,
+            },
+          ]
+        : [],
+    ),
   };
 }
 
@@ -169,7 +176,7 @@ export async function fetchCoordinator(id: string): Promise<CoordinatorDetail> {
   type LinkRow = {
     propertyId: string;
     responsibilities: string[];
-    property: { externalId: string }[];
+    property: { externalId: string } | null;
   };
   return {
     ...(c as CoordinatorDetail),
@@ -177,7 +184,7 @@ export async function fetchCoordinator(id: string): Promise<CoordinatorDetail> {
       const row = l as unknown as LinkRow;
       return {
         propertyId: row.propertyId,
-        externalId: row.property[0]?.externalId ?? row.propertyId,
+        externalId: row.property?.externalId ?? row.propertyId,
         responsibilities: row.responsibilities as CoordinatorDetail['linkedProperties'][number]['responsibilities'],
       };
     }),

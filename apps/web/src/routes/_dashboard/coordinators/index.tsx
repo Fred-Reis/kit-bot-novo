@@ -34,6 +34,7 @@ function ResponsibilityCheckboxes({
         <label key={opt.value} className="flex items-center gap-1.5 text-xs text-foreground">
           <input
             type="checkbox"
+            className="accent-primary"
             checked={selected.includes(opt.value)}
             onChange={(e) =>
               onChange(
