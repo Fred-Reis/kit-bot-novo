@@ -1,4 +1,7 @@
-import type { CoordinatorResponsibility, LinkedPropertyWithResponsibilities } from '@kit-manager/types';
+import type {
+  CoordinatorResponsibility,
+  LinkedPropertyWithResponsibilities,
+} from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Plus, Trash2, Users, X } from 'lucide-react';
@@ -149,7 +152,9 @@ function LinkPropertyForm({
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['coordinator', coordinatorId] });
       const count = (res.data as { propertyCount: number }).propertyCount;
-      toast.success(count > 0 ? `Vinculado a ${count} imóveis` : 'Nenhum imóvel novo para vincular');
+      toast.success(
+        count > 0 ? `Vinculado a ${count} imóveis` : 'Nenhum imóvel novo para vincular',
+      );
     },
     onError: () => toast.error('Falha ao aplicar a todos os imóveis'),
   });
@@ -339,7 +344,10 @@ function CoordinatorsPage() {
               {detail.linkedProperties.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhum imóvel vinculado ainda.</p>
               )}
-              <LinkPropertyForm coordinatorId={detail.id} linkedProperties={detail.linkedProperties} />
+              <LinkPropertyForm
+                coordinatorId={detail.id}
+                linkedProperties={detail.linkedProperties}
+              />
             </div>
           </div>
         )}
