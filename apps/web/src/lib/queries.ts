@@ -4,11 +4,14 @@ import type {
   ContractTemplate,
   ContractTemplateSummary,
   Conversation,
+  CoordinatorDetail,
+  CoordinatorSummary,
   Lead,
   LeadDocument,
   LeadStage,
   Payment,
   Property,
+  PropertyCoordinatorLink,
   PropertyMedia,
   RuleSetDetail,
   RuleSetSummary,
@@ -108,17 +111,84 @@ export async function fetchProperties(): Promise<Property[]> {
 }
 
 export async function fetchProperty(id: string): Promise<Property> {
-  const [{ data: prop, error: propErr }, { data: media, error: mediaErr }] = await Promise.all([
+  const [
+    { data: prop, error: propErr },
+    { data: media, error: mediaErr },
+    { data: coordinators, error: coordErr },
+  ] = await Promise.all([
     supabase.from('Property').select('*').eq('id', id).single(),
     supabase
       .from('PropertyMedia')
       .select('*')
       .eq('propertyId', id)
       .order('order', { ascending: true }),
+    supabase
+      .from('PropertyCoordinator')
+      .select('responsibilities, coordinator:Coordinator(id, name, phone)')
+      .eq('propertyId', id),
   ]);
   if (propErr) throw propErr;
   if (mediaErr) throw mediaErr;
-  return { ...(prop as Property), media: (media as PropertyMedia[]) ?? [] };
+  if (coordErr) throw coordErr;
+  type CoordRow = {
+    responsibilities: string[];
+    coordinator: { id: string; name: string; phone: string } | null;
+  };
+  return {
+    ...(prop as Property),
+    media: (media as PropertyMedia[]) ?? [],
+    coordinators: ((coordinators ?? []) as unknown as CoordRow[]).flatMap((row) =>
+      row.coordinator
+        ? [
+            {
+              responsibilities: row.responsibilities as PropertyCoordinatorLink['responsibilities'],
+              coordinator: row.coordinator,
+            },
+          ]
+        : [],
+    ),
+  };
+}
+
+export async function fetchCoordinators(): Promise<CoordinatorSummary[]> {
+  const { data, error } = await supabase
+    .from('Coordinator')
+    .select('*, properties:PropertyCoordinator(count)')
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+  type RawRow = CoordinatorSummary & { properties: { count: number }[] };
+  return ((data ?? []) as RawRow[]).map((r) => ({
+    ...r,
+    _count: { properties: r.properties[0]?.count ?? 0 },
+  }));
+}
+
+export async function fetchCoordinator(id: string): Promise<CoordinatorDetail> {
+  const [{ data: c, error: cErr }, { data: links, error: linkErr }] = await Promise.all([
+    supabase.from('Coordinator').select('*').eq('id', id).single(),
+    supabase
+      .from('PropertyCoordinator')
+      .select('propertyId, responsibilities, property:Property(externalId)')
+      .eq('coordinatorId', id),
+  ]);
+  if (cErr) throw cErr;
+  if (linkErr) throw linkErr;
+  type LinkRow = {
+    propertyId: string;
+    responsibilities: string[];
+    property: { externalId: string } | null;
+  };
+  return {
+    ...(c as CoordinatorDetail),
+    linkedProperties: (links ?? []).map((l) => {
+      const row = l as unknown as LinkRow;
+      return {
+        propertyId: row.propertyId,
+        externalId: row.property?.externalId ?? row.propertyId,
+        responsibilities: row.responsibilities as CoordinatorDetail['linkedProperties'][number]['responsibilities'],
+      };
+    }),
+  };
 }
 
 export async function fetchTenants(): Promise<Tenant[]> {

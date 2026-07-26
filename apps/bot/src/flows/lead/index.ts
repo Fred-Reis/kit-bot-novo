@@ -35,7 +35,7 @@ import {
   uploadSignedContractPdf,
 } from '@/services/contract-signing';
 import { sendMedia, sendText } from '@/services/evolution';
-import { notifyOwner } from '@/services/notify';
+import { notifyCoordinators, notifyOwner } from '@/services/notify';
 import { createLeadDocumentUrl } from '@/services/storage';
 
 const CHAT_HISTORY_LIMIT = 10;
@@ -546,6 +546,14 @@ export async function handleLeadMessage(
           timeZone: tz,
         });
         const propertyName = snapshot.propertyInFocus?.name ?? 'o imóvel';
+        if (snapshot.propertyInFocus) {
+          notifyCoordinators(snapshot.propertyInFocus.id, {
+            leadName: lead.name ?? chatId,
+            leadPhone: chatId,
+            scheduledVisitAt: newVisitAt.toISOString(),
+            propertyExternalId: snapshot.propertyInFocus.externalId,
+          }).catch((err) => logger.error({ err }, '[lead.flow] notifyCoordinators failed'));
+        }
         replyText = `✅ Visita confirmada! Aguardamos você no dia ${dateStr} às ${timeStr} no ${propertyName}. Qualquer dúvida, é só chamar!`;
         bypassAgentReply = true;
       }

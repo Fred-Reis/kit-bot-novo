@@ -81,6 +81,24 @@ export const adminApi = {
     botApi.post(`/admin/rule-sets/${ruleSetId}/properties`, { propertyId }),
   unlinkProperty: (ruleSetId: string, propertyId: string) =>
     botApi.delete(`/admin/rule-sets/${ruleSetId}/properties/${propertyId}`),
+  createCoordinator: (data: { name: string; phone: string }) =>
+    botApi.post('/admin/coordinators', data),
+  updateCoordinator: (id: string, data: { name?: string; phone?: string }) =>
+    botApi.patch(`/admin/coordinators/${id}`, data),
+  deleteCoordinator: (id: string) => botApi.delete(`/admin/coordinators/${id}`),
+  linkCoordinatorProperty: (
+    id: string,
+    data: { propertyId: string; responsibilities: string[] },
+  ) => botApi.post(`/admin/coordinators/${id}/properties`, data),
+  updateCoordinatorProperty: (
+    id: string,
+    propertyId: string,
+    data: { responsibilities: string[] },
+  ) => botApi.patch(`/admin/coordinators/${id}/properties/${propertyId}`, data),
+  unlinkCoordinatorProperty: (id: string, propertyId: string) =>
+    botApi.delete(`/admin/coordinators/${id}/properties/${propertyId}`),
+  bulkLinkCoordinator: (id: string, data: { responsibilities: string[] }) =>
+    botApi.post(`/admin/coordinators/${id}/properties/bulk-link`, data),
   previewContract: (data: {
     templateId: string;
     tenantId: string;

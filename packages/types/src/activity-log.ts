@@ -10,6 +10,7 @@ export type ActivityLogSubjectType =
   | 'payment'
   | 'template'
   | 'rule_set'
+  | 'coordinator'
   | 'owner'
   | 'workspace';
 
@@ -47,7 +48,13 @@ export type ActivityLogAction =
   | 'visit_cancelled'
   | 'bot_globally_paused'
   | 'bot_globally_resumed'
-  | 'document_reclassified';
+  | 'document_reclassified'
+  | 'coordinator_created'
+  | 'coordinator_updated'
+  | 'coordinator_deleted'
+  | 'coordinator_linked'
+  | 'coordinator_unlinked'
+  | 'coordinator_bulk_linked';
 
 export interface LogActivityParams {
   ownerId: string;

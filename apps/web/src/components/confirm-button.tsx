@@ -8,6 +8,7 @@ interface ConfirmButtonProps {
   disabled?: boolean;
   className?: string;
   children?: React.ReactNode;
+  ariaLabel?: string;
 }
 
 export function ConfirmButton({
@@ -17,6 +18,7 @@ export function ConfirmButton({
   disabled = false,
   className,
   children,
+  ariaLabel,
 }: ConfirmButtonProps) {
   const [confirming, setConfirming] = useState(false);
 
@@ -46,6 +48,7 @@ export function ConfirmButton({
       disabled={disabled}
       onClick={() => !disabled && setConfirming(true)}
       className={className}
+      aria-label={ariaLabel}
     >
       {children ?? label}
     </CustomButton>

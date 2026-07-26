@@ -422,6 +422,17 @@ function PropertyDetailPage() {
                 {property.status === 'available' && property.visitSchedule && (
                   <InfoRow label="Visita" value={property.visitSchedule} />
                 )}
+                {property.coordinators && property.coordinators.some((c) => c.responsibilities.includes('show_property')) && (() => {
+                  const showCoordinators = property.coordinators.filter((c) =>
+                    c.responsibilities.includes('show_property'),
+                  );
+                  return (
+                    <InfoRow
+                      label={showCoordinators.length > 1 ? 'Responsáveis' : 'Responsável'}
+                      value={showCoordinators.map((c) => c.coordinator.name).join(', ')}
+                    />
+                  );
+                })()}
                 {property.listingUrl && (
                   <InfoRow
                     label="Anúncio"
