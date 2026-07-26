@@ -1,3 +1,4 @@
+import type { PropertyCoordinatorLink } from '@kit-manager/types';
 import type { Property, PropertyMedia } from '@prisma/client';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
@@ -23,6 +24,7 @@ export interface PolicyEntry {
 export interface PropertyData extends Property {
   media: PropertyMedia[];
   policies: PolicyEntry[];
+  coordinators: PropertyCoordinatorLink[];
 }
 
 export function normalizeLookupText(value: string): string {
@@ -43,6 +45,15 @@ async function cacheGet<T>(key: string): Promise<T | null> {
 
 async function cacheSet(key: string, value: unknown, ttl: number): Promise<void> {
   await redis.set(key, JSON.stringify(value), 'EX', ttl);
+}
+
+function mapCoordinatorLinks(
+  links: { responsibilities: string[]; coordinator: { id: string; name: string; phone: string } }[],
+): PropertyCoordinatorLink[] {
+  return links.map((l) => ({
+    responsibilities: l.responsibilities as PropertyCoordinatorLink['responsibilities'],
+    coordinator: { id: l.coordinator.id, name: l.coordinator.name, phone: l.coordinator.phone },
+  }));
 }
 
 export async function invalidatePropertyCache(id: string): Promise<void> {
@@ -90,11 +101,19 @@ function extractPolicies(result: PolicyIncludeResult): PolicyEntry[] {
 export async function getPropertyByExternalId(externalId: string): Promise<PropertyData | null> {
   const property = await prisma.property.findUnique({
     where: { externalId: externalId.toUpperCase() },
-    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
+    include: {
+      media: { orderBy: { order: 'asc' } },
+      coordinators: { include: { coordinator: true } },
+      ...POLICY_INCLUDE,
+    },
   });
   if (!property) return null;
   const { ruleSets: _, ...rest } = property;
-  const propertyData: PropertyData = { ...rest, policies: extractPolicies(property) };
+  const propertyData: PropertyData = {
+    ...rest,
+    policies: extractPolicies(property),
+    coordinators: mapCoordinatorLinks(property.coordinators),
+  };
   await cacheSet(`property:${property.id}`, propertyData, PROPERTY_CACHE_TTL);
   return propertyData;
 }
@@ -108,12 +127,16 @@ export async function listAvailableProperties(): Promise<PropertyData[]> {
 
   const properties = await prisma.property.findMany({
     where: { active: true },
-    include: { media: { orderBy: { order: 'asc' } }, ...POLICY_INCLUDE },
+    include: {
+      media: { orderBy: { order: 'asc' } },
+      coordinators: { include: { coordinator: true } },
+      ...POLICY_INCLUDE,
+    },
     orderBy: { externalId: 'asc' },
   });
   const result: PropertyData[] = properties.map((p) => {
     const { ruleSets: _, ...rest } = p;
-    return { ...rest, policies: extractPolicies(p) };
+    return { ...rest, policies: extractPolicies(p), coordinators: mapCoordinatorLinks(p.coordinators) };
   });
   await cacheSet(AVAILABLE_CACHE_KEY, result, AVAILABLE_CACHE_TTL);
   return result;
@@ -197,6 +220,14 @@ function describeMediaItems(media: PropertyMedia[]): string {
     .join('\n');
 }
 
+export function coordinatorFact(coordinators: PropertyCoordinatorLink[]): string | null {
+  const showCoordinators = coordinators.filter((c) => c.responsibilities.includes('show_property'));
+  if (showCoordinators.length === 0) return null;
+  return `Responsavel pela visita: ${showCoordinators
+    .map((c) => `${c.coordinator.name} (${c.coordinator.phone})`)
+    .join(', ')}`;
+}
+
 export function summarizeProperty(p: PropertyData): string {
   const parts = [p.externalId, p.name, p.neighborhood, formatCurrency(Number(p.rent))];
   if (p.rooms) parts.push(`${p.rooms} quarto${p.rooms > 1 ? 's' : ''}`);
@@ -233,6 +264,8 @@ export function describeProperty(p: PropertyData): string {
     const lines = p.policies.map((pl) => `  ${pl.name}: ${POLICY_VALUE_PT[pl.value]}`).join('\n');
     facts.push(`Politicas vinculadas:\n${lines}`);
   }
+  const visitCoordinator = coordinatorFact(p.coordinators);
+  if (visitCoordinator) facts.push(visitCoordinator);
   return facts.map((f) => `- ${f}`).join('\n');
 }
 
@@ -259,5 +292,7 @@ export function describePropertyTerms(p: PropertyData): string {
     const lines = p.policies.map((pl) => `  ${pl.name}: ${POLICY_VALUE_PT[pl.value]}`).join('\n');
     facts.push(`Politicas vinculadas:\n${lines}`);
   }
+  const visitCoordinatorTerms = coordinatorFact(p.coordinators);
+  if (visitCoordinatorTerms) facts.push(visitCoordinatorTerms);
   return facts.map((f) => `- ${f}`).join('\n');
 }
