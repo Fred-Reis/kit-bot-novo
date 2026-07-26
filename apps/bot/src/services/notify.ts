@@ -141,3 +141,66 @@ export async function notifyOwner<T extends NotifyOwnerEventType>(
     logger.error({ err }, 'notifyOwner failed (non-blocking)');
   }
 }
+
+export function buildVisitScheduledMessage(payload: {
+  leadName: string;
+  leadPhone: string;
+  scheduledVisitAt: string;
+  propertyExternalId: string;
+}): string {
+  const date = new Date(payload.scheduledVisitAt);
+  const tz = 'America/Sao_Paulo';
+  const dateStr = date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: tz,
+  });
+  const timeStr = date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: tz,
+  });
+  return (
+    `📅 Nova visita agendada\n` +
+    `Imóvel: ${payload.propertyExternalId}\n` +
+    `Lead: ${payload.leadName} (${payload.leadPhone})\n` +
+    `Data: ${dateStr} às ${timeStr}`
+  );
+}
+
+export async function notifyCoordinators(
+  propertyId: string,
+  payload: {
+    leadName: string;
+    leadPhone: string;
+    scheduledVisitAt: string;
+    propertyExternalId: string;
+  },
+): Promise<void> {
+  try {
+    const links = await prisma.propertyCoordinator.findMany({
+      where: { propertyId, responsibilities: { has: 'show_property' } },
+      include: { coordinator: true },
+    });
+    if (links.length === 0) return;
+
+    const message = buildVisitScheduledMessage(payload);
+    const results = await Promise.allSettled(
+      links.map((link) => {
+        const phone = link.coordinator.phone.replace(/^\+/, '');
+        return sendText(`${phone}@s.whatsapp.net`, message);
+      }),
+    );
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        logger.warn(
+          { err: r.reason, coordinatorId: links[i]?.coordinatorId },
+          'notifyCoordinators: whatsapp send failed',
+        );
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'notifyCoordinators failed (non-blocking)');
+  }
+}
