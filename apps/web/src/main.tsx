@@ -23,6 +23,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
     profileSessionSampleRate: 0.1,
+    profileLifecycle: 'trace',
     integrations: [
       Sentry.tanstackRouterBrowserTracingIntegration(router),
       Sentry.browserProfilingIntegration(),

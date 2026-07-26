@@ -131,8 +131,10 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       return reply.status(400).send({ error: 'Missing required fields' });
     }
 
-    if (typeof rest.status === 'string' && !PROPERTY_STATUSES.has(rest.status)) {
-      return reply.status(400).send({ error: 'Invalid status' });
+    if (rest.status !== undefined) {
+      if (typeof rest.status !== 'string' || !PROPERTY_STATUSES.has(rest.status)) {
+        return reply.status(400).send({ error: 'Invalid status' });
+      }
     }
 
     const owner = await prisma.owner.findFirst();
@@ -194,11 +196,31 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         Object.entries(request.body).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
       );
 
-      if (typeof data.status === 'string' && !PROPERTY_STATUSES.has(data.status)) {
-        return reply.status(400).send({ error: 'Invalid status' });
+      if (data.status !== undefined) {
+        if (typeof data.status !== 'string' || !PROPERTY_STATUSES.has(data.status)) {
+          return reply.status(400).send({ error: 'Invalid status' });
+        }
       }
 
-      const property = await prisma.property.update({ where: { id }, data });
+      // Optimistic concurrency: only update if current status/active match expected
+      const whereCondition = {
+        id,
+        status: existing.status,
+        active: existing.active,
+      };
+
+      const result = await prisma.property.updateMany({
+        where: whereCondition,
+        data,
+      });
+
+      if (result.count === 0) {
+        return reply.status(409).send({ error: 'Property was modified by another request' });
+      }
+
+      const property = await prisma.property.findUnique({ where: { id } });
+      if (!property) return reply.status(404).send({ error: 'Property not found' });
+
       await invalidatePropertyCache(id);
       await invalidateAvailablePropertiesCache();
 
