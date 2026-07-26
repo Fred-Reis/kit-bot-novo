@@ -1,6 +1,6 @@
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/bun';
 import Fastify from 'fastify';
 import { config } from '@/config';
 import adminAuthPlugin from '@/plugins/admin-auth';

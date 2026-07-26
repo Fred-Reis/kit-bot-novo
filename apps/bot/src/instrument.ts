@@ -1,4 +1,4 @@
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/bun';
 import { config } from '@/config';
 
 // Note: no @sentry/profiling-node — it's a native addon and isn't supported on Bun.
