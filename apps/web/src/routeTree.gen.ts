@@ -17,6 +17,7 @@ import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as DashboardConfigIndexRouteImport } from './routes/_dashboard/config/index'
 import { Route as DashboardContractsIndexRouteImport } from './routes/_dashboard/contracts/index'
 import { Route as DashboardContractsContractIdRouteImport } from './routes/_dashboard/contracts/$contractId'
+import { Route as DashboardCoordinatorsIndexRouteImport } from './routes/_dashboard/coordinators/index'
 import { Route as DashboardFinanceIndexRouteImport } from './routes/_dashboard/finance/index'
 import { Route as DashboardLeadsIndexRouteImport } from './routes/_dashboard/leads/index'
 import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
@@ -68,6 +69,12 @@ const DashboardContractsContractIdRoute =
   DashboardContractsContractIdRouteImport.update({
     id: '/contracts/$contractId',
     path: '/contracts/$contractId',
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardCoordinatorsIndexRoute =
+  DashboardCoordinatorsIndexRouteImport.update({
+    id: '/coordinators/',
+    path: '/coordinators/',
     getParentRoute: () => DashboardRoute,
   } as any)
 const DashboardFinanceIndexRoute = DashboardFinanceIndexRouteImport.update({
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/tenants/new': typeof DashboardTenantsNewRoute
   '/config/': typeof DashboardConfigIndexRoute
   '/contracts/': typeof DashboardContractsIndexRoute
+  '/coordinators/': typeof DashboardCoordinatorsIndexRoute
   '/finance/': typeof DashboardFinanceIndexRoute
   '/leads/': typeof DashboardLeadsIndexRoute
   '/properties/': typeof DashboardPropertiesIndexRoute
@@ -172,6 +180,7 @@ export interface FileRoutesByTo {
   '/tenants/new': typeof DashboardTenantsNewRoute
   '/config': typeof DashboardConfigIndexRoute
   '/contracts': typeof DashboardContractsIndexRoute
+  '/coordinators': typeof DashboardCoordinatorsIndexRoute
   '/finance': typeof DashboardFinanceIndexRoute
   '/leads': typeof DashboardLeadsIndexRoute
   '/properties': typeof DashboardPropertiesIndexRoute
@@ -196,6 +205,7 @@ export interface FileRoutesById {
   '/_dashboard/tenants/new': typeof DashboardTenantsNewRoute
   '/_dashboard/config/': typeof DashboardConfigIndexRoute
   '/_dashboard/contracts/': typeof DashboardContractsIndexRoute
+  '/_dashboard/coordinators/': typeof DashboardCoordinatorsIndexRoute
   '/_dashboard/finance/': typeof DashboardFinanceIndexRoute
   '/_dashboard/leads/': typeof DashboardLeadsIndexRoute
   '/_dashboard/properties/': typeof DashboardPropertiesIndexRoute
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/tenants/new'
     | '/config/'
     | '/contracts/'
+    | '/coordinators/'
     | '/finance/'
     | '/leads/'
     | '/properties/'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/tenants/new'
     | '/config'
     | '/contracts'
+    | '/coordinators'
     | '/finance'
     | '/leads'
     | '/properties'
@@ -263,6 +275,7 @@ export interface FileRouteTypes {
     | '/_dashboard/tenants/new'
     | '/_dashboard/config/'
     | '/_dashboard/contracts/'
+    | '/_dashboard/coordinators/'
     | '/_dashboard/finance/'
     | '/_dashboard/leads/'
     | '/_dashboard/properties/'
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/contracts/$contractId'
       fullPath: '/contracts/$contractId'
       preLoaderRoute: typeof DashboardContractsContractIdRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    '/_dashboard/coordinators/': {
+      id: '/_dashboard/coordinators/'
+      path: '/coordinators'
+      fullPath: '/coordinators/'
+      preLoaderRoute: typeof DashboardCoordinatorsIndexRouteImport
       parentRoute: typeof DashboardRoute
     }
     '/_dashboard/finance/': {
@@ -451,6 +471,7 @@ interface DashboardRouteChildren {
   DashboardTenantsNewRoute: typeof DashboardTenantsNewRoute
   DashboardConfigIndexRoute: typeof DashboardConfigIndexRoute
   DashboardContractsIndexRoute: typeof DashboardContractsIndexRoute
+  DashboardCoordinatorsIndexRoute: typeof DashboardCoordinatorsIndexRoute
   DashboardFinanceIndexRoute: typeof DashboardFinanceIndexRoute
   DashboardLeadsIndexRoute: typeof DashboardLeadsIndexRoute
   DashboardPropertiesIndexRoute: typeof DashboardPropertiesIndexRoute
@@ -471,6 +492,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardTenantsNewRoute: DashboardTenantsNewRoute,
   DashboardConfigIndexRoute: DashboardConfigIndexRoute,
   DashboardContractsIndexRoute: DashboardContractsIndexRoute,
+  DashboardCoordinatorsIndexRoute: DashboardCoordinatorsIndexRoute,
   DashboardFinanceIndexRoute: DashboardFinanceIndexRoute,
   DashboardLeadsIndexRoute: DashboardLeadsIndexRoute,
   DashboardPropertiesIndexRoute: DashboardPropertiesIndexRoute,
