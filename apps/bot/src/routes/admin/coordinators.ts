@@ -232,7 +232,11 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
       const linkedIds = new Set(alreadyLinked.map((l) => l.propertyId));
 
       const targetProperties = await prisma.property.findMany({
-        where: { ownerId: coordinator.ownerId, active: true, id: { notIn: [...linkedIds] } },
+        where: {
+          ownerId: coordinator.ownerId,
+          status: { not: 'archived' },
+          id: { notIn: [...linkedIds] },
+        },
         select: { id: true },
       });
       if (targetProperties.length === 0) {
