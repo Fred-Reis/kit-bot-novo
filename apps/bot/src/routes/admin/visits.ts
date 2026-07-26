@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
+import { notifyCoordinators } from '@/services/notify';
 
 // Deliberately does NOT include 'post_visit_decision': a lead that just
 // finished a visit can still get a second one scheduled (product decision,
@@ -123,6 +124,13 @@ export async function visitsRoutes(fastify: FastifyInstance): Promise<void> {
       subjectType: 'lead',
       metadata: { scheduledVisitAt, note: note ?? null },
     }).catch(fastify.log.warn.bind(fastify.log));
+
+    notifyCoordinators(propertyId, {
+      leadName: lead.name ?? lead.phone,
+      leadPhone: lead.phone,
+      scheduledVisitAt: visitDate.toISOString(),
+      propertyExternalId: property.externalId,
+    }).catch((err) => fastify.log.error({ err }, '[visits] notifyCoordinators failed'));
 
     return reply.status(201).send({ leadId, scheduledVisitAt: visitDate });
   });
