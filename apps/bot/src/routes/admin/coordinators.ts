@@ -1,9 +1,15 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { prisma } from '@/db/client';
 import { VALID_RESPONSIBILITIES, validateResponsibilities } from '@/lib/coordinator-responsibilities';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 import { invalidateAvailablePropertiesCache, invalidatePropertyCache } from '@/services/catalog';
+
+function sendInvalidResponsibilities(reply: FastifyReply) {
+  return reply
+    .status(400)
+    .send({ error: `responsibilities must be an array of: ${[...VALID_RESPONSIBILITIES].join(', ')}` });
+}
 
 export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void> {
   // ─── list coordinators ──────────────────────────────────────────────────
@@ -49,6 +55,8 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
     async (request, reply) => {
       const { id } = request.params;
       const { name, phone } = request.body;
+      if (name !== undefined && !name) return reply.status(400).send({ error: 'name cannot be empty' });
+      if (phone !== undefined && !phone) return reply.status(400).send({ error: 'phone cannot be empty' });
       const existing = await prisma.coordinator.findUnique({ where: { id }, select: { id: true } });
       if (!existing) return reply.status(404).send({ error: 'Coordinator not found' });
       const data: Record<string, unknown> = {};
@@ -105,11 +113,7 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
       const { propertyId } = request.body;
       if (!propertyId) return reply.status(400).send({ error: 'propertyId is required' });
       const responsibilities = validateResponsibilities(request.body.responsibilities);
-      if (!responsibilities) {
-        return reply
-          .status(400)
-          .send({ error: `responsibilities must be an array of: ${[...VALID_RESPONSIBILITIES].join(', ')}` });
-      }
+      if (!responsibilities) return sendInvalidResponsibilities(reply);
       const coordinator = await prisma.coordinator.findUnique({
         where: { id },
         select: { ownerId: true, name: true },
@@ -158,11 +162,7 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
     async (request, reply) => {
       const { id, propertyId } = request.params;
       const responsibilities = validateResponsibilities(request.body.responsibilities);
-      if (!responsibilities) {
-        return reply
-          .status(400)
-          .send({ error: `responsibilities must be an array of: ${[...VALID_RESPONSIBILITIES].join(', ')}` });
-      }
+      if (!responsibilities) return sendInvalidResponsibilities(reply);
       const existing = await prisma.propertyCoordinator.findUnique({
         where: { propertyId_coordinatorId: { propertyId, coordinatorId: id } },
       });
@@ -218,11 +218,7 @@ export async function coordinatorsRoutes(fastify: FastifyInstance): Promise<void
     async (request, reply) => {
       const { id } = request.params;
       const responsibilities = validateResponsibilities(request.body.responsibilities);
-      if (!responsibilities) {
-        return reply
-          .status(400)
-          .send({ error: `responsibilities must be an array of: ${[...VALID_RESPONSIBILITIES].join(', ')}` });
-      }
+      if (!responsibilities) return sendInvalidResponsibilities(reply);
       const coordinator = await prisma.coordinator.findUnique({
         where: { id },
         select: { ownerId: true, name: true },
