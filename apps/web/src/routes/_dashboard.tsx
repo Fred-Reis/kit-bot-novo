@@ -278,7 +278,7 @@ function DashboardLayout() {
   });
   const { data: activityLog = [] } = useQuery({
     queryKey: ['activity-log'],
-    queryFn: () => fetchActivityLog(10),
+    queryFn: () => fetchActivityLog(50),
   });
 
   const counts: NavCounts = {
@@ -290,6 +290,8 @@ function DashboardLayout() {
   const unseenActivityCount = activityLog.filter(
     (entry) => !lastSeenActivityAt || new Date(entry.createdAt) > new Date(lastSeenActivityAt),
   ).length;
+
+  const recentActivityLog = activityLog.slice(0, 10);
 
   useEffect(() => {
     // First time this feature runs for a user: treat pre-existing history as already seen,
@@ -466,13 +468,13 @@ function DashboardLayout() {
                       </button>
                     )}
                   </div>
-                  {activityLog.length === 0 ? (
+                  {recentActivityLog.length === 0 ? (
                     <p className="px-4 py-6 text-center text-xs text-muted-foreground">
                       Sem atividade recente.
                     </p>
                   ) : (
                     <ul className="max-h-[360px] divide-y divide-border overflow-y-auto">
-                      {activityLog.map((entry) => (
+                      {recentActivityLog.map((entry) => (
                         <ActivityRow key={entry.id} entry={entry} className="px-4 py-2.5" />
                       ))}
                     </ul>
