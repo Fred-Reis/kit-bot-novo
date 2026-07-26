@@ -58,6 +58,12 @@ Referência de todas as chaves `action` usadas no `ActivityLog`, seus `actorType
 | `payment_confirmed` | `bot` | `payment` | Slice 7 |
 | `payment_marked_overdue` | `system` | `payment` | Slice 7 |
 | `owner_updated` | `user` | `owner` | Slice 9 |
+| `coordinator_created` | `user` | `coordinator` | Responsáveis |
+| `coordinator_updated` | `user` | `coordinator` | Responsáveis |
+| `coordinator_deleted` | `user` | `coordinator` | Responsáveis |
+| `coordinator_linked` | `user` | `coordinator` | Responsáveis |
+| `coordinator_unlinked` | `user` | `coordinator` | Responsáveis |
+| `coordinator_bulk_linked` | `user` | `coordinator` | Responsáveis |
 
 ---
 
