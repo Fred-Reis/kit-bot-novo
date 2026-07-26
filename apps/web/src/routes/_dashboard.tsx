@@ -27,6 +27,7 @@ import {
   Settings,
   Sun,
   UserCheck,
+  Users,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -65,6 +66,7 @@ const QUICK_CREATE: QuickCreateItem[] = [
   { href: '/tenants/new', label: 'Novo inquilino', icon: UserCheck },
   { stub: true, label: 'Registrar lead', icon: MessageSquare },
   { href: '/rules', label: 'Nova regra', icon: ListChecks },
+  { href: '/coordinators', label: 'Novo responsável', icon: Users },
   { href: '/templates', label: 'Novo template de contrato', icon: FileText },
 ];
 
@@ -83,6 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Gestão',
     items: [
       { href: '/rules', label: 'Regras', icon: ListChecks },
+      { href: '/coordinators', label: 'Responsáveis', icon: Users },
       { href: '/templates', label: 'Templates', icon: LayoutTemplate },
       { href: '/contracts', label: 'Contratos', icon: FileText },
       { href: '/finance', label: 'Financeiro', icon: Coins },
