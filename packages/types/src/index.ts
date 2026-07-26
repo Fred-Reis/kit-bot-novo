@@ -1,6 +1,7 @@
 export * from './activity-log';
 export * from './contract';
 export * from './contract-template';
+export * from './coordinator';
 export * from './lead';
 export * from './property';
 export * from './rule-set';

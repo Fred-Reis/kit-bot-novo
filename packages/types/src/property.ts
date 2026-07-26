@@ -1,3 +1,5 @@
+import type { PropertyCoordinatorLink } from './coordinator';
+
 export interface Property {
   id: string;
   externalId: string;
@@ -34,6 +36,7 @@ export interface Property {
   rulesText: string | null;
   active: boolean;
   media: PropertyMedia[];
+  coordinators?: PropertyCoordinatorLink[];
   createdAt: string;
   updatedAt: string;
 }
