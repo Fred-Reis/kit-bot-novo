@@ -4,9 +4,9 @@
   "description": "WhatsApp bot for real estate lead management",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "bun --watch src/app.ts",
+    "dev": "bun --watch --preload ./src/instrument.ts src/app.ts",
     "build": "bun run typecheck && bun build src/app.ts --outdir dist --target node",
-    "start": "bunx prisma migrate deploy && bun src/app.ts",
+    "start": "bunx prisma migrate deploy && bun --preload ./src/instrument.ts src/app.ts",
     "typecheck": "tsc",
     "lint": "oxlint --config ../../.oxlintrc.json --tsconfig tsconfig.json src/",
     "format": "biome format --write src/",

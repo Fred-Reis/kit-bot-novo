@@ -3,7 +3,7 @@ import { useUiStore } from '@/store/ui';
 
 // Reset store before each test
 beforeEach(() => {
-  useUiStore.setState({ sidebarCollapsed: false, darkMode: false });
+  useUiStore.setState({ sidebarCollapsed: false, darkMode: false, lastSeenActivityAt: null });
   document.documentElement.dataset.dark = '';
 });
 
@@ -35,5 +35,16 @@ describe('useUiStore', () => {
     setDarkMode(false);
     expect(useUiStore.getState().darkMode).toBe(false);
     expect(document.documentElement.dataset.dark).toBe('');
+  });
+
+  test('initial state: lastSeenActivityAt is null', () => {
+    expect(useUiStore.getState().lastSeenActivityAt).toBeNull();
+  });
+
+  test('setLastSeenActivityAt stores the given timestamp', () => {
+    const { setLastSeenActivityAt } = useUiStore.getState();
+    const iso = '2026-07-26T12:00:00.000Z';
+    setLastSeenActivityAt(iso);
+    expect(useUiStore.getState().lastSeenActivityAt).toBe(iso);
   });
 });

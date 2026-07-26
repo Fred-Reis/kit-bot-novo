@@ -64,7 +64,7 @@
 - [x] `notifyOwner(eventType, payload)` — multiplexa WhatsApp, email, in-app
 - [x] Email: integrar Resend (env `RESEND_API_KEY`) — chave adicionada no Railway em 2026-07-15
 - [x] WhatsApp: `evolution.sendText(ownerPhone, message)` mesma instância do bot
-- [ ] In-app: subscribe em `ActivityLog` via Supabase Realtime no web; badge no sidebar
+- [x] In-app: subscribe em `ActivityLog` via Supabase Realtime no web; dropdown de notificações no sino do header com badge de não-lidas + "Marcar como lidas" (2026-07-26); publication `supabase_realtime` habilitada pra tabela via migration `20260726000001_activitylog_realtime_publication`
 - [ ] **Por quê:** todas as slices que disparam evento crítico usam isso.
 
 ### F0.5 — ownerId migration (transversal)
@@ -379,7 +379,7 @@
 
 ### Infraestrutura e observabilidade
 
-- [ ] Sentry no bot (`apps/bot`) — hoje só Pino; rastreamento de erros em produção
+- [x] Sentry no bot (`apps/bot`) — código já existia parcialmente (init condicional + `setupFastifyErrorHandler`), mas rodava depois dos outros imports (sem auto-tracing) e o hook era registrado depois das rotas; corrigido em 2026-07-26: `instrument.ts` carregado via `bun --preload` (antes de qualquer módulo), `tracesSampleRate` adicionado, hook movido pra antes das rotas. **Pendente real:** provisionar `SENTRY_DSN` de fato no Railway (checklist em `docs/deploy.md`) — sem isso o SDK fica no-op.
 - [ ] Responsivo mobile do painel — diversas quebras identificadas em uso real
 - [x] **PWA install-only:** `vite-plugin-pwa` com manifest + service worker mínimo; ícones gerados via `@vite-pwa/assets-generator`; instalável no Android (prompt nativo), iOS (Compartilhar → Add to Home) e desktop Chrome/Edge. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
 
@@ -419,6 +419,7 @@
 - [ ] `org_id` FK em: Property, Tenant, Lead, Payment, Contract, RuleSet, ContractTemplate, PropertyMedia, LeadDocument, ActivityLog
 - [ ] Backfill `org_id` para dados existentes (single org)
 - [ ] RLS scoped por `org_id`
+- [ ] Web: queries em `apps/web` passam a filtrar por `ownerId`/`org_id` (`.eq('ownerId', currentOwner.id)`) — hoje single-owner, sem filtro (débito de F0.5)
 
 ### Auth + Onboarding
 - [ ] Flow de criação de org no signup
@@ -480,7 +481,7 @@
 
 | Fase | Status | Pendências |
 |---|---|---|
-| F0 — Foundation | 95% | F0.3 RLS (docs existem, policies desativadas); F0.4 in-app notif pendente |
+| F0 — Foundation | 98% | F0.3 RLS (docs existem, policies desativadas); F0.5 web queries por `ownerId` adiado pra Fase 5 |
 | F1 — Slices 1–9 | ✅ 100% | — |
 | Slice 10 — Funil completo | ✅ DONE | `contract_auto_created`/`contract_pdf_sent` activity logs opcionais |
 | F2 — Hardening | 85% | RLS ativar; backups Supabase; domínio+SSL; onboarding imóveis reais |

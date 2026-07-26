@@ -6,10 +6,12 @@ interface UiState {
   darkMode: boolean;
   notificationsEnabled: boolean;
   autoRefresh: boolean;
+  lastSeenActivityAt: string | null;
   setSidebarCollapsed: (v: boolean) => void;
   setDarkMode: (v: boolean) => void;
   setNotificationsEnabled: (v: boolean) => void;
   setAutoRefresh: (v: boolean) => void;
+  setLastSeenActivityAt: (v: string) => void;
 }
 
 /** Returns a plain setter that writes a single store key — avoids boilerplate `(v) => set({ key: v })`. */
@@ -25,6 +27,7 @@ export const useUiStore = create<UiState>()(
       darkMode: false,
       notificationsEnabled: true,
       autoRefresh: true,
+      lastSeenActivityAt: null,
       setSidebarCollapsed: setter(set, 'sidebarCollapsed'),
       setDarkMode: (v) => {
         document.documentElement.dataset.dark = v ? 'true' : '';
@@ -32,6 +35,7 @@ export const useUiStore = create<UiState>()(
       },
       setNotificationsEnabled: setter(set, 'notificationsEnabled'),
       setAutoRefresh: setter(set, 'autoRefresh'),
+      setLastSeenActivityAt: setter(set, 'lastSeenActivityAt'),
     }),
     {
       name: 'kit-manager-ui',

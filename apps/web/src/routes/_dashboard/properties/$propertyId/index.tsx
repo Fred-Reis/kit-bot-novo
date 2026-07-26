@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Building2, ChevronLeft, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { Building2, ChevronLeft, Home, Key, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmButton } from '@/components/confirm-button';
+import { STATUS_CONFIG } from '@/components/property-card';
 import { SpecBar } from '@/components/spec-bar';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
@@ -269,6 +270,19 @@ function PropertyDetailPage() {
     onError: () => toast.error('Erro ao arquivar imóvel.'),
   });
 
+  const changeStatus = useMutation({
+    mutationFn: (status: 'available' | 'rented') =>
+      adminApi.updateProperty(propertyId, { status }),
+    onSuccess: (_data, status) => {
+      qc.invalidateQueries({ queryKey: ['property', propertyId] });
+      qc.invalidateQueries({ queryKey: ['properties'] });
+      toast.success(
+        status === 'rented' ? 'Imóvel marcado como alugado.' : 'Imóvel marcado como disponível.',
+      );
+    },
+    onError: () => toast.error('Erro ao atualizar status do imóvel.'),
+  });
+
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
   if (!property) return <p className="text-sm text-muted-foreground">Imóvel não encontrado.</p>;
 
@@ -291,9 +305,31 @@ function PropertyDetailPage() {
             {property.neighborhood} · {property.externalId}
           </p>
         </div>
-        <Pill tone={property.active ? 'ok' : 'default'} dot>
-          {property.active ? 'Disponível' : 'Inativo'}
+        <Pill tone={STATUS_CONFIG[property.status].tone} dot>
+          {STATUS_CONFIG[property.status].label}
         </Pill>
+        {property.status === 'rented' && (
+          <CustomButton
+            variant="secondary"
+            size="sm"
+            onClick={() => changeStatus.mutate('available')}
+            disabled={changeStatus.isPending}
+          >
+            <Home className="size-4" />
+            Marcar como disponível
+          </CustomButton>
+        )}
+        {property.status === 'available' && (
+          <CustomButton
+            variant="secondary"
+            size="sm"
+            onClick={() => changeStatus.mutate('rented')}
+            disabled={changeStatus.isPending}
+          >
+            <Key className="size-4" />
+            Marcar como alugado
+          </CustomButton>
+        )}
         <Link to="/properties/$propertyId/edit" params={{ propertyId }}>
           <CustomButton variant="secondary" size="sm">
             <Pencil className="size-4" />

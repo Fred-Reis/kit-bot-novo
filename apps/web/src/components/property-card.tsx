@@ -12,7 +12,7 @@ interface PropertyCardProps {
 
 type Tone = 'ok' | 'warn' | 'bad' | 'accent' | 'default';
 
-const STATUS_CONFIG: Record<Property['status'], { tone: Tone; label: string }> = {
+export const STATUS_CONFIG: Record<Property['status'], { tone: Tone; label: string }> = {
   available: { tone: 'ok', label: 'Disponível' },
   rented: { tone: 'accent', label: 'Alugado' },
   maintenance: { tone: 'warn', label: 'Manutenção' },

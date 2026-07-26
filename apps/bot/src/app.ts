@@ -7,16 +7,13 @@ import adminAuthPlugin from '@/plugins/admin-auth';
 import { adminRoutes } from '@/routes/admin';
 import { evolutionWebhookPlugin } from '@/webhooks/evolution';
 
-if (config.SENTRY_DSN) {
-  Sentry.init({
-    dsn: config.SENTRY_DSN,
-    environment: process.env.NODE_ENV ?? 'production',
-  });
-}
-
 const fastify = Fastify({
   logger: { level: config.LOG_LEVEL },
 });
+
+// Must run before routes are registered — Fastify's error hook needs to wrap the instance
+// before any plugin/route encapsulation happens (unlike Express, which adds it last).
+Sentry.setupFastifyErrorHandler(fastify);
 
 fastify.register(cors, {
   origin: process.env.ADMIN_ORIGIN ?? 'http://localhost:5173',
@@ -29,8 +26,6 @@ fastify.register(evolutionWebhookPlugin);
 fastify.register(adminRoutes);
 
 fastify.get('/health', async () => ({ status: 'ok' }));
-
-Sentry.setupFastifyErrorHandler(fastify);
 
 const start = async () => {
   try {
