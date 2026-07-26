@@ -5,11 +5,12 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { Plus, Trash2, Users, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmButton } from '@/components/confirm-button';
 import { PageHeader } from '@/components/page-header';
 import { CustomButton } from '@/components/ui/btn';
-import { adminApi } from '@/lib/api';
+import { adminApi, apiErrorMessage } from '@/lib/api';
 import { fetchCoordinator, fetchCoordinators, fetchProperties } from '@/lib/queries';
 
 export const Route = createFileRoute('/_dashboard/coordinators/')({ component: CoordinatorsPage });
@@ -75,9 +76,9 @@ function UnlinkPropertyButton({
       aria-label={`Desvincular ${externalId}`}
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
-      className="rounded-full p-0.5 text-muted-foreground hover:text-destructive transition-colors"
+      className="rounded-full p-1.5 text-muted-foreground hover:text-destructive transition-colors"
     >
-      <X className="size-2.5" />
+      <X className="size-3.5" />
     </button>
   );
 }
@@ -90,11 +91,16 @@ function LinkedPropertyRow({
   link: LinkedPropertyWithResponsibilities;
 }) {
   const qc = useQueryClient();
+  const [selected, setSelected] = useState(link.responsibilities);
+  useEffect(() => setSelected(link.responsibilities), [link.responsibilities]);
   const mutation = useMutation({
     mutationFn: (responsibilities: CoordinatorResponsibility[]) =>
       adminApi.updateCoordinatorProperty(coordinatorId, link.propertyId, { responsibilities }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator', coordinatorId] }),
-    onError: () => toast.error('Falha ao salvar responsabilidades'),
+    onError: () => {
+      setSelected(link.responsibilities);
+      toast.error('Falha ao salvar responsabilidades');
+    },
   });
   return (
     <div
@@ -111,8 +117,11 @@ function LinkedPropertyRow({
           />
         </div>
         <ResponsibilityCheckboxes
-          selected={link.responsibilities}
-          onChange={(next) => mutation.mutate(next)}
+          selected={selected}
+          onChange={(next) => {
+            setSelected(next);
+            mutation.mutate(next);
+          }}
         />
       </div>
     </div>
@@ -152,12 +161,16 @@ function LinkPropertyForm({
     mutationFn: () => adminApi.bulkLinkCoordinator(coordinatorId, { responsibilities }),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['coordinator', coordinatorId] });
-      const count = (res.data as { propertyCount: number }).propertyCount;
+      const count = (res.data as { propertyCount?: number } | undefined)?.propertyCount ?? 0;
       toast.success(
-        count > 0 ? `Vinculado a ${count} imóveis` : 'Nenhum imóvel novo para vincular',
+        count === 0
+          ? 'Nenhum imóvel novo para vincular'
+          : count === 1
+            ? 'Vinculado a 1 imóvel'
+            : `Vinculado a ${count} imóveis`,
       );
     },
-    onError: () => toast.error('Falha ao aplicar a todos os imóveis'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Falha ao aplicar a todos os imóveis')),
   });
 
   return (
@@ -198,15 +211,12 @@ function LinkPropertyForm({
           Vincular
         </CustomButton>
       </form>
-      <CustomButton
-        type="button"
-        variant="secondary"
-        size="sm"
+      <ConfirmButton
+        label="Aplicar a todos os imóveis"
+        confirmLabel={bulkMutation.isPending ? 'Aplicando...' : 'Sim, aplicar a todos'}
         disabled={responsibilities.length === 0 || bulkMutation.isPending}
-        onClick={() => bulkMutation.mutate()}
-      >
-        Aplicar a todos os imóveis
-      </CustomButton>
+        onConfirm={() => bulkMutation.mutate()}
+      />
     </div>
   );
 }
@@ -289,7 +299,7 @@ function CoordinatorsPage() {
       setSelectedId(null);
       toast.success('Responsável removido');
     },
-    onError: () => toast.error('Não é possível remover — desvincule dos imóveis primeiro'),
+    onError: (err) => toast.error(apiErrorMessage(err, 'Falha ao remover responsável')),
   });
 
   return (
@@ -320,15 +330,16 @@ function CoordinatorsPage() {
                     <span className="ml-auto opacity-60">{c._count.properties}</span>
                   </span>
                 </button>
-                <button
-                  type="button"
-                  aria-label={`Remover ${c.name}`}
-                  disabled={deleteCoordinator.isPending}
-                  onClick={() => deleteCoordinator.mutate(c.id)}
+                <ConfirmButton
+                  label={`Remover ${c.name}`}
+                  ariaLabel={`Remover ${c.name}`}
+                  confirmLabel="Sim"
+                  disabled={deleteCoordinator.isPending && deleteCoordinator.variables === c.id}
+                  onConfirm={() => deleteCoordinator.mutate(c.id)}
                   className="rounded-full p-1 text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <Trash2 className="size-3" />
-                </button>
+                </ConfirmButton>
               </div>
             ))}
             {coordinators.length === 0 && (

@@ -47,7 +47,7 @@ Regras:
 - Nao peca renda nem documentos.
 - So sugira visita se a pessoa demonstrar interesse em visitar. Nao termine toda resposta oferecendo agendamento.
 - Faca no maximo uma pergunta por vez.
-- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga que qualquer pessoa presente no local vai atende-la e que nao ha responsavel especifico cadastrado no momento. Nunca invente nome ou telefone.`;
+- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga apenas que nao ha responsavel especifico cadastrado no momento. Nunca invente nome, telefone ou a presenca de alguem no local.`;
 
 export const SCHEDULING_AGENT_PROMPT = `Voce cuida apenas do agendamento de visita.
 
@@ -63,7 +63,7 @@ Regras:
 - Nao entre em analise documental.
 - Seja pratico, cordial e breve.
 - Se o contexto indicar que o nome do lead ainda nao e conhecido (campo "Nome conhecido: nao informado"), pergunte o nome de forma natural durante o agendamento. Exemplo: "Para confirmar sua visita, qual o seu nome?". Faca isso apenas uma vez; se ja souber o nome, nao pergunte de novo.
-- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga que qualquer pessoa presente no local vai atende-la e que nao ha responsavel especifico cadastrado no momento. Nunca invente nome ou telefone.`;
+- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga apenas que nao ha responsavel especifico cadastrado no momento. Nunca invente nome, telefone ou a presenca de alguem no local.`;
 
 const COLLECTION_AGENT_PROMPT = `Voce cuida apenas da coleta de dados para analise do lead.
 
