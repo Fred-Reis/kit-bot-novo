@@ -9,6 +9,7 @@ import {
   describePropertyTerms,
   getPropertyByExternalId,
 } from '@/services/catalog';
+import { notifyCoordinators } from '@/services/notify';
 
 export interface ToolDeps {
   chatId: string;
@@ -150,6 +151,19 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
           where: { id: deps.leadId },
           data: { scheduledVisitAt: date },
         });
+
+        if (deps.propertyExternalId) {
+          const property = await getPropertyByExternalId(deps.propertyExternalId);
+          if (property) {
+            notifyCoordinators(property.id, {
+              leadName: deps.leadName ?? deps.chatId,
+              leadPhone: deps.chatId,
+              scheduledVisitAt: date.toISOString(),
+              propertyExternalId: property.externalId,
+            }).catch((err) => logger.error({ err }, '[tools] notifyCoordinators failed'));
+          }
+        }
+
         const dateStr = date.toLocaleDateString('pt-BR', {
           day: '2-digit',
           month: '2-digit',
