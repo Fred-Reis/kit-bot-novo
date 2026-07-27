@@ -206,25 +206,7 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
         return reply.status(400).send({ error: 'Invalid active' });
       }
 
-      // Optimistic concurrency: only update if current status/active match expected
-      const whereCondition = {
-        id,
-        status: existing.status,
-        active: existing.active,
-      };
-
-      const result = await prisma.property.updateMany({
-        where: whereCondition,
-        data,
-      });
-
-      if (result.count === 0) {
-        return reply.status(409).send({ error: 'Property was modified by another request' });
-      }
-
-      const property = await prisma.property.findUnique({ where: { id } });
-      if (!property) return reply.status(404).send({ error: 'Property not found' });
-
+      const property = await prisma.property.update({ where: { id }, data });
       await invalidatePropertyCache(id);
       await invalidateAvailablePropertiesCache();
 
