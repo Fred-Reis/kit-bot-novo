@@ -147,12 +147,17 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
       if (isNaN(date.getTime())) return fail('data/hora inválida.');
       if (date <= new Date()) return fail('a data da visita precisa ser no futuro.');
       try {
+        const previous = await prisma.lead.findUnique({
+          where: { id: deps.leadId },
+          select: { scheduledVisitAt: true },
+        });
         await prisma.lead.update({
           where: { id: deps.leadId },
           data: { scheduledVisitAt: date },
         });
 
-        if (deps.propertyExternalId) {
+        const visitDateChanged = previous?.scheduledVisitAt?.getTime() !== date.getTime();
+        if (visitDateChanged && deps.propertyExternalId) {
           const property = await getPropertyByExternalId(deps.propertyExternalId);
           if (property) {
             notifyCoordinators(property.id, {
