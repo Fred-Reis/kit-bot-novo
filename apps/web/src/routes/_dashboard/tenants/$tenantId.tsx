@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/empty-state';
 import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
+import { formatPhone } from '@/lib/leads';
 import { fetchTenant, fetchTenantContracts, fetchTenantDocuments } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
@@ -53,7 +54,7 @@ function TenantDetailPage() {
   if (!data) return <p className="text-sm text-muted-foreground">Inquilino não encontrado.</p>;
 
   const { payments, ...tenant } = data;
-  const displayName = tenant.name ?? tenant.phone;
+  const displayName = tenant.name ?? formatPhone(tenant.phone);
   const contractEnd = tenant.contractEnd ? dateFmt.format(new Date(tenant.contractEnd)) : '—';
   const onTimeRate = tenant.onTimeRate != null ? `${tenant.onTimeRate}%` : '—';
   const score = tenant.score != null ? String(tenant.score) : '—';
@@ -71,7 +72,7 @@ function TenantDetailPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold text-foreground">{displayName}</h1>
           <p className="font-mono text-xs text-muted-foreground">
-            {tenant.externalId ?? tenant.phone}
+            {tenant.externalId ?? formatPhone(tenant.phone)}
           </p>
         </div>
       </div>
@@ -131,7 +132,7 @@ function TenantDetailPage() {
           <div className="space-y-2 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Telefone</p>
-              <p className="font-mono font-medium text-foreground">{tenant.phone}</p>
+              <p className="font-mono font-medium text-foreground">{formatPhone(tenant.phone)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">E-mail</p>
