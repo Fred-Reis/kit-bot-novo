@@ -146,6 +146,8 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
       const date = new Date(dataHoraIso);
       if (isNaN(date.getTime())) return fail('data/hora inválida.');
       if (date <= new Date()) return fail('a data da visita precisa ser no futuro.');
+
+      let visitDateChanged: boolean;
       try {
         const previous = await prisma.lead.findUnique({
           where: { id: deps.leadId },
@@ -155,36 +157,40 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
           where: { id: deps.leadId },
           data: { scheduledVisitAt: date },
         });
-
-        const visitDateChanged = previous?.scheduledVisitAt?.getTime() !== date.getTime();
-        if (visitDateChanged && deps.propertyExternalId) {
-          const property = await getPropertyByExternalId(deps.propertyExternalId);
-          if (property) {
-            notifyCoordinators(property.id, {
-              leadName: deps.leadName ?? deps.chatId,
-              leadPhone: deps.chatId,
-              scheduledVisitAt: date.toISOString(),
-              propertyExternalId: property.externalId,
-            }).catch((err) => logger.error({ err }, '[tools] notifyCoordinators failed'));
-          }
-        }
-
-        const dateStr = date.toLocaleDateString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          timeZone: VISIT_TZ,
-        });
-        const timeStr = date.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: VISIT_TZ,
-        });
-        return `✅ Visita confirmada para ${dateStr} às ${timeStr}. Repasse esta confirmação ao lead.`;
+        visitDateChanged = previous?.scheduledVisitAt?.getTime() !== date.getTime();
       } catch (err) {
         logger.error({ err }, '[tools] agendar_visita');
         return fail('não consegui agendar agora.');
       }
+
+      // Notificação ao coordenador é best-effort: uma falha aqui (lookup ou envio)
+      // nunca deve reverter a confirmação de visita já persistida acima.
+      if (visitDateChanged && deps.propertyExternalId) {
+        getPropertyByExternalId(deps.propertyExternalId)
+          .then((property) => {
+            if (!property) return;
+            return notifyCoordinators(property.id, {
+              leadName: deps.leadName ?? deps.chatId,
+              leadPhone: deps.chatId,
+              scheduledVisitAt: date.toISOString(),
+              propertyExternalId: property.externalId,
+            });
+          })
+          .catch((err) => logger.error({ err }, '[tools] notifyCoordinators failed'));
+      }
+
+      const dateStr = date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        timeZone: VISIT_TZ,
+      });
+      const timeStr = date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: VISIT_TZ,
+      });
+      return `✅ Visita confirmada para ${dateStr} às ${timeStr}. Repasse esta confirmação ao lead.`;
     },
     {
       name: 'agendar_visita',

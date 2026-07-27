@@ -602,7 +602,12 @@ export async function handleLeadMessage(
         leadName: lead.name,
         propertyExternalId: snapshot.propertyInFocus?.externalId ?? null,
       });
-      replyText = await runLeadAgentV2(question, leadContextStr, chatHistory, tools);
+      try {
+        replyText = await runLeadAgentV2(question, leadContextStr, chatHistory, tools);
+      } catch (err) {
+        logger.error({ err }, '[lead.flow] runLeadAgentV2 failed');
+        replyText = 'Desculpe, tive um problema para processar sua mensagem. Pode tentar de novo?';
+      }
 
       // Se o agente escalou, o bot foi pausado e o sistema já avisou o lead
       const conv = await prisma.conversation.findUnique({ where: { chatId } });
