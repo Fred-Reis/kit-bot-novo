@@ -21,7 +21,6 @@ Regras:
 - visited_property = true apenas se a pessoa deixar claro que ja visitou o imovel.
 - visited_property = false se a pessoa disser que ainda nao visitou, pedir visita ou negociar horario de visita.
 - name_is_explicit = true quando a pessoa informar o nome claramente, inclusive em resposta direta a um pedido de nome.
-- income_is_explicit = true apenas quando a pessoa informar renda, salario ou valor recebido por mes.
 - wants_options = true quando a pessoa pedir opcoes, disponibilidade geral ou disser que ainda nao sabe qual imovel quer.
 - wants_schedule = true quando a pessoa pedir visita, negociar horario ou demonstrar intencao de agendar visita.
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
@@ -59,8 +58,6 @@ export const LeadExtractionSchema = z.object({
   property_reference: z.string().nullable().default(null),
   property_interest: z.string().nullable().default(null),
   visited_property: z.boolean().nullable().default(null),
-  income: z.string().nullable().default(null),
-  income_is_explicit: z.boolean().default(false),
   document_choice: z.enum(['cnh', 'rg_cpf']).nullable().default(null),
   wants_options: z.boolean().default(false),
   wants_schedule: z.boolean().default(false),
@@ -171,9 +168,6 @@ export async function extractLeadUpdate(
   if (propertyInterest) updates.propertyInterest = propertyInterest;
 
   if (typeof raw.visited_property === 'boolean') updates.visitedProperty = raw.visited_property;
-
-  const income = normalizeText(raw.income);
-  if (raw.income_is_explicit && income) updates.income = income;
 
   const docChoice = normalizeDocumentChoice(raw.document_choice);
   if (docChoice) updates.docsPreference = docChoice;
