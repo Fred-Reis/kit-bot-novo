@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { EXTRACTOR_SYSTEM_PROMPT, INFO_AGENT_PROMPT, SCHEDULING_AGENT_PROMPT } from '@/agents/lead';
+import { EXTRACTOR_SYSTEM_PROMPT } from '@/agents/lead';
+import { LEAD_AGENT_V2_PROMPT } from '@/agents/lead-v2';
 
 describe('EXTRACTOR_SYSTEM_PROMPT — wants_human guardrail', () => {
   test('tem regra explícita de quando wants_human deve ser true', () => {
@@ -11,12 +12,20 @@ describe('EXTRACTOR_SYSTEM_PROMPT — wants_human guardrail', () => {
   });
 });
 
-describe('prompts de agente — fato do responsável pela visita', () => {
-  test('INFO_AGENT_PROMPT instrui a responder "quem procurar" com o fato do contexto', () => {
-    expect(INFO_AGENT_PROMPT.toLowerCase()).toContain('responsavel pela visita');
+describe('LEAD_AGENT_V2_PROMPT — fato do responsável pela visita', () => {
+  const prompt = LEAD_AGENT_V2_PROMPT.toLowerCase();
+
+  test('instrui a responder "quem procurar" com o fato retornado por info_imovel', () => {
+    expect(prompt).toContain('responsavel pela visita');
+    expect(prompt).toContain('info_imovel');
   });
 
-  test('SCHEDULING_AGENT_PROMPT instrui a responder "quem procurar" com o fato do contexto', () => {
-    expect(SCHEDULING_AGENT_PROMPT.toLowerCase()).toContain('responsavel pela visita');
+  test('distingue falha da tool de ausência do fato', () => {
+    expect(prompt).toContain('se a tool retornar erro');
+    expect(prompt).toContain('nao ha responsavel especifico cadastrado');
+  });
+
+  test('nunca inventar nome ou telefone', () => {
+    expect(prompt).toContain('nunca invente nome ou telefone');
   });
 });

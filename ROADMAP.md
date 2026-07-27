@@ -486,7 +486,7 @@
 | Slice 10 — Funil completo | ✅ DONE | `contract_auto_created`/`contract_pdf_sent` activity logs opcionais |
 | F2 — Hardening | 85% | RLS ativar; backups Supabase; domínio+SSL; onboarding imóveis reais |
 | Auth web | ✅ DONE | Google OAuth + PKCE callback + guard por `Owner.email` (PR #27) |
-| Lead flow v2 (bot pipeline) | ✅ prod (gated) | Cutover: `LEAD_FLOW_V2=true` após ≥1 sem. canário sem escalações |
+| Lead flow v2 (bot pipeline) | ✅ prod | Cutover concluído — v1 removido, `LEAD_FLOW_V2` flag eliminada |
 | F3 — Dogfooding | pendente | Depende de F2 completo |
 
 ### PRs mergeados nesta sessão (2026-07-15)

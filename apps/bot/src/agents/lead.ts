@@ -1,100 +1,13 @@
 // Port of services/lead_agent.py + chains.py + services/lead_router.py
 // Uses LangChain JS: @langchain/openai + @langchain/core
 
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
-import { StringOutputParser } from '@langchain/core/output_parsers';
-import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { config } from '@/config';
 import type { LeadContext, LeadResident } from '@/flows/lead/context';
 import { getDeterministicLeadUpdates } from '@/flows/lead/intents';
-import type { AgentName } from '@/flows/lead/rules';
 import { logger } from '@/lib/logger';
-
-// ─── Prompts (ported verbatim from prompts/lead_agents.py and prompts/lead_router.py) ──
-
-const OPTIONS_AGENT_PROMPT = `Voce cuida apenas de apresentar opcoes disponiveis de imoveis para leads.
-
-Regras ABSOLUTAS:
-- Mencione APENAS os imoveis que aparecem em "Imoveis disponiveis no banco" no contexto do sistema. Nunca invente, sugira ou mencione imoveis que nao estejam nessa lista.
-- Se a lista tiver apenas um imovel, apresente somente esse. Nunca invente outros.
-- Se a lista estiver vazia, diga que nao ha imoveis disponiveis no momento.
-- Seja cordial e objetivo.
-- Se a pessoa apenas cumprimentar, responda somente com uma saudacao curta e educada, sem oferecer opcoes, sem perguntar por imovel especifico e sem conduzir para visita.
-- Se ja houver um imovel em foco, nao volte a listar tudo sem necessidade.
-- Se o contexto indicar que o imovel em foco esta travado, mantenha a conversa nele e nao ofereca outras opcoes sem pedido explicito.
-- Se a pessoa mencionar bairro, referencia ou caracteristica, foque nisso.
-- Nao peca renda nem documentos.
-- Se a pessoa quiser visitar um imovel ja escolhido, oriente naturalmente para o proximo passo de visita.
-- Nunca mencione URLs, links ou enderecos de midia no texto.`;
-
-export const INFO_AGENT_PROMPT = `Voce cuida apenas de responder duvidas sobre o imovel e sobre as condicoes da locacao.
-
-Regras:
-- Responda primeiro a pergunta atual da pessoa.
-- Use apenas os fatos do contexto do sistema.
-- Se a pessoa apenas cumprimentar, responda somente com uma saudacao curta e educada, como "Bom dia!" ou "Ola, tudo bem?", sem oferecer opcoes nem fazer pergunta de triagem.
-- Pode responder sobre disponibilidade, valor, localizacao, regras, restricoes, estado do imovel e objecoes.
-- Pode informar documentos/requisitos antes da visita quando a pessoa perguntar; isso e diferente de pedir que ela envie documentos.
-- Nunca mencione URLs, links ou enderecos de midia no texto. O sistema envia midia automaticamente via WhatsApp quando disponivel.
-- Se o contexto indicar que ha video ou foto cadastrada, responda apenas "estou enviando agora" ou "vou enviar em instantes". Nunca cole ou mencione a URL.
-- Se a pessoa perguntar sobre o processo, explique usando exatamente o "Fluxo oficial da locacao" e a "Etapa oficial do processo agora" presentes no contexto.
-- Nunca antecipe contrato, pagamento ou entrega das chaves como proximo passo se a etapa atual ainda for interesse, visita ou envio de documentacao para analise.
-- Quando houver perguntas sobre taxas, caucao, contrato, regras, animais, moradores, midias, anuncio ou condicoes, responda apenas com os blocos "Imovel em foco" e "Condicoes factuais do imovel em foco".
-- Nunca contradiga campos booleanos do contexto. Exemplo: se "Aceita animais: nao", a resposta deve ser nao.
-- Se um fato nao estiver informado no contexto, diga que nao consta no sistema neste momento. Nunca use frases genericas como "geralmente", "normalmente", "pode haver" ou "depende do imovel" se houver um imovel em foco.
-- Nao peca renda nem documentos.
-- So sugira visita se a pessoa demonstrar interesse em visitar. Nao termine toda resposta oferecendo agendamento.
-- Faca no maximo uma pergunta por vez.
-- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga apenas que nao ha responsavel especifico cadastrado no momento. Nunca invente nome, telefone ou a presenca de alguem no local.`;
-
-export const SCHEDULING_AGENT_PROMPT = `Voce cuida apenas do agendamento de visita.
-
-Regras:
-- Foque em visita, horario e disponibilidade.
-- Se a pessoa quiser reagendar, confirme a nova data e horario sem resistencia. Reagendamento e sempre permitido.
-- Nunca diga que nao e possivel reagendar. Nunca bloqueie mudanca de data ou horario.
-- Se a pessoa quiser cancelar a visita, confirme o cancelamento com uma mensagem breve e positiva. Nunca questione ou tente impedir o cancelamento. Diga que fica a disposicao caso queira reagendar no futuro.
-- Se houver uma visita ja agendada e a pessoa pedir nova data/hora, confirme a mudanca normalmente.
-- Se a pessoa disser que so quer ver o imovel, nao insista em renda nem documentos.
-- Nao peca nome se a pessoa so pediu endereco, horario, dia disponivel ou quem procurar.
-- Se a pessoa disser que ja visitou, nao tente reagendar; reconheca isso e devolva a conversa para o proximo passo natural da locacao.
-- Nao entre em analise documental.
-- Seja pratico, cordial e breve.
-- Se o contexto indicar que o nome do lead ainda nao e conhecido (campo "Nome conhecido: nao informado"), pergunte o nome de forma natural durante o agendamento. Exemplo: "Para confirmar sua visita, qual o seu nome?". Faca isso apenas uma vez; se ja souber o nome, nao pergunte de novo.
-- Se a pessoa perguntar quem procurar, quem vai mostrar o imovel ou quem recebe no dia da visita, responda com o "Responsavel pela visita" presente no contexto. Se esse fato nao estiver no contexto, diga apenas que nao ha responsavel especifico cadastrado no momento. Nunca invente nome, telefone ou a presenca de alguem no local.`;
-
-const COLLECTION_AGENT_PROMPT = `Voce cuida apenas da coleta de dados para analise do lead.
-
-Regras:
-- A visita ao imovel e opcional e nao bloqueia a coleta de dados.
-- Se o estado atual for decisao apos visita, confirme se a pessoa quer seguir com a locacao e nao volte para visita.
-- A etapa atual deste agente e sempre "envio de documentacao para analise".
-- Nao fale que o proximo passo e contrato, pagamento ou entrega das chaves antes de confirmar que a documentacao foi enviada e seguira para analise.
-- Colete apenas o proximo item pendente do "Checklist da analise" presente no contexto.
-- Ordem natural: renda mensal -> documentos de identidade -> moradores. Nome geralmente vem dos documentos.
-- Documentos aceitos: CNH (frente e verso, ou UMA foto da CNH aberta mostrando frente e verso) OU RG (frente e verso) + CPF.
-- NAO pergunte "CNH ou RG?": aceite o que a pessoa enviar; o sistema identifica automaticamente.
-- Nunca afirme que um documento foi ou nao foi recebido por conta propria: use apenas o checklist do contexto.
-- Se os dados ja estiverem completos, apenas confirme que seguirao para analise.
-- Seja objetivo e faca no maximo uma pergunta por vez.`;
-
-const ROUTER_SYSTEM_PROMPT = `Voce e um roteador de atendimento para leads de locacao.
-
-Escolha apenas um agente:
-- options: quando a pessoa ainda nao sabe qual imovel quer, pede opcoes ou disponibilidade geral.
-- info: quando a pessoa quer tirar duvidas, saber valor, regras, localizacao, detalhes do imovel ou tratar objecoes.
-- scheduling: quando a pessoa quer visitar, negociar horario, confirmar visita ou cancelar visita agendada.
-- collection: quando a pessoa ja visitou, quer seguir com a locacao e o assunto agora e coleta para analise.
-
-Regras:
-- Use o estado atual e os fatos do contexto.
-- Se o estado atual estiver em visita, prefira scheduling.
-- Se o estado atual estiver em analise (lead.collect_application, lead.post_visit_decision), prefira collection.
-- Se houver um imovel em foco e a pessoa fizer uma pergunta sobre ele, prefira info.
-- Se houver um imovel em foco travado, nao mande a conversa para options a menos que o usuario peca explicitamente outras opcoes.
-- Respostas curtas como "sim", "quero", "pode ser" devem ser interpretadas com ajuda do contexto.`;
 
 export const EXTRACTOR_SYSTEM_PROMPT = `Voce extrai apenas dados estruturados explicitamente presentes na mensagem do lead.
 
@@ -108,7 +21,6 @@ Regras:
 - visited_property = true apenas se a pessoa deixar claro que ja visitou o imovel.
 - visited_property = false se a pessoa disser que ainda nao visitou, pedir visita ou negociar horario de visita.
 - name_is_explicit = true quando a pessoa informar o nome claramente, inclusive em resposta direta a um pedido de nome.
-- income_is_explicit = true apenas quando a pessoa informar renda, salario ou valor recebido por mes.
 - wants_options = true quando a pessoa pedir opcoes, disponibilidade geral ou disser que ainda nao sabe qual imovel quer.
 - wants_schedule = true quando a pessoa pedir visita, negociar horario ou demonstrar intencao de agendar visita.
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
@@ -146,8 +58,6 @@ export const LeadExtractionSchema = z.object({
   property_reference: z.string().nullable().default(null),
   property_interest: z.string().nullable().default(null),
   visited_property: z.boolean().nullable().default(null),
-  income: z.string().nullable().default(null),
-  income_is_explicit: z.boolean().default(false),
   document_choice: z.enum(['cnh', 'rg_cpf']).nullable().default(null),
   wants_options: z.boolean().default(false),
   wants_schedule: z.boolean().default(false),
@@ -161,33 +71,6 @@ export const LeadExtractionSchema = z.object({
     .enum(['olx', 'zap', 'site', 'instagram', 'indicacao', 'outro', 'desconhecido'])
     .nullable()
     .default(null),
-  visit_date: z
-    .string()
-    .nullable()
-    .default(null)
-    .describe(
-      "Data da visita no formato YYYY-MM-DD, ex: '2026-06-25'. " +
-        'Preencher quando o lead mencionar um dia especifico. ' +
-        'Usar a data atual de referencia para resolver "amanha", "terca-feira", "semana que vem", etc. ' +
-        'Sem dia especifico → null.',
-    ),
-  visit_time: z
-    .string()
-    .nullable()
-    .default(null)
-    .describe(
-      "Hora da visita no formato HH:MM (24h), ex: '14:00'. " +
-        "Se lead disse '14h', retornar '14:00'. Se disse '9h', retornar '09:00'. " +
-        'Sem hora especifica → null.',
-    ),
-  visit_cancelled: z
-    .boolean()
-    .default(false)
-    .describe(
-      'true quando o lead cancelar, desistir ou não poder mais comparecer à visita agendada. ' +
-        'Ex: "não vou poder ir", "preciso cancelar a visita", "mudei de ideia". ' +
-        'false em qualquer outro caso.',
-    ),
   expected_residents: z
     .number()
     .int()
@@ -198,11 +81,6 @@ export const LeadExtractionSchema = z.object({
         'Ex: "vamos morar eu e minha esposa" → 2; "só eu" → 1; "somos 4" → 4. ' +
         'Sem informação → null.',
     ),
-});
-
-const RouterSchema = z.object({
-  target_agent: z.enum(['options', 'info', 'scheduling', 'collection']).default('info'),
-  reason: z.string().default(''),
 });
 
 // ─── Normalizers ──────────────────────────────────────────────────────────────
@@ -246,7 +124,7 @@ export async function extractLeadUpdate(
   message: string,
   context: LeadContext,
   availablePropertiesSummary?: string,
-): Promise<Partial<LeadContext> & { extractedSource: string | null; scheduledVisitAt: string | null; visitCancelled: boolean }> {
+): Promise<Partial<LeadContext> & { extractedSource: string | null }> {
   const extractor = makeLLM(400).withStructuredOutput(LeadExtractionSchema);
 
   const prompt = ChatPromptTemplate.fromMessages([
@@ -275,7 +153,7 @@ export async function extractLeadUpdate(
     })) as z.infer<typeof LeadExtractionSchema>;
   } catch (err) {
     logger.error({ err }, '[lead.agent] extractLeadUpdate failed');
-    return { extractedSource: null, scheduledVisitAt: null, visitCancelled: false };
+    return { extractedSource: null };
   }
 
   const updates: Partial<LeadContext> = { currentIntent: raw.intent };
@@ -290,9 +168,6 @@ export async function extractLeadUpdate(
   if (propertyInterest) updates.propertyInterest = propertyInterest;
 
   if (typeof raw.visited_property === 'boolean') updates.visitedProperty = raw.visited_property;
-
-  const income = normalizeText(raw.income);
-  if (raw.income_is_explicit && income) updates.income = income;
 
   const docChoice = normalizeDocumentChoice(raw.document_choice);
   if (docChoice) updates.docsPreference = docChoice;
@@ -318,70 +193,5 @@ export async function extractLeadUpdate(
   const deterministic = getDeterministicLeadUpdates(message);
   Object.assign(updates, deterministic);
 
-  const scheduledVisitAt =
-    raw.visit_date && raw.visit_time ? `${raw.visit_date}T${raw.visit_time}:00-03:00` : null;
-
-  return { ...updates, extractedSource: raw.source, scheduledVisitAt, visitCancelled: raw.visit_cancelled };
-}
-
-// ─── Router ───────────────────────────────────────────────────────────────────
-
-export async function routeLeadMessage(question: string, leadContext: string): Promise<AgentName> {
-  const router = makeLLM(200).withStructuredOutput(RouterSchema);
-
-  const prompt = ChatPromptTemplate.fromMessages([
-    ['system', ROUTER_SYSTEM_PROMPT],
-    ['human', 'Contexto do sistema:\n{lead_context}\n\nMensagem do usuario:\n{question}'],
-  ]);
-
-  const chain = prompt.pipe(router);
-
-  try {
-    const result = await chain.invoke({ question, lead_context: leadContext });
-    return result.target_agent as AgentName;
-  } catch (err) {
-    logger.error({ err }, '[lead.agent] routeLeadMessage failed');
-    return 'info';
-  }
-}
-
-// ─── Conversation agents ──────────────────────────────────────────────────────
-
-const AGENT_PROMPTS: Record<AgentName, string> = {
-  options: OPTIONS_AGENT_PROMPT,
-  info: INFO_AGENT_PROMPT,
-  scheduling: SCHEDULING_AGENT_PROMPT,
-  collection: COLLECTION_AGENT_PROMPT,
-};
-
-export async function runLeadAgent(
-  agent: AgentName,
-  question: string,
-  leadContext: string,
-  chatHistory: Array<{ role: 'user' | 'assistant'; content: string }>,
-): Promise<string> {
-  const systemPrompt = AGENT_PROMPTS[agent];
-
-  const historyMessages = chatHistory.map((m) =>
-    m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content),
-  );
-
-  const prompt = ChatPromptTemplate.fromMessages([
-    ['system', systemPrompt],
-    new MessagesPlaceholder('chat_history'),
-    ['human', 'Contexto do sistema:\n{lead_context}\n\nMensagem do usuario:\n{question}'],
-  ]);
-
-  const chain = prompt.pipe(makeLLM(600)).pipe(new StringOutputParser());
-
-  try {
-    return (await chain.invoke({
-      question,
-      lead_context: leadContext,
-      chat_history: historyMessages,
-    })) as string;
-  } catch (err) {
-    logger.error({ err, agent }, '[lead.agent] runLeadAgent failed');
-    return 'Desculpe, tive um problema para processar sua mensagem. Pode tentar de novo?';
-  }
+  return { ...updates, extractedSource: raw.source };
 }

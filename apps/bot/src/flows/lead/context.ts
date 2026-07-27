@@ -38,7 +38,6 @@ export interface LeadContext {
   wantsApplication?: boolean;
   audioReceived?: boolean;
   name?: string | null;
-  income?: string | null;
   docsPreference?: 'cnh' | 'rg_cpf' | null;
   residents?: LeadResident[];
   residentsComplete?: boolean | null;
