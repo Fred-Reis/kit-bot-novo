@@ -24,4 +24,4 @@ WORKDIR /app/apps/bot
 
 EXPOSE 8000
 
-CMD ["bun", "run", "src/app.ts"]
+CMD ["bun", "--preload", "./src/instrument.ts", "src/app.ts"]

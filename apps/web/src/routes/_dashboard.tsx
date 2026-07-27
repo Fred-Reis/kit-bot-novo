@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
   Link,
@@ -33,10 +33,11 @@ import type { ComponentType } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
+import { ActivityRow } from '@/components/activity-row';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { CustomButton } from '@/components/ui/btn';
-import { fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
+import { fetchActivityLog, fetchLeads, fetchProperties, fetchTenants } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { useUiStore } from '@/store/ui';
@@ -251,12 +252,17 @@ function SidebarContent({ collapsed, counts, userName, userEmail, onLogout }: Si
 function DashboardLayout() {
   const user = useAuthStore((s) => s.user);
   const { sidebarCollapsed, setSidebarCollapsed, darkMode, setDarkMode } = useUiStore();
+  const lastSeenActivityAt = useUiStore((s) => s.lastSeenActivityAt);
+  const setLastSeenActivityAt = useUiStore((s) => s.setLastSeenActivityAt);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const pageTitle = usePageTitle();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const quickCreateRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
@@ -273,6 +279,10 @@ function DashboardLayout() {
     queryFn: fetchTenants,
     staleTime: 30_000,
   });
+  const { data: activityLog = [] } = useQuery({
+    queryKey: ['activity-log'],
+    queryFn: () => fetchActivityLog(50),
+  });
 
   const counts: NavCounts = {
     leads: leads.filter((l) => l.stage !== 'converted').length,
@@ -280,15 +290,53 @@ function DashboardLayout() {
     tenants: tenants.length,
   };
 
+  const unseenActivityCount = activityLog.filter(
+    (entry) => !lastSeenActivityAt || new Date(entry.createdAt) > new Date(lastSeenActivityAt),
+  ).length;
+
+  const recentActivityLog = activityLog.slice(0, 10);
+
+  useEffect(() => {
+    // First time this feature runs for a user: treat pre-existing history as already seen,
+    // instead of showing the full backlog as "unread".
+    if (!lastSeenActivityAt) setLastSeenActivityAt(new Date().toISOString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
       if (quickCreateRef.current && !quickCreateRef.current.contains(e.target as Node)) {
         setQuickCreateOpen(false);
       }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
     }
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('activity-log-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'ActivityLog' },
+        () => queryClient.invalidateQueries({ queryKey: ['activity-log'] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  function handleToggleNotif() {
+    setNotifOpen((o) => !o);
+  }
+
+  function handleClearNotif() {
+    setLastSeenActivityAt(new Date().toISOString());
+  }
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -390,9 +438,53 @@ function DashboardLayout() {
               {darkMode ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </CustomButton>
 
-            <CustomButton variant="icon" size="sm" aria-label="Notificações">
-              <Bell className="size-4" />
-            </CustomButton>
+            <div ref={notifRef} className="relative">
+              <CustomButton
+                variant="icon"
+                size="sm"
+                aria-label="Notificações"
+                onClick={handleToggleNotif}
+              >
+                <Bell className="size-4" />
+                {unseenActivityCount > 0 && (
+                  <Badge
+                    count={unseenActivityCount}
+                    className="absolute -right-1 -top-1 h-[16px] min-w-[16px] px-1 text-[9px]"
+                  />
+                )}
+              </CustomButton>
+
+              {notifOpen && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-1 w-[320px] overflow-hidden rounded-lg border border-border bg-surface-raised"
+                  style={{ boxShadow: 'var(--shadow-md)' }}
+                >
+                  <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                    <p className="text-xs font-semibold text-foreground">Notificações</p>
+                    {unseenActivityCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearNotif}
+                        className="text-[11px] font-medium text-primary hover:underline"
+                      >
+                        Marcar como lidas
+                      </button>
+                    )}
+                  </div>
+                  {recentActivityLog.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+                      Sem atividade recente.
+                    </p>
+                  ) : (
+                    <ul className="max-h-[360px] divide-y divide-border overflow-y-auto">
+                      {recentActivityLog.map((entry) => (
+                        <ActivityRow key={entry.id} entry={entry} className="px-4 py-2.5" />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Quick-create dropdown */}
             <div ref={quickCreateRef} className="relative">

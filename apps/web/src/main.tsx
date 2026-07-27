@@ -22,7 +22,12 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
-    integrations: [Sentry.tanstackRouterBrowserTracingIntegration({ router })],
+    profileSessionSampleRate: 0.1,
+    profileLifecycle: 'trace',
+    integrations: [
+      Sentry.tanstackRouterBrowserTracingIntegration(router),
+      Sentry.browserProfilingIntegration(),
+    ],
     beforeSend(event) {
       if (event.request) delete event.request.data;
       return event;

@@ -41,7 +41,10 @@ const PROPERTY_PATCH_FIELDS = new Set([
   'visitSchedule',
   'listingUrl',
   'active',
+  'status',
 ]);
+
+const PROPERTY_STATUSES = new Set(['available', 'rented', 'maintenance', 'reserved', 'archived']);
 
 const PROPERTY_CREATE_FIELDS = new Set([
   ...PROPERTY_PATCH_FIELDS,
@@ -128,6 +131,12 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
       return reply.status(400).send({ error: 'Missing required fields' });
     }
 
+    if (rest.status !== undefined) {
+      if (typeof rest.status !== 'string' || !PROPERTY_STATUSES.has(rest.status)) {
+        return reply.status(400).send({ error: 'Invalid status' });
+      }
+    }
+
     const owner = await prisma.owner.findFirst();
     if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
@@ -177,16 +186,56 @@ export async function propertiesRoutes(fastify: FastifyInstance): Promise<void> 
     async (request, reply) => {
       const { id } = request.params;
 
-      const existing = await prisma.property.findUnique({ where: { id }, select: { id: true } });
+      const existing = await prisma.property.findUnique({
+        where: { id },
+        select: { id: true, ownerId: true, name: true, active: true, status: true },
+      });
       if (!existing) return reply.status(404).send({ error: 'Property not found' });
 
       const data = Object.fromEntries(
         Object.entries(request.body).filter(([k]) => PROPERTY_PATCH_FIELDS.has(k)),
       );
 
+      if (data.status !== undefined) {
+        if (typeof data.status !== 'string' || !PROPERTY_STATUSES.has(data.status)) {
+          return reply.status(400).send({ error: 'Invalid status' });
+        }
+      }
+
+      if (data.active !== undefined && typeof data.active !== 'boolean') {
+        return reply.status(400).send({ error: 'Invalid active' });
+      }
+
       const property = await prisma.property.update({ where: { id }, data });
       await invalidatePropertyCache(id);
       await invalidateAvailablePropertiesCache();
+
+      if (typeof data.status === 'string' && data.status !== existing.status) {
+        await logActivityHelper({
+          ownerId: existing.ownerId,
+          actorType: 'user',
+          actorId: request.adminUserId ?? undefined,
+          actorLabel: request.adminUserId ?? 'Admin',
+          action: 'property_status_changed',
+          subjectType: 'property',
+          subjectId: id,
+          subject: existing.name,
+          metadata: { from: existing.status, to: data.status },
+        }).catch(fastify.log.warn.bind(fastify.log));
+      }
+
+      if (typeof data.active === 'boolean' && data.active !== existing.active) {
+        await logActivityHelper({
+          ownerId: existing.ownerId,
+          actorType: 'user',
+          actorId: request.adminUserId ?? undefined,
+          actorLabel: request.adminUserId ?? 'Admin',
+          action: data.active ? 'property_activated' : 'property_deactivated',
+          subjectType: 'property',
+          subjectId: id,
+          subject: existing.name,
+        }).catch(fastify.log.warn.bind(fastify.log));
+      }
 
       return reply.send(property);
     },

@@ -2,16 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronRight, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { ActivityRow } from '@/components/activity-row';
 import { EmptyState } from '@/components/empty-state';
 import { KpiCard } from '@/components/kpi-card';
-import { Avatar } from '@/components/ui/avatar';
 import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
-import { formatActivityLabel } from '@/lib/activity-labels';
 import { computeMonthlyTotals } from '@/lib/finance';
 import { formatPhone, STAGE_LABELS, STAGE_TONE } from '@/lib/leads';
 import { computePaymentsSummary } from '@/lib/payments';
-import type { ActivityLogEntry } from '@/lib/queries';
 import {
   fetchActivityLog,
   fetchAllPayments,
@@ -39,34 +37,6 @@ function dueLabel(days: number, isOverdue: boolean): string {
   return `vence em ${days} dia${days !== 1 ? 's' : ''}`;
 }
 
-function ActivityRow({ entry }: { entry: ActivityLogEntry }) {
-  const actor = entry.actorLabel ?? 'Sistema';
-  const verb = formatActivityLabel(entry.action);
-  return (
-    <li className="flex items-center justify-between px-5 py-3">
-      <div className="flex items-center gap-3">
-        <Avatar
-          name={actor}
-          size="sm"
-          className="size-7 bg-muted text-[10px] text-muted-foreground"
-        />
-        <p className="text-xs text-foreground">
-          <span className="font-medium">{actor}</span> {verb}
-          {entry.subject && (
-            <>
-              {' '}
-              <span className="font-medium">{entry.subject}</span>
-            </>
-          )}
-        </p>
-      </div>
-      <span className="shrink-0 text-[11px] text-muted-foreground">
-        {relativeTime(entry.createdAt)}
-      </span>
-    </li>
-  );
-}
-
 function DashboardPage() {
   const { data: leads = [] } = useQuery({
     queryKey: ['leads'],
@@ -86,11 +56,11 @@ function DashboardPage() {
     queryFn: fetchAllPayments,
     staleTime: 30_000,
   });
-  const { data: activityLog = [] } = useQuery({
+  const { data: fullActivityLog = [] } = useQuery({
     queryKey: ['activity-log'],
-    queryFn: () => fetchActivityLog(10),
-    refetchInterval: 10_000,
+    queryFn: () => fetchActivityLog(50),
   });
+  const activityLog = fullActivityLog.slice(0, 10);
 
   const activeLeads = leads.filter((l) => l.stage !== 'converted').length;
   const summary = computePaymentsSummary(payments);

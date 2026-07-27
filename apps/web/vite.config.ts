@@ -48,6 +48,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    headers: {
+      'Document-Policy': 'js-profiling',
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
