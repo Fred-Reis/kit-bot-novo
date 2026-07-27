@@ -126,7 +126,7 @@ export async function listAvailableProperties(): Promise<PropertyData[]> {
   if (cached) return cached;
 
   const properties = await prisma.property.findMany({
-    where: { active: true },
+    where: { active: true, status: 'available' },
     include: {
       media: { orderBy: { order: 'asc' } },
       coordinators: { include: { coordinator: true } },
@@ -152,7 +152,7 @@ export async function findMatchingProperty(query: string): Promise<PropertyData 
 
   // Exact externalId match
   const byRef = await getPropertyByExternalId(normalized.toUpperCase());
-  if (byRef && byRef.active) return byRef;
+  if (byRef && byRef.active && byRef.status === 'available') return byRef;
 
   const available = await listAvailableProperties();
 
