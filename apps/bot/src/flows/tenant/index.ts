@@ -17,6 +17,8 @@ import { sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
 
 const CHAT_HISTORY_LIMIT = 10;
+const EMERGENCY_SNAPSHOT_TIMEOUT_MS = 2000;
+const EMERGENCY_UNKNOWN_PROPERTY = 'imóvel não identificado';
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
@@ -73,20 +75,36 @@ export async function handleTenantMessage(
     if (detectEmergency(messageText)) {
       const displayName = tenantName ?? chatId;
 
-      let propertyName = 'imóvel não identificado';
-      try {
-        const snapshot = await buildTenantSnapshot(chatId);
-        if (snapshot) propertyName = snapshot.property.name;
-      } catch (err) {
-        logger.error({ err, chatId }, '[tenant.flow] buildTenantSnapshot falhou na emergência — segue sem nome do imóvel');
-      }
+      // buildTenantSnapshot must never delay the emergency response — a hung
+      // Redis/DB connection (no timeout configured on either client) could
+      // otherwise block every side effect indefinitely. Race it against a
+      // hard cap, and — critically — don't await that race before starting
+      // the batch below: only the notifyOwner entry depends on it (chained,
+      // not awaited up front), so sendText/persistTurn/logActivity are
+      // invoked in the same tick, never delayed by a slow property lookup.
+      const propertyNamePromise = Promise.race([
+        buildTenantSnapshot(chatId)
+          .then((snapshot) => snapshot?.property.name ?? EMERGENCY_UNKNOWN_PROPERTY)
+          .catch((err) => {
+            logger.error(
+              { err, chatId },
+              '[tenant.flow] buildTenantSnapshot falhou na emergência — segue sem nome do imóvel',
+            );
+            return EMERGENCY_UNKNOWN_PROPERTY;
+          }),
+        new Promise<string>((resolve) => setTimeout(() => resolve(EMERGENCY_UNKNOWN_PROPERTY), EMERGENCY_SNAPSHOT_TIMEOUT_MS)),
+      ]);
 
       await Promise.allSettled([
-        notifyOwner(ownerId, 'tenant_emergency', {
-          tenantName: displayName,
-          tenantPhone: chatId,
-          propertyName,
-        }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_emergency failed')),
+        propertyNamePromise
+          .then((propertyName) =>
+            notifyOwner(ownerId, 'tenant_emergency', {
+              tenantName: displayName,
+              tenantPhone: chatId,
+              propertyName,
+            }),
+          )
+          .catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_emergency failed')),
         logActivity({
           ownerId,
           actorType: 'bot',

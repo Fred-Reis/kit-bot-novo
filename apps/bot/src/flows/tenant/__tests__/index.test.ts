@@ -21,6 +21,7 @@ const fakeTenantRow = {
 };
 let tenantRowForSnapshot: typeof fakeTenantRow | null = fakeTenantRow;
 let tenantFindUniqueShouldThrow = false;
+let tenantFindUniqueShouldHang = false;
 let sendTextShouldThrow = false;
 
 mock.module('@/db/client', () => ({
@@ -28,6 +29,7 @@ mock.module('@/db/client', () => ({
     tenant: {
       findUnique: async () => {
         if (tenantFindUniqueShouldThrow) throw new Error('DB down');
+        if (tenantFindUniqueShouldHang) return new Promise(() => {}); // never resolves
         return tenantRowForSnapshot;
       },
     },
@@ -97,6 +99,7 @@ describe('handleTenantMessage', () => {
     botPausedAfterAgent = false;
     tenantRowForSnapshot = fakeTenantRow;
     tenantFindUniqueShouldThrow = false;
+    tenantFindUniqueShouldHang = false;
     sendTextShouldThrow = false;
   });
 
@@ -136,6 +139,27 @@ describe('handleTenantMessage', () => {
     expect(notifyCalls).toHaveLength(1);
     expect(notifyCalls[0]?.eventType).toBe('tenant_emergency');
     expect(activityLogs[0]?.action).toBe('tenant_emergency');
+  });
+
+  it('emergência: busca de snapshot trava (nunca resolve) → notifyOwner ainda dispara, dentro do teto de tempo', async () => {
+    tenantFindUniqueShouldHang = true;
+    const start = Date.now();
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'Socorro, tem um incêndio aqui!',
+      noMedia,
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    const elapsedMs = Date.now() - start;
+    // sendText/persistTurn/logActivity don't wait on the hung snapshot lookup
+    // at all; only notifyOwner is capped by the race (EMERGENCY_SNAPSHOT_TIMEOUT_MS
+    // in flows/tenant/index.ts), bounding the whole call instead of hanging forever.
+    expect(sentTexts).toHaveLength(1);
+    expect(notifyCalls).toHaveLength(1);
+    expect(notifyCalls[0]?.eventType).toBe('tenant_emergency');
+    expect(elapsedMs).toBeLessThan(3000);
   });
 
   it('áudio sem texto → resposta hardcoded, sem chamar o agente', async () => {
