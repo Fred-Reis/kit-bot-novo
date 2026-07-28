@@ -1,5 +1,7 @@
 # docs/tenant-flow.md — Fase 2: Fluxo do Inquilino (Tenant)
 
+> ⚠️ **Parcialmente substituído (2026-07-27).** A arquitetura da §2 (router LLM + agentes por trilha) é o padrão v1, descartado após o lead flow v2. O design vigente (agente único + tools) está em `docs/superpowers/specs/2026-07-27-tenant-flow-phase2-design.md` e a execução é rastreada em [`PRD-FASE2.md`](./PRD-FASE2.md) — a §10 abaixo (ordem de implementação) também foi substituída pelo tracking de lá. As **regras de negócio** (§3–§9: responsabilidade de manutenção, financeiro, reclamações, profissionais, regras invioláveis) continuam válidas.
+>
 > Documento-guia para o desenvolvimento do fluxo de tenant.
 > Pré-requisito: fluxo de lead concluído. Router tenant vs lead já existe em `flows/router.ts`.
 
