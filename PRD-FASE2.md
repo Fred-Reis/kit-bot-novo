@@ -141,6 +141,10 @@ Verificação final pós-2ª rodada: `bun run check` limpo — 227 pass, 0 fail,
 **3ª rodada CodeRabbit (2026-07-28):** confirmou o fix da 2ª rodada (✅ Addressed). Achado novo, Minor: o teste que prova o teto de 2s (hang de `findUnique`) não tinha timeout próprio — uma regressão futura reintroduzindo o bloqueio faria o teste travar até o timeout genérico de 5s do bun disparar, em vez de falhar rápido com mensagem clara. Corrigido: `Promise.race` local com timeout de 2900ms e mensagem própria.
 
 Verificação final pós-3ª rodada: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
+
+**Review manual do Fred (2026-07-28):** `Promise.race` no branch de emergência não cancelava a entrada perdedora — quando `buildTenantSnapshot` resolvia rápido (o caso comum, Redis/DB saudáveis), o `setTimeout` de fallback ficava armado até disparar sozinho de qualquer forma. Em volume, um timer vazado por emergência resolvida rápido. Corrigido: id do timer capturado e limpo em `.finally()` sobre a race, mesmo padrão guard-timer já usado no teste que prova o teto.
+
+Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
