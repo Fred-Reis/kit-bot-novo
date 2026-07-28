@@ -10,7 +10,7 @@
     "typecheck": "tsc",
     "lint": "oxlint --config ../../.oxlintrc.json --tsconfig tsconfig.json src/",
     "format": "biome format --write src/",
-    "test": "bun test src/__tests__",
+    "test": "bun test src",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "check": "bun run typecheck && bun run lint && bun run test",
     "db:generate": "bunx prisma generate",
