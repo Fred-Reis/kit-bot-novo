@@ -65,30 +65,44 @@ export async function handleTenantMessage(
   const messageText = text ?? '';
 
   try {
-    // 1. Emergency — hardcoded, zero LLM, highest priority
+    // 1. Emergency — hardcoded, zero LLM, highest priority. notifyOwner is
+    // the single most important side effect here (a real fire/gas/flood) —
+    // it must never be skipped because persisting history, replying to the
+    // tenant, or looking up the property name happened to fail first, so
+    // every side effect below is independent and best-effort.
     if (detectEmergency(messageText)) {
-      await persistTurn(chatId, ownerId, messageText, EMERGENCY_REPLY);
-      await sendText(chatId, EMERGENCY_REPLY);
-
-      const snapshot = await buildTenantSnapshot(chatId);
-      const propertyName = snapshot?.property.name ?? 'imóvel não identificado';
       const displayName = tenantName ?? chatId;
 
-      notifyOwner(ownerId, 'tenant_emergency', {
-        tenantName: displayName,
-        tenantPhone: chatId,
-        propertyName,
-      }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_emergency failed'));
+      let propertyName = 'imóvel não identificado';
+      try {
+        const snapshot = await buildTenantSnapshot(chatId);
+        if (snapshot) propertyName = snapshot.property.name;
+      } catch (err) {
+        logger.error({ err, chatId }, '[tenant.flow] buildTenantSnapshot falhou na emergência — segue sem nome do imóvel');
+      }
 
-      logActivity({
-        ownerId,
-        actorType: 'bot',
-        actorLabel: 'Bot',
-        action: 'tenant_emergency',
-        subjectType: 'tenant',
-        subjectId: tenantId,
-        subject: displayName,
-      }).catch((err) => logger.error({ err }, '[tenant.flow] logActivity tenant_emergency failed'));
+      await Promise.allSettled([
+        notifyOwner(ownerId, 'tenant_emergency', {
+          tenantName: displayName,
+          tenantPhone: chatId,
+          propertyName,
+        }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_emergency failed')),
+        logActivity({
+          ownerId,
+          actorType: 'bot',
+          actorLabel: 'Bot',
+          action: 'tenant_emergency',
+          subjectType: 'tenant',
+          subjectId: tenantId,
+          subject: displayName,
+        }).catch((err) => logger.error({ err }, '[tenant.flow] logActivity tenant_emergency failed')),
+        persistTurn(chatId, ownerId, messageText, EMERGENCY_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou na emergência'),
+        ),
+        sendText(chatId, EMERGENCY_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] sendText falhou na emergência'),
+        ),
+      ]);
       return;
     }
 

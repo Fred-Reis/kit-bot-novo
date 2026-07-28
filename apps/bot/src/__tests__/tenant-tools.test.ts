@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 const conversationUpserts: Array<Record<string, unknown>> = [];
 const events: Array<{ chatId: string; role: string; content: string }> = [];
 const sentTexts: Array<{ chatId: string; text: string }> = [];
-const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
+const notifyCalls: Array<{ ownerId: string; eventType: string; payload: unknown }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
 
 mock.module('@/db/client', () => ({
@@ -33,8 +33,8 @@ mock.module('@/services/evolution', () => ({
 }));
 
 mock.module('@/services/notify', () => ({
-  notifyOwner: async (ownerId: string, eventType: string) => {
-    notifyCalls.push({ ownerId, eventType });
+  notifyOwner: async (ownerId: string, eventType: string, payload: unknown) => {
+    notifyCalls.push({ ownerId, eventType, payload });
   },
 }));
 
@@ -79,7 +79,13 @@ describe('escalar_owner', () => {
     expect(events).toHaveLength(1);
     expect(events[0]?.content).toBe(sentTexts[0]?.text);
     expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
+    // motivo do LLM chega até o owner (enriquece o label genérico, sem
+    // expandir o enum de TenantEscalationReason).
+    expect(notifyCalls[0]?.payload).toMatchObject({
+      reason: expect.stringContaining('pedido de negociação de aluguel'),
+    });
     expect(activityLogs[0]).toMatchObject({ action: 'tenant_escalated', subjectId: deps.tenantId });
+    expect(activityLogs[0]?.metadata).toMatchObject({ detail: 'pedido de negociação de aluguel' });
     expect(out).toContain('pausado');
   });
 });

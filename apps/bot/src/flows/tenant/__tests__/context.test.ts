@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const redisStore = new Map<string, string>();
 let findUniqueCallCount = 0;
+let redisGetShouldThrow = false;
+let redisSetShouldThrow = false;
 
 // Prisma's Decimal coerces correctly through plain Number(value) (see
 // services/catalog.ts's `Number(p.rent)` pattern) — the mock uses plain
@@ -38,8 +40,12 @@ mock.module('@/db/client', () => ({
 
 mock.module('@/db/redis', () => ({
   redis: {
-    get: async (key: string) => redisStore.get(key) ?? null,
+    get: async (key: string) => {
+      if (redisGetShouldThrow) throw new Error('Redis down');
+      return redisStore.get(key) ?? null;
+    },
     set: async (key: string, value: string) => {
+      if (redisSetShouldThrow) throw new Error('Redis down');
       redisStore.set(key, value);
       return 'OK';
     },
@@ -56,6 +62,8 @@ describe('buildTenantSnapshot', () => {
   beforeEach(() => {
     redisStore.clear();
     findUniqueCallCount = 0;
+    redisGetShouldThrow = false;
+    redisSetShouldThrow = false;
   });
 
   it('monta o snapshot a partir do banco na primeira chamada', async () => {
@@ -77,6 +85,26 @@ describe('buildTenantSnapshot', () => {
     await invalidateTenantSnapshotCache('5511999999999@s.whatsapp.net');
     await buildTenantSnapshot('5511999999999@s.whatsapp.net');
     expect(findUniqueCallCount).toBe(2);
+  });
+
+  it('redis.get falha → cache é best-effort, busca no banco mesmo assim', async () => {
+    redisGetShouldThrow = true;
+    const snapshot = await buildTenantSnapshot('5511999999999@s.whatsapp.net');
+    expect(snapshot?.tenantId).toBe('tenant-1');
+    expect(findUniqueCallCount).toBe(1);
+  });
+
+  it('JSON corrompido no cache → trata como miss, busca no banco', async () => {
+    redisStore.set('tenant:5511999999999@s.whatsapp.net', '{not valid json');
+    const snapshot = await buildTenantSnapshot('5511999999999@s.whatsapp.net');
+    expect(snapshot?.tenantId).toBe('tenant-1');
+    expect(findUniqueCallCount).toBe(1);
+  });
+
+  it('redis.set falha ao gravar → ainda retorna o snapshot recém-montado', async () => {
+    redisSetShouldThrow = true;
+    const snapshot = await buildTenantSnapshot('5511999999999@s.whatsapp.net');
+    expect(snapshot?.tenantId).toBe('tenant-1');
   });
 });
 

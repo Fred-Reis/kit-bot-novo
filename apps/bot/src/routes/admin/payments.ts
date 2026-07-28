@@ -108,7 +108,13 @@ export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
     }).catch(fastify.log.warn.bind(fastify.log));
 
     if (tenantPhone) {
-      invalidateTenantSnapshotCache(tenantPhone).catch(fastify.log.warn.bind(fastify.log));
+      // Awaited (not fire-and-forget) so a tenant message right after this
+      // response can't race the cache DEL and read the pre-payment snapshot.
+      try {
+        await invalidateTenantSnapshotCache(tenantPhone);
+      } catch (err) {
+        fastify.log.warn(err);
+      }
     }
 
     return reply.status(201).send({ ...payment, amount: Number(payment.amount) });

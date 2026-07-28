@@ -18,7 +18,7 @@ export function buildTenantTools(deps: TenantToolDeps): StructuredToolInterface[
   const escalarOwner = tool(
     async ({ motivo }: { motivo: string }) => {
       try {
-        await escalateTenantToOwner(deps.chatId, deps.ownerId, deps.tenantId, deps.tenantName, 'out_of_scope');
+        await escalateTenantToOwner(deps.chatId, deps.ownerId, deps.tenantId, deps.tenantName, 'out_of_scope', motivo);
         logger.info({ motivo }, '[tenant-tools] escalar_owner');
         return 'Assunto encaminhado ao proprietário; o bot foi pausado. NÃO envie mais nada — o sistema já avisou o inquilino.';
       } catch (err) {

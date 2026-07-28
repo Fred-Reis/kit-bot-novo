@@ -1,5 +1,6 @@
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
+import { logger } from '@/lib/logger';
 
 const CACHE_TTL_SECONDS = 1800; // 30 min — design §3.1
 
@@ -23,9 +24,17 @@ export async function invalidateTenantSnapshotCache(phone: string): Promise<void
 
 export async function buildTenantSnapshot(phone: string): Promise<TenantSnapshot | null> {
   const key = cacheKey(phone);
-  const cached = await redis.get(key);
-  if (cached) {
-    return JSON.parse(cached) as TenantSnapshot;
+
+  // Cache is best-effort: a Redis outage or corrupted JSON must fall through
+  // to Prisma, never take down the whole reply (design §7 rule 8 — snapshot
+  // "corrompido" is explicitly called out, not just "ausente").
+  try {
+    const cached = await redis.get(key);
+    if (cached) {
+      return JSON.parse(cached) as TenantSnapshot;
+    }
+  } catch (err) {
+    logger.error({ err, phone }, '[tenant.context] Cache read falhou — buscando no banco');
   }
 
   const tenant = await prisma.tenant.findUnique({
@@ -62,7 +71,11 @@ export async function buildTenantSnapshot(phone: string): Promise<TenantSnapshot
     })),
   };
 
-  await redis.set(key, JSON.stringify(snapshot), 'EX', CACHE_TTL_SECONDS);
+  try {
+    await redis.set(key, JSON.stringify(snapshot), 'EX', CACHE_TTL_SECONDS);
+  } catch (err) {
+    logger.error({ err, phone }, '[tenant.context] Cache write falhou — segue sem cache');
+  }
   return snapshot;
 }
 

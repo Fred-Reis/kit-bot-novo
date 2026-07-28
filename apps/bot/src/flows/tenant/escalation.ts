@@ -27,6 +27,7 @@ export async function escalateTenantToOwner(
   tenantId: string,
   tenantName: string | null,
   reason: TenantEscalationReason,
+  detail?: string,
 ): Promise<void> {
   await prisma.conversation.upsert({
     where: { chatId },
@@ -35,6 +36,9 @@ export async function escalateTenantToOwner(
   });
 
   const displayName = tenantName ?? chatId;
+  // `detail` is the LLM's free-text motivo for the escalar_owner tool path —
+  // enriches the owner-facing label without expanding the reason enum.
+  const reasonLabel = detail ? `${REASON_LABEL[reason]}: ${detail}` : REASON_LABEL[reason];
 
   // Each side effect below is independent and best-effort: a failure in one
   // (e.g. Evolution API down) must never block the others from being
@@ -55,7 +59,7 @@ export async function escalateTenantToOwner(
     notifyOwner(ownerId, 'tenant_escalation', {
       tenantName: displayName,
       tenantPhone: chatId,
-      reason: REASON_LABEL[reason],
+      reason: reasonLabel,
     }).catch((err) => logger.error({ err, ownerId }, '[tenant.escalation] notifyOwner falhou')),
     logActivity({
       ownerId,
@@ -65,7 +69,7 @@ export async function escalateTenantToOwner(
       subjectType: 'tenant',
       subjectId: tenantId,
       subject: displayName,
-      metadata: { reason },
+      metadata: detail ? { reason, detail } : { reason },
     }).catch((err) => logger.error({ err, tenantId }, '[tenant.escalation] logActivity falhou')),
   ]);
 }

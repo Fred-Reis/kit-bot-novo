@@ -20,10 +20,17 @@ const fakeTenantRow = {
   payments: [],
 };
 let tenantRowForSnapshot: typeof fakeTenantRow | null = fakeTenantRow;
+let tenantFindUniqueShouldThrow = false;
+let sendTextShouldThrow = false;
 
 mock.module('@/db/client', () => ({
   prisma: {
-    tenant: { findUnique: async () => tenantRowForSnapshot },
+    tenant: {
+      findUnique: async () => {
+        if (tenantFindUniqueShouldThrow) throw new Error('DB down');
+        return tenantRowForSnapshot;
+      },
+    },
     event: {
       findMany: async () => [],
       create: async (args: { data: { chatId: string; role: string; content: string } }) => {
@@ -51,6 +58,7 @@ mock.module('@/db/redis', () => ({
 
 mock.module('@/services/evolution', () => ({
   sendText: async (chatId: string, text: string) => {
+    if (sendTextShouldThrow) throw new Error('Evolution API down');
     sentTexts.push({ chatId, text });
   },
 }));
@@ -88,6 +96,8 @@ describe('handleTenantMessage', () => {
     events.length = 0;
     botPausedAfterAgent = false;
     tenantRowForSnapshot = fakeTenantRow;
+    tenantFindUniqueShouldThrow = false;
+    sendTextShouldThrow = false;
   });
 
   it('saudação simples → resposta hardcoded personalizada, sem chamar o agente', async () => {
@@ -106,6 +116,23 @@ describe('handleTenantMessage', () => {
       'Maria',
     );
     expect(sentTexts[0]?.text).toContain('🚨');
+    expect(notifyCalls).toHaveLength(1);
+    expect(notifyCalls[0]?.eventType).toBe('tenant_emergency');
+    expect(activityLogs[0]?.action).toBe('tenant_emergency');
+  });
+
+  it('emergência: sendText e a busca de snapshot falham → notifyOwner ainda dispara', async () => {
+    sendTextShouldThrow = true;
+    tenantFindUniqueShouldThrow = true;
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'Socorro, tem um incêndio aqui!',
+      noMedia,
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(sentTexts).toHaveLength(0);
     expect(notifyCalls).toHaveLength(1);
     expect(notifyCalls[0]?.eventType).toBe('tenant_emergency');
     expect(activityLogs[0]?.action).toBe('tenant_emergency');
