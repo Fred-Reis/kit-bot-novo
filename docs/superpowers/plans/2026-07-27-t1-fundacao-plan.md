@@ -1245,10 +1245,11 @@ const fakeTenantRow = {
   owner: { id: 'owner-1', name: 'Fred', phone: '5511988887777' },
   payments: [],
 };
+let tenantRowForSnapshot: typeof fakeTenantRow | null = fakeTenantRow;
 
 mock.module('@/db/client', () => ({
   prisma: {
-    tenant: { findUnique: async () => fakeTenantRow },
+    tenant: { findUnique: async () => tenantRowForSnapshot },
     event: {
       findMany: async () => [],
       create: async (args: { data: { chatId: string; role: string; content: string } }) => {
@@ -1314,6 +1315,7 @@ describe('handleTenantMessage', () => {
     events.length = 0;
     conversationUpsertData = null;
     botPausedAfterAgent = false;
+    tenantRowForSnapshot = fakeTenantRow;
   });
 
   it('saudação simples → resposta hardcoded personalizada, sem chamar o agente', async () => {
@@ -1372,6 +1374,22 @@ describe('handleTenantMessage', () => {
     // conv.botPaused=true significa que uma tool (ex: escalar_owner) já avisou o
     // inquilino durante o turno do agente; o orquestrador não deve mandar nada.
     expect(sentTexts).toHaveLength(0);
+  });
+
+  it('snapshot ausente → mensagem neutra ao inquilino + notifica owner (regra 8)', async () => {
+    tenantRowForSnapshot = null;
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'quando vence o aluguel?',
+      noMedia,
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]?.text).toContain('instabilidade');
+    expect(notifyCalls).toHaveLength(1);
+    expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
   });
 });
 ```
@@ -1552,7 +1570,7 @@ export async function handleTenantMessage(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd apps/bot && bun test src/flows/tenant/__tests__/index.test.ts`
-Expected: PASS (5 tests)
+Expected: PASS (6 tests — a 6th case, "snapshot ausente", was added during the code-review pass to cover design §7 rule 8, which had zero test coverage until then)
 
 - [ ] **Step 5: Typecheck**
 
