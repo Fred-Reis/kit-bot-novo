@@ -108,9 +108,20 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 - [x] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot (reusa `agents/agent-runner.ts`, extraído do lead v2)
 - [x] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
 - [x] 5. Simplify — agent-skills:code-simplify aplicado; código já enxuto (guard clauses, sem duplicação nova); único ajuste: normalizada ordem persist→send nos 4 branches determinísticos do orquestrador (estava send→persist, inconsistente com o branch feliz e com o precedente do lead flow)
-- [~] 6. Review local → PR → CodeRabbit limpo — review local (5 eixos) feito: 0 Critical, 1 Important documentado abaixo, 1 gap de cobertura corrigido (snapshot ausente, regra 8). PR aberta, aguardando CodeRabbit + merge do Fred
+- [x] 6. Review local → PR → CodeRabbit limpo → merge do Fred — review local (5 eixos) + **2 reviews independentes rigorosas** (superpowers general-purpose seguindo `code-reviewer.md` + `agent-skills:code-reviewer`), ambas re-executando a suite em vez de confiar nos commits. Achados convergentes corrigidos (ver abaixo). PR aberta, aguardando CodeRabbit + merge do Fred
 
-**Finding não-bloqueante do review local (T1):** `escalar_owner` sempre grava `reason: 'out_of_scope'` (`agents/tenant-tools.ts`), mesmo quando o prompt do agente instrui chamá-la também por pedido explícito de humano ou frustração — a notificação ao owner perde essa distinção (usa sempre o label genérico). Aceito como simplificação da T1 (uma única tool catch-all, conforme T-D7); revisitar em T2+ quando mais tools/tracks existirem — parametrizar a tool com um enum de motivo é a correção óbvia se isso incomodar na prática.
+**Achados das reviews rigorosas (2026-07-27) — todos corrigidos:**
+- **Critical (as duas reviews, independentemente):** `escalateTenantToOwner` commitava `botPaused=true` e então aguardava `sendText`/`logActivity` sem isolamento — uma falha (ex: Evolution API fora do ar) deixava o inquilino preso em silêncio pra sempre, sem o owner ser avisado. Corrigido: `Promise.allSettled` + `.catch()` independente por efeito colateral, espelhando `lead/escalation.ts`. Teste adicionado forçando falha do `sendText` e provando que `notifyOwner`/`logActivity`/`Event` ainda rodam.
+- **Important:** a resposta que `escalateTenantToOwner` manda ao inquilino nunca era persistida em `Event` (o `persistTurn` do orquestrador sempre passava `null`) — quebra a regra 6 do design. Corrigido: `escalateTenantToOwner` agora persiste seu próprio `Event`, cobrindo inclusive o caminho via tool `escalar_owner` (que cruza a fronteira do LLM e o orquestrador não enxerga).
+- **Important (achado real, minha auto-avaliação anterior estava errada):** `router-bot-paused.test.ts` mockava `@/flows/tenant/index`/`@/agents/tenant-v2` por completo — colidia com `index.test.ts`/`tenant-v2-runner.test.ts`, que importam esses módulos de verdade. Um `bun test` puro (sem escopo) falhava 5-8 testes. Eu tinha documentado isso como "gap aceito dado o escopo do script real" — as duas reviews corretamente rejeitaram essa racionalização (`bun test` puro é o comando mais natural de rodar). Reescrito pra exercitar o `handleTenantMessage` real via mocks de dependência-folha só.
+- **Important:** `bun run lint` estava quebrado (2 erros oxlint novos, nunca rodado durante a build original) — import não usado + variável de teste não usada. Corrigido.
+- **Important:** `invalidateTenantSnapshotCache` nunca era chamado em produção, apesar do design (§3.1) já prever isso — `POST /admin/payments` (único write path real que toca tenant) agora invalida o cache em pagamentos de receita.
+- **Important/Suggestion (as duas reviews, exemplos convergentes):** `detectEmergency` tinha falsos negativos reais em PT-BR ("cheiro de queimado", "vazamento de gás" sem a palavra "cheiro", sinônimos de alagamento) — mensagens de emergência caindo no caminho do LLM em vez do hardcoded (viola regra 5). Lista de termos ampliada + testes de regressão. Falso-positivo ("fogos de artifício") aceito como trade-off documentado (favorece pegar emergência real sobre evitar alarme falso ocasional).
+- **Minor:** gap pré-existente no script de teste (`bun test src/__tests__` nunca varria `flows/*/__tests__`, sem CI) — ambas reviews marcaram como risco que se acumula a cada slice nova. Corrigido: `"test": "bun test src"` — `bun run check` agora é um gate completo de verdade.
+- **Minor:** wording do design §3.1 ("via `catalog.ts`") desatualizado — T1 usa `include` direto na query do `Tenant` (mais eficiente, evita segunda consulta+cache redundante). Nota adicionada no design doc.
+- **Aceito como simplificação da T1 (ambas reviews concordam):** `escalar_owner` sempre grava `reason: 'out_of_scope'` mesmo quando o prompt do agente instrui chamá-la por pedido de humano ou frustração — perde a distinção na notificação ao owner. Revisitar em T2+ quando mais tools/tracks existirem.
+
+Verificação final pós-fixes: `bun run check` (typecheck + lint + test, varredura completa) limpo — 221 pass, 0 fail, 0 erros de lint.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
@@ -205,8 +216,8 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-27 |
-| Etapa atual | T1 etapa 5 (simplify) — build completo, `bun run test` (179 pass) e `bun test src/flows` (37 pass) verdes, typecheck bot+web limpo, branch `feat/tenant-t1-fundacao` |
-| Próxima etapa | T1 etapa 5 (code-simplification) → etapa 6 (review local → PR → CodeRabbit) → merge do Fred → T2 etapa 1 |
+| Etapa atual | T1 etapa 6 concluída (2 reviews independentes + todos os achados corrigidos, ver seção T1 acima) — `bun run check` limpo (221 pass, 0 fail, 0 lint errors), branch `feat/tenant-t1-fundacao` pronta pra PR |
+| Próxima etapa | Abrir PR → CodeRabbit → merge do Fred → T2 etapa 1 (Reclamações) |
 | Bloqueios | — |
 
 ---

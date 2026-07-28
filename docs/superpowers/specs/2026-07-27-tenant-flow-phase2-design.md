@@ -53,7 +53,7 @@ mensagem de tenant (router identifica pelo banco, como hoje)
 
 ### 3.1 Snapshot do tenant
 
-Cache Redis `tenant:{phone}`, TTL 30 min, invalidado em writes do admin que toquem tenant/payment/contrato. Conteúdo: nome, imóvel (via `catalog.ts`), contrato (início/fim/`dueDay`), owner, últimos pagamentos com status. É o **único** contexto factual do LLM — nada factual fora dele.
+Cache Redis `tenant:{phone}`, TTL 30 min, invalidado em writes do admin que toquem tenant/payment/contrato. Conteúdo: nome, imóvel (T1 implementou via `include` direto na query de `Tenant`, não via `catalog.ts` — imóvel do inquilino já vem no mesmo round-trip; `catalog.ts` seria uma segunda consulta+cache redundante para um dado que já está embutido no snapshot), contrato (início/fim/`dueDay`), owner, últimos pagamentos com status. É o **único** contexto factual do LLM — nada factual fora dele.
 
 ### 3.2 Tools (`agents/tenant-tools.ts`, mesmo shape de `buildLeadTools`)
 
