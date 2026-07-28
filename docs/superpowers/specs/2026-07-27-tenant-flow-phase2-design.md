@@ -22,6 +22,7 @@ Hoje inquilino que manda mensagem recebe **silêncio** (`flows/tenant/index.ts` 
 | T-D4 | Comprovante PIX: **fallback OCR sem provedor** — bot extrai e notifica; owner confirma manualmente. Provedor (Asaas/Efí) fica no backlog |
 | T-D5 | Chamados aceitam **fotos anexadas** (`mediaUrls`); triagem visual por LLM entra na fase 2.1 como sugestão, nunca decisão |
 | T-D6 | Áudio: **transcrição via OpenAI** (`gpt-4o-mini-transcribe`, fallback `whisper-1`), transversal lead+tenant, fase 2.1, atrás de flag |
+| T-D7 | (brainstorm T1, 2026-07-27) Comportamento interino: **`escalar_owner` entra já na T1**. Pedido de trilha ainda não implementada (manutenção antes da T3, financeiro antes da T4) → bot informa que encaminhou + notifica owner. Nunca silêncio; T2–T4 substituem a escalação por atendimento real |
 
 ## 3. Arquitetura do bot
 

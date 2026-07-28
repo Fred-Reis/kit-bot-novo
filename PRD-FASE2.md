@@ -99,14 +99,14 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 
 ### T1 — Fundação
 
-- [ ] 1. Brainstorm da slice (deltas sobre o design aprovado; se nenhum, registrar)
-- [ ] 2. Spec da slice fechada (critérios de aceite)
+- [x] 1. Brainstorm da slice — delta T-D7 registrado na spec (§2): `escalar_owner` entra já na T1 pra cobrir trilhas ainda não implementadas (manutenção/financeiro), nunca silêncio
+- [x] 2. Spec da slice fechada — design §3 (arquitetura + snapshot + tools) + T-D7 cobrem os critérios de aceite; sem TBDs
 - [ ] 3. Plan (`docs/superpowers/plans/…-t1-fundacao-plan.md`)
 - [ ] 4. Build (TDD): snapshot + cache + invalidação
 - [ ] 4. Build (TDD): fix `botPaused` no branch tenant do `router.ts`
 - [ ] 4. Build (TDD): overrides determinísticos (saudação / áudio / emergência+notif)
 - [ ] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot
-- [ ] 4. Build: `Event` + `ActivityLog` em toda interação
+- [ ] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
 - [ ] 5. Simplify
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
