@@ -108,7 +108,9 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 - [x] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot (reusa `agents/agent-runner.ts`, extraído do lead v2)
 - [x] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
 - [x] 5. Simplify — agent-skills:code-simplify aplicado; código já enxuto (guard clauses, sem duplicação nova); único ajuste: normalizada ordem persist→send nos 4 branches determinísticos do orquestrador (estava send→persist, inconsistente com o branch feliz e com o precedente do lead flow)
-- [ ] 6. Review local → PR → CodeRabbit limpo
+- [~] 6. Review local → PR → CodeRabbit limpo — review local (5 eixos) feito: 0 Critical, 1 Important documentado abaixo, 1 gap de cobertura corrigido (snapshot ausente, regra 8). PR aberta, aguardando CodeRabbit + merge do Fred
+
+**Finding não-bloqueante do review local (T1):** `escalar_owner` sempre grava `reason: 'out_of_scope'` (`agents/tenant-tools.ts`), mesmo quando o prompt do agente instrui chamá-la também por pedido explícito de humano ou frustração — a notificação ao owner perde essa distinção (usa sempre o label genérico). Aceito como simplificação da T1 (uma única tool catch-all, conforme T-D7); revisitar em T2+ quando mais tools/tracks existirem — parametrizar a tool com um enum de motivo é a correção óbvia se isso incomodar na prática.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
