@@ -45,6 +45,20 @@ describe('detectEmergency', () => {
     expect(detectEmergency('Pegou fogo na tomada')).toBe(true);
   });
 
+  test('cheiro de queimado (sem "gás") → true', () => {
+    expect(detectEmergency('Sinto um cheiro de queimado no quarto, acho que é a fiação')).toBe(true);
+  });
+
+  test('vazamento de gás sem a palavra "cheiro" → true', () => {
+    expect(detectEmergency('Acho que está vazando gás no fogão')).toBe(true);
+  });
+
+  test('sinônimos de alagamento (enchente, inundação, alagou) → true', () => {
+    expect(detectEmergency('Deu uma enchente aqui na rua e a água entrou em casa')).toBe(true);
+    expect(detectEmergency('O banheiro alagou de novo')).toBe(true);
+    expect(detectEmergency('Teve uma inundação no térreo')).toBe(true);
+  });
+
   test('mensagem normal → false', () => {
     expect(detectEmergency('Quando vence o aluguel?')).toBe(false);
   });

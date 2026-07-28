@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
+import { invalidateTenantSnapshotCache } from '@/flows/tenant/context';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity as logActivityHelper } from '@/services/activity';
 
@@ -71,9 +72,11 @@ export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
     const owner = await prisma.owner.findFirst();
     if (!owner) return reply.status(400).send({ error: 'No owner found' });
 
+    let tenantPhone: string | null = null;
     if (type === 'income' && inquilinoId) {
       const tenant = await prisma.tenant.findUnique({ where: { id: inquilinoId } });
       if (!tenant) return reply.status(400).send({ error: 'Tenant not found' });
+      tenantPhone = tenant.phone;
     }
     if (type === 'expense' && propertyId) {
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
@@ -103,6 +106,10 @@ export async function paymentsRoutes(fastify: FastifyInstance): Promise<void> {
       subjectId: payment.id,
       subjectType: 'payment',
     }).catch(fastify.log.warn.bind(fastify.log));
+
+    if (tenantPhone) {
+      invalidateTenantSnapshotCache(tenantPhone).catch(fastify.log.warn.bind(fastify.log));
+    }
 
     return reply.status(201).send({ ...payment, amount: Number(payment.amount) });
   });
