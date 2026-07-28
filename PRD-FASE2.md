@@ -101,13 +101,13 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 
 - [x] 1. Brainstorm da slice — delta T-D7 registrado na spec (§2): `escalar_owner` entra já na T1 pra cobrir trilhas ainda não implementadas (manutenção/financeiro), nunca silêncio
 - [x] 2. Spec da slice fechada — design §3 (arquitetura + snapshot + tools) + T-D7 cobrem os critérios de aceite; sem TBDs
-- [ ] 3. Plan (`docs/superpowers/plans/…-t1-fundacao-plan.md`)
-- [ ] 4. Build (TDD): snapshot + cache + invalidação
-- [ ] 4. Build (TDD): fix `botPaused` no branch tenant do `router.ts`
-- [ ] 4. Build (TDD): overrides determinísticos (saudação / áudio / emergência+notif)
-- [ ] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot
-- [ ] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
-- [ ] 5. Simplify
+- [x] 3. Plan (`docs/superpowers/plans/2026-07-27-t1-fundacao-plan.md`) — 10 tasks TDD, self-review aplicado
+- [x] 4. Build (TDD): snapshot + cache + invalidação (`flows/tenant/context.ts`)
+- [x] 4. Build (TDD): fix `botPaused` no branch tenant do `router.ts` (bug real confirmado por teste antes do fix)
+- [x] 4. Build (TDD): overrides determinísticos (saudação / áudio / emergência+notif) (`flows/tenant/intents.ts`)
+- [x] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot (reusa `agents/agent-runner.ts`, extraído do lead v2)
+- [x] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
+- [x] 5. Simplify — agent-skills:code-simplify aplicado; código já enxuto (guard clauses, sem duplicação nova); único ajuste: normalizada ordem persist→send nos 4 branches determinísticos do orquestrador (estava send→persist, inconsistente com o branch feliz e com o precedente do lead flow)
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
 
@@ -203,8 +203,8 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-27 |
-| Etapa atual | P0 — PR de docs (spec + PRD-FASE2 + correções ROADMAP/PRD) |
-| Próxima etapa | T1 etapa 1 (brainstorm da slice) após merge da PR de docs |
+| Etapa atual | T1 etapa 5 (simplify) — build completo, `bun run test` (179 pass) e `bun test src/flows` (37 pass) verdes, typecheck bot+web limpo, branch `feat/tenant-t1-fundacao` |
+| Próxima etapa | T1 etapa 5 (code-simplification) → etapa 6 (review local → PR → CodeRabbit) → merge do Fred → T2 etapa 1 |
 | Bloqueios | — |
 
 ---

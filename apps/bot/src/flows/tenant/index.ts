@@ -67,8 +67,8 @@ export async function handleTenantMessage(
   try {
     // 1. Emergency — hardcoded, zero LLM, highest priority
     if (detectEmergency(messageText)) {
-      await sendText(chatId, EMERGENCY_REPLY);
       await persistTurn(chatId, ownerId, messageText, EMERGENCY_REPLY);
+      await sendText(chatId, EMERGENCY_REPLY);
 
       const snapshot = await buildTenantSnapshot(chatId);
       const propertyName = snapshot?.property.name ?? 'imóvel não identificado';
@@ -96,8 +96,8 @@ export async function handleTenantMessage(
     if (mediaItems.length === 0) {
       const greeting = getTenantGreetingReply(messageText, tenantName);
       if (greeting) {
-        await sendText(chatId, greeting);
         await persistTurn(chatId, ownerId, messageText, greeting);
+        await sendText(chatId, greeting);
         return;
       }
     }
@@ -105,8 +105,8 @@ export async function handleTenantMessage(
     // 3. Audio — hardcoded fallback until T7 (transcription)
     const audioReceived = mediaItems.some(isAudioMedia);
     if (audioReceived && !messageText) {
-      await sendText(chatId, AUDIO_FALLBACK_REPLY);
       await persistTurn(chatId, ownerId, null, AUDIO_FALLBACK_REPLY);
+      await sendText(chatId, AUDIO_FALLBACK_REPLY);
       return;
     }
 
@@ -127,8 +127,8 @@ export async function handleTenantMessage(
         reason: 'Snapshot do inquilino não encontrado — inconsistência de dados',
       }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner snapshot ausente falhou'));
       const neutralReply = 'Estou com uma instabilidade agora. Já avisei a equipe — tente de novo em instantes.';
-      await sendText(chatId, neutralReply);
       await persistTurn(chatId, ownerId, messageText || null, neutralReply);
+      await sendText(chatId, neutralReply);
       return;
     }
     const tenantContext = renderTenantContext(snapshot);
