@@ -122,6 +122,15 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 - **Aceito como simplificação da T1 (ambas reviews concordam):** `escalar_owner` sempre grava `reason: 'out_of_scope'` mesmo quando o prompt do agente instrui chamá-la por pedido de humano ou frustração — perde a distinção na notificação ao owner. Revisitar em T2+ quando mais tools/tracks existirem.
 
 Verificação final pós-fixes: `bun run check` (typecheck + lint + test, varredura completa) limpo — 221 pass, 0 fail, 0 erros de lint.
+
+**Rodada CodeRabbit na PR #38 (2026-07-28) — triada com julgamento, não aceita cegamente:**
+- **Corrigido (achado real que as 2 reviews anteriores não pegaram):** `buildTenantSnapshot` não tratava o cache como best-effort — falha do Redis ou JSON corrompido lançava exceção síncrona, que escapava do orquestrador direto pro catch externo, produzindo silêncio total (pior que o caso "snapshot ausente" já tratado). Regra 8 do design cita "corrompido" explicitamente. Corrigido: `redis.get`+`JSON.parse` e `redis.set` isolados em try/catch próprios.
+- **Corrigido (achado mais grave que qualquer coisa pega pelas 2 reviews anteriores):** no branch de emergência (`flows/tenant/index.ts`), `notifyOwner` rodava DEPOIS de `persistTurn`/`sendText`/`buildTenantSnapshot` — uma falha de banco ou Evolution durante uma emergência real (incêndio/gás/alagamento) impedia o aviso ao proprietário, o efeito colateral mais importante desse caminho. Corrigido com `Promise.allSettled`, mesmo padrão já usado em `escalateTenantToOwner`.
+- **Corrigido (nitpick aceito — barato e resolve a simplificação documentada acima):** `escalateTenantToOwner` ganhou parâmetro opcional `detail`; a tool `escalar_owner` agora repassa o `motivo` do LLM pro label enviado ao owner e pro `ActivityLog.metadata`, sem expandir o enum `TenantEscalationReason`.
+- **Corrigido:** `POST /admin/payments` agora usa `await` na invalidação do cache (antes fire-and-forget) — fecha uma corrida onde uma mensagem do inquilino logo após a confirmação do pagamento ainda podia ler o snapshot pré-pagamento.
+- **Recusado com justificativa (não é "aceitar tudo que o CodeRabbit sugere"):** CodeRabbit também marcou o teste de falha do `sendText` em `escalation.test.ts` como não-resiliente de verdade, querendo entrega garantida ao inquilino via retry/outbox quando a Evolution API cai. É um gap real em termos absolutos, mas nenhum outro ponto de envio deste bot tem infra de retry/outbota — o padrão do lead flow inteiro é fire-and-best-effort. Construir isso só pra este call site é desproporcional pra uma slice de fundação. O que as 2 reviews independentes realmente pediram (owner nunca fica sem saber que o inquilino travou) já está fechado; entrega garantida é investimento maior, a se fazer deliberadamente quando/se T2+ precisar, não um patch da T1.
+
+Verificação final pós-CodeRabbit: `bun run check` limpo — 226 pass, 0 fail, 0 erros de lint.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
