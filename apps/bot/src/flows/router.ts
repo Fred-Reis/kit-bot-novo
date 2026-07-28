@@ -42,13 +42,15 @@ export async function routeMessage(
     prisma.conversation.findUnique({ where: { chatId }, select: { botPaused: true } }),
   ]);
 
-  if (tenant) {
-    await handleTenantMessage(chatId, text);
+  // Per-chat pause applies to BOTH tenant and lead conversations — checked
+  // once, before branching, so neither path can bypass it.
+  if (conversation?.botPaused) {
+    logger.info({ chatId }, '[router] Bot paused — message suppressed');
     return;
   }
 
-  if (conversation?.botPaused) {
-    logger.info({ chatId }, '[router] Bot paused — message suppressed');
+  if (tenant) {
+    await handleTenantMessage(chatId, text, mediaItems, tenant.ownerId, tenant.id, tenant.name);
     return;
   }
 

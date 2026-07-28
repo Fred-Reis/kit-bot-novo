@@ -57,7 +57,9 @@ export type ActivityLogAction =
   | 'coordinator_deleted'
   | 'coordinator_linked'
   | 'coordinator_unlinked'
-  | 'coordinator_bulk_linked';
+  | 'coordinator_bulk_linked'
+  | 'tenant_escalated'
+  | 'tenant_emergency';
 
 export interface LogActivityParams {
   ownerId: string;

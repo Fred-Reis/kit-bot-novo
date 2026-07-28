@@ -13,6 +13,8 @@ type NotifyPayloadMap = {
   payment_overdue: { tenantName: string; propertyName: string; daysOverdue: number };
   human_needed: { leadName: string; leadPhone: string; reason: string };
   media_receive_failure: { leadName: string; leadPhone: string; failureCount: number };
+  tenant_escalation: { tenantName: string; tenantPhone: string; reason: string };
+  tenant_emergency: { tenantName: string; tenantPhone: string; propertyName: string };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -80,6 +82,14 @@ function buildChannelContent(
         email: null,
       };
     }
+    case 'tenant_escalation': {
+      const p = payload as NotifyPayloadMap['tenant_escalation'];
+      return { whatsapp: buildTenantEscalationMessage(p), email: null };
+    }
+    case 'tenant_emergency': {
+      const p = payload as NotifyPayloadMap['tenant_emergency'];
+      return { whatsapp: buildTenantEmergencyMessage(p), email: null };
+    }
   }
 }
 
@@ -140,6 +150,32 @@ export async function notifyOwner<T extends NotifyOwnerEventType>(
   } catch (err) {
     logger.error({ err }, 'notifyOwner failed (non-blocking)');
   }
+}
+
+export function buildTenantEscalationMessage(payload: {
+  tenantName: string;
+  tenantPhone: string;
+  reason: string;
+}): string {
+  return (
+    `⚠️ Inquilino precisa de atenção\n` +
+    `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Motivo: ${payload.reason}\n` +
+    `O bot foi pausado para este contato.`
+  );
+}
+
+export function buildTenantEmergencyMessage(payload: {
+  tenantName: string;
+  tenantPhone: string;
+  propertyName: string;
+}): string {
+  return (
+    `🚨 EMERGÊNCIA reportada por inquilino\n` +
+    `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Imóvel: ${payload.propertyName}\n` +
+    `Ligue para o inquilino agora, se possível.`
+  );
 }
 
 export function buildVisitScheduledMessage(payload: {

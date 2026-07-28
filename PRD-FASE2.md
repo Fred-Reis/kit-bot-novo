@@ -99,16 +99,52 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 
 ### T1 — Fundação
 
-- [ ] 1. Brainstorm da slice (deltas sobre o design aprovado; se nenhum, registrar)
-- [ ] 2. Spec da slice fechada (critérios de aceite)
-- [ ] 3. Plan (`docs/superpowers/plans/…-t1-fundacao-plan.md`)
-- [ ] 4. Build (TDD): snapshot + cache + invalidação
-- [ ] 4. Build (TDD): fix `botPaused` no branch tenant do `router.ts`
-- [ ] 4. Build (TDD): overrides determinísticos (saudação / áudio / emergência+notif)
-- [ ] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot
-- [ ] 4. Build: `Event` + `ActivityLog` em toda interação
-- [ ] 5. Simplify
-- [ ] 6. Review local → PR → CodeRabbit limpo
+- [x] 1. Brainstorm da slice — delta T-D7 registrado na spec (§2): `escalar_owner` entra já na T1 pra cobrir trilhas ainda não implementadas (manutenção/financeiro), nunca silêncio
+- [x] 2. Spec da slice fechada — design §3 (arquitetura + snapshot + tools) + T-D7 cobrem os critérios de aceite; sem TBDs
+- [x] 3. Plan (`docs/superpowers/plans/2026-07-27-t1-fundacao-plan.md`) — 10 tasks TDD, self-review aplicado
+- [x] 4. Build (TDD): snapshot + cache + invalidação (`flows/tenant/context.ts`)
+- [x] 4. Build (TDD): fix `botPaused` no branch tenant do `router.ts` (bug real confirmado por teste antes do fix)
+- [x] 4. Build (TDD): overrides determinísticos (saudação / áudio / emergência+notif) (`flows/tenant/intents.ts`)
+- [x] 4. Build (TDD): agente único `agents/tenant-v2.ts` + prompt + dúvidas informativas via snapshot (reusa `agents/agent-runner.ts`, extraído do lead v2)
+- [x] 4. Build: `Event` em toda interação; `ActivityLog` nos eventos relevantes (escalação, emergência) — mesmo padrão do lead flow
+- [x] 5. Simplify — agent-skills:code-simplify aplicado; código já enxuto (guard clauses, sem duplicação nova); único ajuste: normalizada ordem persist→send nos 4 branches determinísticos do orquestrador (estava send→persist, inconsistente com o branch feliz e com o precedente do lead flow)
+- [x] 6. Review local → PR → CodeRabbit limpo → merge do Fred — review local (5 eixos) + **2 reviews independentes rigorosas** (superpowers general-purpose seguindo `code-reviewer.md` + `agent-skills:code-reviewer`), ambas re-executando a suite em vez de confiar nos commits. Achados convergentes corrigidos (ver abaixo). PR aberta, aguardando CodeRabbit + merge do Fred
+
+**Achados das reviews rigorosas (2026-07-27) — todos corrigidos:**
+- **Critical (as duas reviews, independentemente):** `escalateTenantToOwner` commitava `botPaused=true` e então aguardava `sendText`/`logActivity` sem isolamento — uma falha (ex: Evolution API fora do ar) deixava o inquilino preso em silêncio pra sempre, sem o owner ser avisado. Corrigido: `Promise.allSettled` + `.catch()` independente por efeito colateral, espelhando `lead/escalation.ts`. Teste adicionado forçando falha do `sendText` e provando que `notifyOwner`/`logActivity`/`Event` ainda rodam.
+- **Important:** a resposta que `escalateTenantToOwner` manda ao inquilino nunca era persistida em `Event` (o `persistTurn` do orquestrador sempre passava `null`) — quebra a regra 6 do design. Corrigido: `escalateTenantToOwner` agora persiste seu próprio `Event`, cobrindo inclusive o caminho via tool `escalar_owner` (que cruza a fronteira do LLM e o orquestrador não enxerga).
+- **Important (achado real, minha auto-avaliação anterior estava errada):** `router-bot-paused.test.ts` mockava `@/flows/tenant/index`/`@/agents/tenant-v2` por completo — colidia com `index.test.ts`/`tenant-v2-runner.test.ts`, que importam esses módulos de verdade. Um `bun test` puro (sem escopo) falhava 5-8 testes. Eu tinha documentado isso como "gap aceito dado o escopo do script real" — as duas reviews corretamente rejeitaram essa racionalização (`bun test` puro é o comando mais natural de rodar). Reescrito pra exercitar o `handleTenantMessage` real via mocks de dependência-folha só.
+- **Important:** `bun run lint` estava quebrado (2 erros oxlint novos, nunca rodado durante a build original) — import não usado + variável de teste não usada. Corrigido.
+- **Important:** `invalidateTenantSnapshotCache` nunca era chamado em produção, apesar do design (§3.1) já prever isso — `POST /admin/payments` (único write path real que toca tenant) agora invalida o cache em pagamentos de receita.
+- **Important/Suggestion (as duas reviews, exemplos convergentes):** `detectEmergency` tinha falsos negativos reais em PT-BR ("cheiro de queimado", "vazamento de gás" sem a palavra "cheiro", sinônimos de alagamento) — mensagens de emergência caindo no caminho do LLM em vez do hardcoded (viola regra 5). Lista de termos ampliada + testes de regressão. Falso-positivo ("fogos de artifício") aceito como trade-off documentado (favorece pegar emergência real sobre evitar alarme falso ocasional).
+- **Minor:** gap pré-existente no script de teste (`bun test src/__tests__` nunca varria `flows/*/__tests__`, sem CI) — ambas reviews marcaram como risco que se acumula a cada slice nova. Corrigido: `"test": "bun test src"` — `bun run check` agora é um gate completo de verdade.
+- **Minor:** wording do design §3.1 ("via `catalog.ts`") desatualizado — T1 usa `include` direto na query do `Tenant` (mais eficiente, evita segunda consulta+cache redundante). Nota adicionada no design doc.
+- **Aceito como simplificação da T1 (ambas reviews concordam):** `escalar_owner` sempre grava `reason: 'out_of_scope'` mesmo quando o prompt do agente instrui chamá-la por pedido de humano ou frustração — perde a distinção na notificação ao owner. Revisitar em T2+ quando mais tools/tracks existirem.
+
+Verificação final pós-fixes: `bun run check` (typecheck + lint + test, varredura completa) limpo — 221 pass, 0 fail, 0 erros de lint.
+
+**Rodada CodeRabbit na PR #38 (2026-07-28) — triada com julgamento, não aceita cegamente:**
+- **Corrigido (achado real que as 2 reviews anteriores não pegaram):** `buildTenantSnapshot` não tratava o cache como best-effort — falha do Redis ou JSON corrompido lançava exceção síncrona, que escapava do orquestrador direto pro catch externo, produzindo silêncio total (pior que o caso "snapshot ausente" já tratado). Regra 8 do design cita "corrompido" explicitamente. Corrigido: `redis.get`+`JSON.parse` e `redis.set` isolados em try/catch próprios.
+- **Corrigido (achado mais grave que qualquer coisa pega pelas 2 reviews anteriores):** no branch de emergência (`flows/tenant/index.ts`), `notifyOwner` rodava DEPOIS de `persistTurn`/`sendText`/`buildTenantSnapshot` — uma falha de banco ou Evolution durante uma emergência real (incêndio/gás/alagamento) impedia o aviso ao proprietário, o efeito colateral mais importante desse caminho. Corrigido com `Promise.allSettled`, mesmo padrão já usado em `escalateTenantToOwner`.
+- **Corrigido (nitpick aceito — barato e resolve a simplificação documentada acima):** `escalateTenantToOwner` ganhou parâmetro opcional `detail`; a tool `escalar_owner` agora repassa o `motivo` do LLM pro label enviado ao owner e pro `ActivityLog.metadata`, sem expandir o enum `TenantEscalationReason`.
+- **Corrigido:** `POST /admin/payments` agora usa `await` na invalidação do cache (antes fire-and-forget) — fecha uma corrida onde uma mensagem do inquilino logo após a confirmação do pagamento ainda podia ler o snapshot pré-pagamento.
+- **Recusado com justificativa (não é "aceitar tudo que o CodeRabbit sugere"):** CodeRabbit também marcou o teste de falha do `sendText` em `escalation.test.ts` como não-resiliente de verdade, querendo entrega garantida ao inquilino via retry/outbox quando a Evolution API cai. É um gap real em termos absolutos, mas nenhum outro ponto de envio deste bot tem infra de retry/outbota — o padrão do lead flow inteiro é fire-and-best-effort. Construir isso só pra este call site é desproporcional pra uma slice de fundação. O que as 2 reviews independentes realmente pediram (owner nunca fica sem saber que o inquilino travou) já está fechado; entrega garantida é investimento maior, a se fazer deliberadamente quando/se T2+ precisar, não um patch da T1.
+
+Verificação final pós-CodeRabbit (1ª rodada): `bun run check` limpo — 226 pass, 0 fail, 0 erros de lint.
+
+**2ª rodada CodeRabbit (2026-07-28) — pegou algo que a 1ª rodada + as 2 reviews independentes não pegaram:**
+- **Corrigido:** mesmo depois da resiliência a falhas, `buildTenantSnapshot(chatId)` no branch de emergência ainda era `await`ado sequencialmente ANTES do `Promise.allSettled` — uma conexão Redis/Prisma travada (nenhum dos dois clientes tem `connectTimeout`/`commandTimeout` explícito) atrasaria `notifyOwner` indefinidamente, não só em caso de falha, mas de lentidão. Corrigido: lookup do nome do imóvel corre contra um teto de 2s (`EMERGENCY_SNAPSHOT_TIMEOUT_MS`) e só é encadeado na entrada do `notifyOwner`, nunca aguardado antes do batch — `sendText`/`persistTurn`/`logActivity` disparam no mesmo tick independente de quão lento o snapshot esteja. Teste prova: `findUnique` que nunca resolve ainda deixa a chamada inteira completar em ~2s.
+- **Recusado com justificativa:** CodeRabbit também pediu `connectTimeout`/`commandTimeout` explícitos nos clientes globais de Redis/Prisma. Mudança de config que afeta TODOS os outros caminhos do bot (lead flow, upload de mídia, cache de propriedade etc.) — desproporcional e mais arriscado que o escopo desta slice; merece ser feito deliberadamente, com seu próprio teste, não como efeito colateral de um PR de tenant flow. O cap via `Promise.race` já resolve o objetivo real deste branch sem tocar config global.
+
+Verificação final pós-2ª rodada: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
+
+**3ª rodada CodeRabbit (2026-07-28):** confirmou o fix da 2ª rodada (✅ Addressed). Achado novo, Minor: o teste que prova o teto de 2s (hang de `findUnique`) não tinha timeout próprio — uma regressão futura reintroduzindo o bloqueio faria o teste travar até o timeout genérico de 5s do bun disparar, em vez de falhar rápido com mensagem clara. Corrigido: `Promise.race` local com timeout de 2900ms e mensagem própria.
+
+Verificação final pós-3ª rodada: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
+
+**Review manual do Fred (2026-07-28):** `Promise.race` no branch de emergência não cancelava a entrada perdedora — quando `buildTenantSnapshot` resolvia rápido (o caso comum, Redis/DB saudáveis), o `setTimeout` de fallback ficava armado até disparar sozinho de qualquer forma. Em volume, um timer vazado por emergência resolvida rápido. Corrigido: id do timer capturado e limpo em `.finally()` sobre a race, mesmo padrão guard-timer já usado no teste que prova o teto.
+
+Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
@@ -203,8 +239,8 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-27 |
-| Etapa atual | P0 — PR de docs (spec + PRD-FASE2 + correções ROADMAP/PRD) |
-| Próxima etapa | T1 etapa 1 (brainstorm da slice) após merge da PR de docs |
+| Etapa atual | T1 etapa 6 concluída (2 reviews independentes + todos os achados corrigidos, ver seção T1 acima) — `bun run check` limpo (221 pass, 0 fail, 0 lint errors), branch `feat/tenant-t1-fundacao` pronta pra PR |
+| Próxima etapa | Abrir PR → CodeRabbit → merge do Fred → T2 etapa 1 (Reclamações) |
 | Bloqueios | — |
 
 ---
