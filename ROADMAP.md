@@ -204,7 +204,7 @@
 - [x] Web: modal novo contrato em 2 steps — step 2 resolve variáveis não mapeadas
 - [x] Activity log: `contract_created`, `contract_signed`
 - [x] Notif: bot avisa owner em `contract_signed`
-- [ ] Commit
+- [x] Commit
 
 ### Slice 10 — Funil completo lead → inquilino (V1 closure) ✅ DONE
 
@@ -220,7 +220,7 @@
 #### Config & notificações
 - [x] `config.ts`: `RESEND_API_KEY` opcional via Zod
 - [x] `notify.ts`: Resend instanciado condicionalmente; envia email quando `RESEND_API_KEY` presente + `owner.notificationEmail` preenchido
-- [ ] CPF incluído no payload `kyc_pending` — não confirmado
+- [x] CPF incluído no payload `kyc_pending` — confirmado em `notify.ts` (auditoria 2026-07-27)
 
 #### Bot — FSM data_confirmation
 - [x] `context.ts`: `dataConfirmed?: boolean` em `LeadContext`; estado `lead.data_confirmation` em `STATE_GUIDANCE` e `deriveState()`
@@ -345,7 +345,7 @@
 ### Calendário de visitas
 
 - [x] **V1 — Agenda interna + histórico:** filter chips de status; status derivado client-side; modal de edição/reagendamento com select de status ao clicar no card. Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
-- [ ] **V2 — Responsável por visita por imóvel:** entidade reutilizável `Coordinator` (nome + telefone WhatsApp) vinculada a N imóveis via `PropertyCoordinator` (responsabilidades por vínculo: mostrar imóvel, entregar chave, receber chave, vistoria), com "aplicar a todos os imóveis" em lote; página própria no painel; bot usa o responsável pra responder "quem eu procuro" na visita; notificação imediata via WhatsApp ao agendar visita. Spec: `docs/superpowers/specs/2026-07-26-property-coordinator-design.md`.
+- [x] **V2 — Responsável por visita por imóvel** (PR #36, 2026-07-26): entidade reutilizável `Coordinator` (nome + telefone WhatsApp) vinculada a N imóveis via `PropertyCoordinator` (responsabilidades por vínculo: mostrar imóvel, entregar chave, receber chave, vistoria), com "aplicar a todos os imóveis" em lote; página própria no painel; bot usa o responsável pra responder "quem eu procuro" na visita; notificação imediata via WhatsApp ao agendar visita. Spec: `docs/superpowers/specs/2026-07-26-property-coordinator-design.md`.
 - [ ] **V3 — Lembretes automáticos de visita (cron):** cron job que roda a cada hora no bot; proprietário configura em Configurações quais offsets de antecedência quer (ex: 60 min, 24h, 48h — múltiplos, livre escolha); para cada visita futura, envia WhatsApp ao responsável (`PropertyCoordinator` do imóvel, ou `Owner.notificationPhone` se não houver) e ao lead (`Lead.phone`) em cada offset configurado; deduplicação via tabela `VisitReminderLog` (leadId + offsetMinutes + scheduledVisitAt) para não reenviar na próxima hora; se `Owner.botEnabled = false`, lembrete ao lead é suprimido mas lembrete ao responsável é enviado mesmo assim (é operacional).
 - [ ] **V4 — Disponibilidade configurável:** proprietário define blocos de horário disponíveis para visita no painel; bot consulta esses blocos e só oferece datas/horários dentro da disponibilidade cadastrada (em vez de deixar o lead sugerir qualquer horário).
 - [ ] **V5 — Google Calendar sync:** sincronização bidirecional com Google Calendar (OAuth); visitas agendadas aparecem na agenda do proprietário; confirmações/cancelamentos refletem no painel.
@@ -368,9 +368,8 @@
 ### Bot — features pendentes
 
 - [x] **Bot global disable toggle:** toggle em Config > Integrações que desliga o bot para todas as conversas simultaneamente; `Owner.botEnabled` flag no banco; webhook verifica flag com cache Redis 60s; Evolution permanece conectado (sem QR code). Spec: `docs/superpowers/specs/2026-06-21-bot-toggle-visit-history-pwa-design.md`.
-- [~] **Funil completo lead → inquilino** — ver Slice 10 (em progresso): data_confirmation, email via Resend, auto-contrato + PDF, auto-tenant
-- [ ] **Tenant flow Phase 2** — `handleTenantMessage` real: manutenção → classifica responsabilidade owner vs tenant → recomenda prestador ou vídeo
-- [ ] **Model `ServiceProvider`** (eletricista, encanador, pedreiro) — schema + CRUD no painel + leitura pelo bot para recomendação
+- [x] **Funil completo lead → inquilino** — Slice 10 concluída: data_confirmation, email via Resend, auto-contrato + PDF, auto-tenant
+- [ ] **Tenant flow Phase 2** — planejamento completo em [`PRD-FASE2.md`](./PRD-FASE2.md) (slices T1–T7); design aprovado em `docs/superpowers/specs/2026-07-27-tenant-flow-phase2-design.md`. Inclui `ServiceProvider`, `MaintenanceRequest`, `Complaint`, comprovante PIX (fallback OCR), triagem visual e transcrição de áudio
 - [ ] **Boleto mensal automático** — integração com provedor (Asaas, Efí, etc.); cron mensal; inquilino notificado via WhatsApp
 - [ ] **Confirmação de pagamento via comprovante PIX (OCR)** — inquilino (Tenant, Phase 2) manda print/foto do comprovante de PIX pelo WhatsApp; bot dispara OCR (Google Cloud Vision, já integrado) e extrai chave/e2eId, valor e data. **Pesquisado:** o Bacen não expõe API pública pra terceiros validarem uma transação PIX por chave/e2eId livremente (só instituições autorizadas via SPI/DICT) — validação real exige integração contratual com um provedor (Asaas, Efí, Sicoob etc.) que ofereça webhook/API de PIX recebido na conta cadastrada; ver item **Boleto mensal automático** acima, mesma integração serve pras duas coisas. Dois caminhos:
   - **Com provedor integrado:** confirma valor batendo com `Payment.amount` do mês do inquilino e webhook do provedor confirmando o recebimento → atualiza `Payment.status = 'paid'` automaticamente, notifica owner via WhatsApp ("Fulano pagou o aluguel deste mês").
@@ -467,7 +466,7 @@
 > Backlog de melhorias do bot não-críticas pro MVP.
 
 - [ ] OCR retry com foto melhor (2ª falha notifica owner)
-- [ ] Transcrição de áudio via Whisper
+- [ ] Transcrição de áudio — movido pra Fase 2 tenant (slice T7 em [`PRD-FASE2.md`](./PRD-FASE2.md))
 - [ ] Múltiplos imóveis em foco (lead negocia 2+)
 - [ ] Reativação de lead frio (cron)
 - [ ] Análise de sentimento → flag lead difícil
@@ -501,10 +500,11 @@
 
 ### Próximas prioridades
 
-1. **Perfil do proprietário para contratos** — adicionar `ownerName`, `ownerCpf`, `ownerAddress`, `ownerCnpj` no model `Owner`; CRUD em Config > Workspace; `contract-variables` inclui dados do Owner no auto-map para resolver `{{nome_locador}}`, `{{cpf_locador}}` etc.
+> Atualizado 2026-07-27. Perfil do proprietário (PR #28) e Calendário V2 (PR #36) concluídos.
+
+1. **Fase 2 — Tenant flow** — documento-mestre [`PRD-FASE2.md`](./PRD-FASE2.md); slices T1–T7 com pipeline superpowers obrigatório
 2. **RLS** — ativar policies antes de operar com dados reais de terceiros
 3. **Variáveis globais de template** — definir no workspace, resolver junto às variáveis locais
-4. **Calendário V2** — model `PropertyCoordinator` vinculado a `Property`
 
 ---
 

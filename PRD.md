@@ -112,7 +112,7 @@ Dois módulos integrados compartilhando o mesmo banco:
 
 ### Fora do MVP (V1)
 - **Autentique / assinatura digital**: contrato assinado em papel na V1; webhook automático na V2
-- **Notificação in-app** (badge sidebar): WhatsApp + email na V1; in-app na V2
+- ~~**Notificação in-app** (badge sidebar)~~ — implementada em 2026-07-26 (sino no header + Supabase Realtime)
 - **Multi-tenancy / RBAC**: schema preparado mas não implementado
 - **Repasses a proprietários terceiros**: aba do Financeiro fica como placeholder
 - **Conciliação bancária** (Pluggy/Belvo)
@@ -121,7 +121,7 @@ Dois módulos integrados compartilhando o mesmo banco:
 - **Importar .docx em templates**
 - **Validação automática de CPF** (Receita/Serpro)
 - **Filtros avançados / bulk actions** em listas
-- **Fluxo de tenant** (manutenção, ServiceProvider, boleto mensal): V2
+- **Fluxo de tenant** (manutenção, ServiceProvider, comprovante PIX): V2 — planejamento em [`PRD-FASE2.md`](./PRD-FASE2.md)
 
 ### Critério "pronto para uso real"
 1. Proprietário consegue operar **seus próprios 5–15 imóveis** de ponta a ponta via sistema
