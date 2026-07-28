@@ -402,7 +402,7 @@ export async function handleLeadMessage(
 
     if (propertyReference) {
       const resolved = await getPropertyByExternalId(propertyReference);
-      if (resolved) {
+      if (resolved && resolved.active && resolved.status === 'available') {
         context.propertyReference = resolved.externalId;
         context.propertyTitle = resolved.name;
         context.propertyReferenceLocked = true;

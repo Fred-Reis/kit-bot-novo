@@ -25,9 +25,11 @@ mock.module('@/db/client', () => ({
 
 mock.module('@/services/evolution', () => ({ sendText: async () => {}, sendMedia: async () => {} }));
 mock.module('@/services/notify', () => ({ notifyOwner: async () => {} }));
+let im01Status = 'available';
+
 mock.module('@/services/catalog', () => ({
   getPropertyByExternalId: async (id: string) =>
-    id === 'IM01' ? { externalId: 'IM01', name: 'Kitnet Retiro', active: true } : null,
+    id === 'IM01' ? { externalId: 'IM01', name: 'Kitnet Retiro', active: true, status: im01Status } : null,
   describeProperty: () => 'Kitnet no Retiro, R$ 800',
   describePropertyTerms: () => 'Caução 2x, sem pets',
 }));
@@ -90,10 +92,21 @@ describe('agendar_visita', () => {
 });
 
 describe('info_imovel', () => {
+  beforeEach(() => {
+    im01Status = 'available';
+  });
+
   it('retorna fatos do imóvel em foco', async () => {
     const out = (await getTool('info_imovel').invoke({ externalId: null })) as string;
     expect(out).toContain('Kitnet no Retiro');
     expect(out).toContain('Caução 2x');
+  });
+
+  it('imóvel alugado (status != available) → recusa, nunca descreve como se estivesse disponível', async () => {
+    im01Status = 'rented';
+    const out = (await getTool('info_imovel').invoke({ externalId: null })) as string;
+    expect(out).toContain('Erro');
+    expect(out).not.toContain('Kitnet no Retiro');
   });
 });
 
