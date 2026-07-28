@@ -14,6 +14,7 @@
 - No Python, anywhere.
 - Money/decimal values read from Prisma must be converted with `Number(...)` before JSON-serializing (Prisma `Decimal` is not JSON-safe) — see Task 6.
 - Every new Prisma-touching module must be unit-testable via `mock.module('@/db/client', ...)` and `mock.module('@/db/redis', ...)`, matching `apps/bot/src/__tests__/agent-tools.test.ts` and `apps/bot/src/__tests__/buffer-media-race.test.ts`.
+- Bun's `mock.module()` is process-global for the whole `bun test` run — it is NOT scoped to the file that calls it. If test file A mocks module X wholesale and test file B imports the real module X to test it, whichever registration Bun resolves first for that specifier wins for every importer in the run, silently breaking the other file. **Never mock a sibling application module (`@/flows/...`, `@/agents/...`) wholesale in a test file if another test file in the suite imports that same module for real** — mock only the leaf dependencies (`@/db/client`, `@/db/redis`, `@/services/*`) instead, and let the real sibling module run. This bit T1 twice (Tasks 7 and 9) before the pattern below was adopted.
 - `ActivityLogAction` in `packages/types/src/activity-log.ts` is a closed string union — new actions must be added there, not passed as raw strings.
 - Design source of truth: `docs/superpowers/specs/2026-07-27-tenant-flow-phase2-design.md` §3 (arquitetura), §6 T1, §7 (regras invioláveis), decision T-D7.
 - Tracking source of truth: `PRD-FASE2.md` §T1 — mark each completed step's checkbox there in the same commit.
@@ -929,23 +930,45 @@ git commit -m "feat(tenant): snapshot builder with 30min Redis cache (tenant:{ph
   ```
   T1 exposes exactly one tool: `escalar_owner`. T2–T5 add `registrar_reclamacao`, `abrir_chamado`, `indicar_profissional`, `status_pagamentos` to this same file/function later.
 
+**A note on the test's mocking strategy:** do NOT mock `@/flows/tenant/escalation` wholesale here. Bun's `mock.module` is process-global for the whole `bun test` run, not scoped to one file — a wholesale mock of a sibling module collides with `escalation.test.ts` (Task 5), which imports that same module for real, and one of the two files' tests will silently start exercising the other's fake. Mock only the leaves `escalateTenantToOwner` itself touches (`@/db/client`, `@/services/evolution`, `@/services/notify`, `@/services/activity`) and let the real `escalateTenantToOwner` run.
+
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
 // apps/bot/src/__tests__/tenant-tools.test.ts
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const escalations: Array<{ chatId: string; ownerId: string; tenantId: string; tenantName: string | null; reason: string }> = [];
+const conversationUpserts: Array<Record<string, unknown>> = [];
+const sentTexts: Array<{ chatId: string; text: string }> = [];
+const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
+const activityLogs: Array<Record<string, unknown>> = [];
 
-mock.module('@/flows/tenant/escalation', () => ({
-  escalateTenantToOwner: async (
-    chatId: string,
-    ownerId: string,
-    tenantId: string,
-    tenantName: string | null,
-    reason: string,
-  ) => {
-    escalations.push({ chatId, ownerId, tenantId, tenantName, reason });
+mock.module('@/db/client', () => ({
+  prisma: {
+    conversation: {
+      upsert: async (args: { update: Record<string, unknown> }) => {
+        conversationUpserts.push(args.update);
+        return {};
+      },
+    },
+  },
+}));
+
+mock.module('@/services/evolution', () => ({
+  sendText: async (chatId: string, text: string) => {
+    sentTexts.push({ chatId, text });
+  },
+}));
+
+mock.module('@/services/notify', () => ({
+  notifyOwner: async (ownerId: string, eventType: string) => {
+    notifyCalls.push({ ownerId, eventType });
+  },
+}));
+
+mock.module('@/services/activity', () => ({
+  logActivity: async (params: Record<string, unknown>) => {
+    activityLogs.push(params);
   },
 }));
 
@@ -966,19 +989,20 @@ function getTool(name: string) {
 
 describe('escalar_owner', () => {
   beforeEach(() => {
-    escalations.length = 0;
+    conversationUpserts.length = 0;
+    sentTexts.length = 0;
+    notifyCalls.length = 0;
+    activityLogs.length = 0;
   });
 
   it('escala com o motivo informado', async () => {
     const out = (await getTool('escalar_owner').invoke({ motivo: 'pedido de negociação de aluguel' })) as string;
-    expect(escalations).toHaveLength(1);
-    expect(escalations[0]).toMatchObject({
-      chatId: deps.chatId,
-      ownerId: deps.ownerId,
-      tenantId: deps.tenantId,
-      tenantName: 'Maria',
-      reason: 'out_of_scope',
-    });
+
+    expect(conversationUpserts[0]).toEqual({ botPaused: true });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]?.chatId).toBe(deps.chatId);
+    expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
+    expect(activityLogs[0]).toMatchObject({ action: 'tenant_escalated', subjectId: deps.tenantId });
     expect(out).toContain('pausado');
   });
 });
@@ -1196,6 +1220,8 @@ git commit -m "feat(tenant): tenant agent prompt + runner (reuses agent-runner)"
 
 This replaces the old 2-argument stub. Task 10 updates the one call site in `router.ts` to match.
 
+**A note on the test's mocking strategy:** do NOT mock `@/flows/tenant/context` wholesale — same reasoning as Task 7. It collides with `context.test.ts` (Task 6), which imports that module for real; bun's `mock.module` is process-global, and whichever file's mock "wins" silently replaces the module for every importer in the run, including files testing it directly. Mock only the leaves `buildTenantSnapshot` touches (`@/db/client`'s `tenant.findUnique`, `@/db/redis`). `@/agents/tenant-v2` and `@/agents/tenant-tools` ARE safe to mock wholesale here — neither Task 7's nor Task 8's test file registers a competing mock for those same paths, so there's no collision to cause.
+
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
@@ -1209,8 +1235,19 @@ const events: Array<{ chatId: string; role: string; content: string }> = [];
 let conversationUpsertData: Record<string, unknown> | null = null;
 let botPausedAfterAgent = false;
 
+const fakeTenantRow = {
+  id: 'tenant-1',
+  name: 'Maria',
+  contractStart: new Date('2026-01-01T00:00:00Z'),
+  contractEnd: null,
+  property: { id: 'p1', externalId: 'IM-0001', name: 'Kitnet no Retiro', address: 'Rua X', rent: 900 },
+  owner: { id: 'owner-1', name: 'Fred', phone: '5511988887777' },
+  payments: [],
+};
+
 mock.module('@/db/client', () => ({
   prisma: {
+    tenant: { findUnique: async () => fakeTenantRow },
     event: {
       findMany: async () => [],
       create: async (args: { data: { chatId: string; role: string; content: string } }) => {
@@ -1226,6 +1263,14 @@ mock.module('@/db/client', () => ({
       },
     },
     $transaction: async (ops: unknown[]) => ops,
+  },
+}));
+
+mock.module('@/db/redis', () => ({
+  redis: {
+    get: async () => null,
+    set: async () => 'OK',
+    del: async () => 1,
   },
 }));
 
@@ -1245,19 +1290,6 @@ mock.module('@/services/activity', () => ({
   logActivity: async (params: Record<string, unknown>) => {
     activityLogs.push(params);
   },
-}));
-
-mock.module('@/flows/tenant/context', () => ({
-  buildTenantSnapshot: async () => ({
-    tenantId: 'tenant-1',
-    name: 'Maria',
-    property: { id: 'p1', externalId: 'IM-0001', name: 'Kitnet', address: 'Rua X', rent: 900 },
-    owner: { id: 'owner-1', name: 'Fred', phone: '5511988887777' },
-    contractStart: '2026-01-01T00:00:00.000Z',
-    contractEnd: null,
-    recentPayments: [],
-  }),
-  renderTenantContext: () => 'contexto renderizado',
 }));
 
 mock.module('@/agents/tenant-v2', () => ({
@@ -1336,9 +1368,9 @@ describe('handleTenantMessage', () => {
       'tenant-1',
       'Maria',
     );
-    // o agente já respondeu via sendText dentro do fluxo normal (a tool escalar_owner
-    // já avisou o inquilino); o orquestrador não deve mandar uma segunda mensagem.
-    expect(sentTexts).toHaveLength(1);
+    // conv.botPaused=true significa que uma tool (ex: escalar_owner) já avisou o
+    // inquilino durante o turno do agente; o orquestrador não deve mandar nada.
+    expect(sentTexts).toHaveLength(0);
   });
 });
 ```

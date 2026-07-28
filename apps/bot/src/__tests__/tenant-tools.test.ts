@@ -1,16 +1,39 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
-const escalations: Array<{ chatId: string; ownerId: string; tenantId: string; tenantName: string | null; reason: string }> = [];
+// Mocks the leaves escalateTenantToOwner touches (not the sibling module
+// itself) so the REAL escalation.ts runs here — mocking '@/flows/tenant/escalation'
+// wholesale would collide with escalation.test.ts, which tests that module for real.
+const conversationUpserts: Array<Record<string, unknown>> = [];
+const sentTexts: Array<{ chatId: string; text: string }> = [];
+const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
+const activityLogs: Array<Record<string, unknown>> = [];
 
-mock.module('@/flows/tenant/escalation', () => ({
-  escalateTenantToOwner: async (
-    chatId: string,
-    ownerId: string,
-    tenantId: string,
-    tenantName: string | null,
-    reason: string,
-  ) => {
-    escalations.push({ chatId, ownerId, tenantId, tenantName, reason });
+mock.module('@/db/client', () => ({
+  prisma: {
+    conversation: {
+      upsert: async (args: { update: Record<string, unknown> }) => {
+        conversationUpserts.push(args.update);
+        return {};
+      },
+    },
+  },
+}));
+
+mock.module('@/services/evolution', () => ({
+  sendText: async (chatId: string, text: string) => {
+    sentTexts.push({ chatId, text });
+  },
+}));
+
+mock.module('@/services/notify', () => ({
+  notifyOwner: async (ownerId: string, eventType: string) => {
+    notifyCalls.push({ ownerId, eventType });
+  },
+}));
+
+mock.module('@/services/activity', () => ({
+  logActivity: async (params: Record<string, unknown>) => {
+    activityLogs.push(params);
   },
 }));
 
@@ -31,19 +54,20 @@ function getTool(name: string) {
 
 describe('escalar_owner', () => {
   beforeEach(() => {
-    escalations.length = 0;
+    conversationUpserts.length = 0;
+    sentTexts.length = 0;
+    notifyCalls.length = 0;
+    activityLogs.length = 0;
   });
 
   it('escala com o motivo informado', async () => {
     const out = (await getTool('escalar_owner').invoke({ motivo: 'pedido de negociação de aluguel' })) as string;
-    expect(escalations).toHaveLength(1);
-    expect(escalations[0]).toMatchObject({
-      chatId: deps.chatId,
-      ownerId: deps.ownerId,
-      tenantId: deps.tenantId,
-      tenantName: 'Maria',
-      reason: 'out_of_scope',
-    });
+
+    expect(conversationUpserts[0]).toEqual({ botPaused: true });
+    expect(sentTexts).toHaveLength(1);
+    expect(sentTexts[0]?.chatId).toBe(deps.chatId);
+    expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
+    expect(activityLogs[0]).toMatchObject({ action: 'tenant_escalated', subjectId: deps.tenantId });
     expect(out).toContain('pausado');
   });
 });
