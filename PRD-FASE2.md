@@ -130,7 +130,13 @@ Verificação final pós-fixes: `bun run check` (typecheck + lint + test, varred
 - **Corrigido:** `POST /admin/payments` agora usa `await` na invalidação do cache (antes fire-and-forget) — fecha uma corrida onde uma mensagem do inquilino logo após a confirmação do pagamento ainda podia ler o snapshot pré-pagamento.
 - **Recusado com justificativa (não é "aceitar tudo que o CodeRabbit sugere"):** CodeRabbit também marcou o teste de falha do `sendText` em `escalation.test.ts` como não-resiliente de verdade, querendo entrega garantida ao inquilino via retry/outbox quando a Evolution API cai. É um gap real em termos absolutos, mas nenhum outro ponto de envio deste bot tem infra de retry/outbota — o padrão do lead flow inteiro é fire-and-best-effort. Construir isso só pra este call site é desproporcional pra uma slice de fundação. O que as 2 reviews independentes realmente pediram (owner nunca fica sem saber que o inquilino travou) já está fechado; entrega garantida é investimento maior, a se fazer deliberadamente quando/se T2+ precisar, não um patch da T1.
 
-Verificação final pós-CodeRabbit: `bun run check` limpo — 226 pass, 0 fail, 0 erros de lint.
+Verificação final pós-CodeRabbit (1ª rodada): `bun run check` limpo — 226 pass, 0 fail, 0 erros de lint.
+
+**2ª rodada CodeRabbit (2026-07-28) — pegou algo que a 1ª rodada + as 2 reviews independentes não pegaram:**
+- **Corrigido:** mesmo depois da resiliência a falhas, `buildTenantSnapshot(chatId)` no branch de emergência ainda era `await`ado sequencialmente ANTES do `Promise.allSettled` — uma conexão Redis/Prisma travada (nenhum dos dois clientes tem `connectTimeout`/`commandTimeout` explícito) atrasaria `notifyOwner` indefinidamente, não só em caso de falha, mas de lentidão. Corrigido: lookup do nome do imóvel corre contra um teto de 2s (`EMERGENCY_SNAPSHOT_TIMEOUT_MS`) e só é encadeado na entrada do `notifyOwner`, nunca aguardado antes do batch — `sendText`/`persistTurn`/`logActivity` disparam no mesmo tick independente de quão lento o snapshot esteja. Teste prova: `findUnique` que nunca resolve ainda deixa a chamada inteira completar em ~2s.
+- **Recusado com justificativa:** CodeRabbit também pediu `connectTimeout`/`commandTimeout` explícitos nos clientes globais de Redis/Prisma. Mudança de config que afeta TODOS os outros caminhos do bot (lead flow, upload de mídia, cache de propriedade etc.) — desproporcional e mais arriscado que o escopo desta slice; merece ser feito deliberadamente, com seu próprio teste, não como efeito colateral de um PR de tenant flow. O cap via `Promise.race` já resolve o objetivo real deste branch sem tocar config global.
+
+Verificação final pós-2ª rodada: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
 - [ ] Merge (Fred)
 
 ### T2 — Reclamações
