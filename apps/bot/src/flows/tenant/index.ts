@@ -82,6 +82,7 @@ export async function handleTenantMessage(
       // the batch below: only the notifyOwner entry depends on it (chained,
       // not awaited up front), so sendText/persistTurn/logActivity are
       // invoked in the same tick, never delayed by a slow property lookup.
+      let propertyNameTimeoutId: ReturnType<typeof setTimeout> | undefined;
       const propertyNamePromise = Promise.race([
         buildTenantSnapshot(chatId)
           .then((snapshot) => snapshot?.property.name ?? EMERGENCY_UNKNOWN_PROPERTY)
@@ -92,8 +93,15 @@ export async function handleTenantMessage(
             );
             return EMERGENCY_UNKNOWN_PROPERTY;
           }),
-        new Promise<string>((resolve) => setTimeout(() => resolve(EMERGENCY_UNKNOWN_PROPERTY), EMERGENCY_SNAPSHOT_TIMEOUT_MS)),
-      ]);
+        new Promise<string>((resolve) => {
+          propertyNameTimeoutId = setTimeout(() => resolve(EMERGENCY_UNKNOWN_PROPERTY), EMERGENCY_SNAPSHOT_TIMEOUT_MS);
+        }),
+      ]).finally(() => {
+        // Promise.race doesn't cancel the losing entry — if buildTenantSnapshot
+        // wins, this timer would otherwise sit armed until it fires on its own,
+        // leaking one timer per fast-resolving emergency under volume.
+        if (propertyNameTimeoutId !== undefined) clearTimeout(propertyNameTimeoutId);
+      });
 
       await Promise.allSettled([
         propertyNamePromise
