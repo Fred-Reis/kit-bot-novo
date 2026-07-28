@@ -144,7 +144,13 @@ describe('handleTenantMessage', () => {
   it('emergência: busca de snapshot trava (nunca resolve) → notifyOwner ainda dispara, dentro do teto de tempo', async () => {
     tenantFindUniqueShouldHang = true;
     const start = Date.now();
-    await handleTenantMessage(
+
+    // Local timeout on the test itself: if a regression reintroduces the
+    // blocking bug (e.g. someone awaits the race before the batch again),
+    // this fails fast with a clear message instead of hanging until bun's
+    // generic per-test timeout eventually kicks in.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const flow = handleTenantMessage(
       '5511999999999@s.whatsapp.net',
       'Socorro, tem um incêndio aqui!',
       noMedia,
@@ -152,6 +158,15 @@ describe('handleTenantMessage', () => {
       'tenant-1',
       'Maria',
     );
+    await Promise.race([
+      flow,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('fluxo do tenant excedeu o teto de tempo do teste')), 2900);
+      }),
+    ]).finally(() => {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    });
+
     const elapsedMs = Date.now() - start;
     // sendText/persistTurn/logActivity don't wait on the hung snapshot lookup
     // at all; only notifyOwner is capped by the race (EMERGENCY_SNAPSHOT_TIMEOUT_MS
