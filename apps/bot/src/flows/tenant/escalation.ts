@@ -1,7 +1,8 @@
 import { prisma } from '@/db/client';
+import { logger } from '@/lib/logger';
 import { logActivity } from '@/services/activity';
 import { sendText } from '@/services/evolution';
-import { buildTenantEscalationMessage, notifyOwner } from '@/services/notify';
+import { notifyOwner } from '@/services/notify';
 
 export type TenantEscalationReason = 'human_request' | 'frustration' | 'out_of_scope';
 
@@ -35,22 +36,36 @@ export async function escalateTenantToOwner(
 
   const displayName = tenantName ?? chatId;
 
-  await sendText(chatId, TENANT_MESSAGE[reason]);
-
-  await notifyOwner(ownerId, 'tenant_escalation', {
-    tenantName: displayName,
-    tenantPhone: chatId,
-    reason: REASON_LABEL[reason],
-  });
-
-  await logActivity({
-    ownerId,
-    actorType: 'bot',
-    actorLabel: 'Bot',
-    action: 'tenant_escalated',
-    subjectType: 'tenant',
-    subjectId: tenantId,
-    subject: displayName,
-    metadata: { reason },
-  });
+  // Each side effect below is independent and best-effort: a failure in one
+  // (e.g. Evolution API down) must never block the others from being
+  // attempted — botPaused is already committed above, so if notifyOwner
+  // never ran the owner would have zero signal that this tenant is stuck.
+  await Promise.allSettled([
+    sendText(chatId, TENANT_MESSAGE[reason]).catch((err) =>
+      logger.error({ err, chatId }, '[tenant.escalation] Falha ao avisar inquilino'),
+    ),
+    // Persisted here (not by the caller) so every caller — the frustration
+    // branch in flows/tenant/index.ts and the escalar_owner tool, whose
+    // reply crosses an LLM tool-call boundary the orchestrator can't see
+    // into — gets a correct Event record for what was actually sent,
+    // without having to thread the message text back out.
+    prisma.event
+      .create({ data: { chatId, role: 'assistant', content: TENANT_MESSAGE[reason], ownerId } })
+      .catch((err) => logger.error({ err, chatId }, '[tenant.escalation] Falha ao persistir Event')),
+    notifyOwner(ownerId, 'tenant_escalation', {
+      tenantName: displayName,
+      tenantPhone: chatId,
+      reason: REASON_LABEL[reason],
+    }).catch((err) => logger.error({ err, ownerId }, '[tenant.escalation] notifyOwner falhou')),
+    logActivity({
+      ownerId,
+      actorType: 'bot',
+      actorLabel: 'Bot',
+      action: 'tenant_escalated',
+      subjectType: 'tenant',
+      subjectId: tenantId,
+      subject: displayName,
+      metadata: { reason },
+    }).catch((err) => logger.error({ err, tenantId }, '[tenant.escalation] logActivity falhou')),
+  ]);
 }

@@ -4,7 +4,6 @@ const sentTexts: Array<{ chatId: string; text: string }> = [];
 const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
 const events: Array<{ chatId: string; role: string; content: string }> = [];
-let conversationUpsertData: Record<string, unknown> | null = null;
 let botPausedAfterAgent = false;
 
 // Only the leaves buildTenantSnapshot touches are mocked here (db/client,
@@ -34,8 +33,7 @@ mock.module('@/db/client', () => ({
     },
     conversation: {
       findUnique: async () => ({ botPaused: botPausedAfterAgent }),
-      upsert: async (args: { update: Record<string, unknown> }) => {
-        conversationUpsertData = args.update;
+      upsert: async () => {
         return {};
       },
     },
@@ -88,7 +86,6 @@ describe('handleTenantMessage', () => {
     notifyCalls.length = 0;
     activityLogs.length = 0;
     events.length = 0;
-    conversationUpsertData = null;
     botPausedAfterAgent = false;
     tenantRowForSnapshot = fakeTenantRow;
   });

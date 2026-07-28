@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 // itself) so the REAL escalation.ts runs here — mocking '@/flows/tenant/escalation'
 // wholesale would collide with escalation.test.ts, which tests that module for real.
 const conversationUpserts: Array<Record<string, unknown>> = [];
+const events: Array<{ chatId: string; role: string; content: string }> = [];
 const sentTexts: Array<{ chatId: string; text: string }> = [];
 const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
@@ -14,6 +15,12 @@ mock.module('@/db/client', () => ({
       upsert: async (args: { update: Record<string, unknown> }) => {
         conversationUpserts.push(args.update);
         return {};
+      },
+    },
+    event: {
+      create: async (args: { data: { chatId: string; role: string; content: string } }) => {
+        events.push(args.data);
+        return args.data;
       },
     },
   },
@@ -55,6 +62,7 @@ function getTool(name: string) {
 describe('escalar_owner', () => {
   beforeEach(() => {
     conversationUpserts.length = 0;
+    events.length = 0;
     sentTexts.length = 0;
     notifyCalls.length = 0;
     activityLogs.length = 0;
@@ -66,6 +74,10 @@ describe('escalar_owner', () => {
     expect(conversationUpserts[0]).toEqual({ botPaused: true });
     expect(sentTexts).toHaveLength(1);
     expect(sentTexts[0]?.chatId).toBe(deps.chatId);
+    // The message the tool sent must be persisted even though it crosses an
+    // LLM tool-call boundary the orchestrator can't see into.
+    expect(events).toHaveLength(1);
+    expect(events[0]?.content).toBe(sentTexts[0]?.text);
     expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
     expect(activityLogs[0]).toMatchObject({ action: 'tenant_escalated', subjectId: deps.tenantId });
     expect(out).toContain('pausado');
