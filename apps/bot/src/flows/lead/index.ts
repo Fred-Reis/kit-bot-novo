@@ -406,6 +406,16 @@ export async function handleLeadMessage(
         context.propertyReference = resolved.externalId;
         context.propertyTitle = resolved.name;
         context.propertyReferenceLocked = true;
+      } else {
+        // Not just "don't re-lock": actively clear a stale reference. Without
+        // this, a property that flips available → rented after being locked
+        // in an earlier turn leaves context.propertyReference/Title stale, and
+        // the visitedProperty branch below (line ~426) re-derives
+        // propertyReferenceLocked from truthiness of that stale string alone —
+        // reactivating the lock on an unavailable property every subsequent turn.
+        context.propertyReference = null;
+        context.propertyTitle = null;
+        context.propertyReferenceLocked = false;
       }
     } else if (propertyInterest) {
       const matched = await findMatchingProperty(propertyInterest);
