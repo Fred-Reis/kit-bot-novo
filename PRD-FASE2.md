@@ -152,13 +152,15 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 - [x] 1. Brainstorm da slice (2026-07-29) — sem deltas de design; design §3.2/§4/§5 já fecha os critérios de aceite. Decisões de implementação (replicam padrões existentes): tool `registrar_reclamacao` no padrão `registrar_renda` (retorna texto pro LLM, não pausa bot); notif `tenant_complaint` fire-and-forget (padrão `agendar_visita`); migration `Complaint` com RLS inerte via só `CREATE POLICY` (sem `ENABLE`/`FORCE` — lição do bug do PR #38); `PATCH /admin/complaints/:id` no padrão `coordinators.ts`, sem GET dedicado (painel lê via supabase-js, RLS inerte); seção "Chamados & Reclamações" no painel só com reclamações por ora (T3 estende com manutenção depois). Aprovado pelo Fred.
 - [x] 2. Spec da slice fechada — design §3.2 (tool), §4 (model `Complaint`), §5.2 (painel), §7 (regras 1-8) cobrem os critérios de aceite; sem TBDs
 - [x] 3. Plan (`docs/superpowers/plans/2026-07-29-t2-reclamacoes-plan.md`) — 7 tasks TDD: types compartilhados; migration `Complaint` + RLS inerte; notif `tenant_complaint`; tool `registrar_reclamacao` + prompt do agente; endpoint `PATCH /admin/complaints/:id`; seção "Chamados & Reclamações" no painel; verificação final
-- [ ] 4. Build (TDD): migration `Complaint` + RLS inerte + types
-- [ ] 4. Build (TDD): tool `registrar_reclamacao` + notif owner + confirmação ao tenant
-- [ ] 4. Build (TDD): endpoints `PATCH /admin/complaints/:id` + leitura web
-- [ ] 4. Build: seção "Chamados & Reclamações" no detalhe do tenant (parte reclamações)
+- [x] 4. Build (TDD): migration `Complaint` + RLS inerte + types — `prisma migrate dev --create-only` não funciona neste repo (P3006 no shadow-db, documentado em `docs/superpowers/plans/2026-07-18-lead-conversion-and-login-fixes.md`); migration escrita à mão no formato do Prisma, aplicada via `prisma db execute` + `prisma migrate resolve --applied`
+- [x] 4. Build (TDD): tool `registrar_reclamacao` + notif owner + confirmação ao tenant — padrão `registrar_renda` (não pausa o bot); prompt do agente atualizado para chamar a tool em reclamação formal
+- [x] 4. Build (TDD): endpoints `PATCH /admin/complaints/:id` + leitura web — sem GET dedicado, painel lê via supabase-js (RLS inerte, mesmo padrão do resto do painel)
+- [x] 4. Build: seção "Chamados & Reclamações" no detalhe do tenant (parte reclamações) — `ComplaintsSection` presentational (sem `useMutation` interno, mutação vive na rota, igual `$leadId.tsx`)
 - [ ] 5. Simplify
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
+
+Verificação final: bot `bun run check` limpo (233 pass, 0 fail, 0 erros de lint); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` limpo (122 pass, 0 fail).
 
 ### T3 — Manutenção
 
@@ -239,8 +241,8 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-29 |
-| Etapa atual | T1 concluída e mergeada (PR #38, `560bc61`); PR de docs (#37) também mergeada. Branch `feat/tenant-t2-reclamacoes` criada — iniciando T2 etapa 1 (brainstorm) |
-| Próxima etapa | T2 etapa 1 (Brainstorm da slice Reclamações) |
+| Etapa atual | T2 etapa 4 (build) concluída — migration `Complaint`, tool `registrar_reclamacao`, endpoint `PATCH /admin/complaints/:id` e seção "Chamados & Reclamações" no painel; bot e web verificados limpos. Branch `feat/tenant-t2-reclamacoes` |
+| Próxima etapa | T2 etapa 5 (`agent-skills:code-simplification`) → etapa 6 (review local → PR → CodeRabbit → merge do Fred) |
 | Bloqueios | — |
 
 ---
