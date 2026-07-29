@@ -123,11 +123,11 @@ function currentProcessStep(state: string): string {
   return 'interesse';
 }
 
-async function resolvePropertyInFocus(context: LeadContext): Promise<PropertyData | null> {
+export async function resolvePropertyInFocus(context: LeadContext): Promise<PropertyData | null> {
   const reference = (context.propertyReference ?? '').trim();
   if (reference) {
     const property = await getPropertyByExternalId(reference);
-    if (property && property.active) return property;
+    if (property && property.active && property.status === 'available') return property;
   }
   const interest = (context.propertyInterest ?? '').trim();
   if (interest) {

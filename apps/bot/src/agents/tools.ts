@@ -126,7 +126,9 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
       if (!id) return fail('nenhum imóvel em foco.');
       try {
         const property = await getPropertyByExternalId(id);
-        if (!property || !property.active) return fail(`imóvel ${id} não encontrado ou inativo.`);
+        if (!property || !property.active || property.status !== 'available') {
+          return fail(`imóvel ${id} não encontrado ou indisponível.`);
+        }
         return `${describeProperty(property)}\n\nCondições:\n${describePropertyTerms(property)}`;
       } catch (err) {
         logger.error({ err }, '[tools] info_imovel');
