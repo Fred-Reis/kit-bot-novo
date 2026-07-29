@@ -156,11 +156,11 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 - [x] 4. Build (TDD): tool `registrar_reclamacao` + notif owner + confirmação ao tenant — padrão `registrar_renda` (não pausa o bot); prompt do agente atualizado para chamar a tool em reclamação formal
 - [x] 4. Build (TDD): endpoints `PATCH /admin/complaints/:id` + leitura web — sem GET dedicado, painel lê via supabase-js (RLS inerte, mesmo padrão do resto do painel)
 - [x] 4. Build: seção "Chamados & Reclamações" no detalhe do tenant (parte reclamações) — `ComplaintsSection` presentational (sem `useMutation` interno, mutação vive na rota, igual `$leadId.tsx`)
-- [ ] 5. Simplify
+- [x] 5. Simplify — `agent-skills:code-simplification` aplicado; diff pequeno e já espelhando padrões existentes (T1/coordinators/ContractsSection), sem over-engineering novo. Único achado real: `ComplaintStatus` duplicado como union literal em `lib/api.ts` e `$tenantId.tsx` em vez de reusar o tipo compartilhado (mesmo padrão já usado por `LeadStage`) — corrigido
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
 
-Verificação final: bot `bun run check` limpo (233 pass, 0 fail, 0 erros de lint); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` limpo (122 pass, 0 fail).
+Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 erros de lint); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` limpo (122 pass, 0 fail). Pós-simplify: reverificado, tudo continua verde.
 
 ### T3 — Manutenção
 
