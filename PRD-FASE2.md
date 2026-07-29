@@ -95,7 +95,7 @@ Decisões fechadas: T-D1 a T-D6 na spec §2.
 - [x] Spec de design escrita e aprovada (`2026-07-27-tenant-flow-phase2-design.md`)
 - [x] Auditoria checkboxes vs código (ROADMAP/PRD corrigidos)
 - [x] Este PRD-FASE2.md criado
-- [ ] PR de docs aberta e mergeada pelo Fred
+- [x] PR de docs aberta e mergeada pelo Fred (PR #37, 2026-07-28)
 
 ### T1 — Fundação
 
@@ -145,13 +145,13 @@ Verificação final pós-3ª rodada: `bun run check` limpo — 227 pass, 0 fail,
 **Review manual do Fred (2026-07-28):** `Promise.race` no branch de emergência não cancelava a entrada perdedora — quando `buildTenantSnapshot` resolvia rápido (o caso comum, Redis/DB saudáveis), o `setTimeout` de fallback ficava armado até disparar sozinho de qualquer forma. Em volume, um timer vazado por emergência resolvida rápido. Corrigido: id do timer capturado e limpo em `.finally()` sobre a race, mesmo padrão guard-timer já usado no teste que prova o teto.
 
 Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint.
-- [ ] Merge (Fred)
+- [x] Merge (Fred) — PR #38 mergeada (`560bc61`, 2026-07-28)
 
 ### T2 — Reclamações
 
-- [ ] 1. Brainstorm da slice
-- [ ] 2. Spec da slice fechada
-- [ ] 3. Plan
+- [x] 1. Brainstorm da slice (2026-07-29) — sem deltas de design; design §3.2/§4/§5 já fecha os critérios de aceite. Decisões de implementação (replicam padrões existentes): tool `registrar_reclamacao` no padrão `registrar_renda` (retorna texto pro LLM, não pausa bot); notif `tenant_complaint` fire-and-forget (padrão `agendar_visita`); migration `Complaint` com RLS inerte via só `CREATE POLICY` (sem `ENABLE`/`FORCE` — lição do bug do PR #38); `PATCH /admin/complaints/:id` no padrão `coordinators.ts`, sem GET dedicado (painel lê via supabase-js, RLS inerte); seção "Chamados & Reclamações" no painel só com reclamações por ora (T3 estende com manutenção depois). Aprovado pelo Fred.
+- [x] 2. Spec da slice fechada — design §3.2 (tool), §4 (model `Complaint`), §5.2 (painel), §7 (regras 1-8) cobrem os critérios de aceite; sem TBDs
+- [x] 3. Plan (`docs/superpowers/plans/2026-07-29-t2-reclamacoes-plan.md`) — 7 tasks TDD: types compartilhados; migration `Complaint` + RLS inerte; notif `tenant_complaint`; tool `registrar_reclamacao` + prompt do agente; endpoint `PATCH /admin/complaints/:id`; seção "Chamados & Reclamações" no painel; verificação final
 - [ ] 4. Build (TDD): migration `Complaint` + RLS inerte + types
 - [ ] 4. Build (TDD): tool `registrar_reclamacao` + notif owner + confirmação ao tenant
 - [ ] 4. Build (TDD): endpoints `PATCH /admin/complaints/:id` + leitura web
@@ -238,9 +238,9 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 
 | Campo | Valor |
 |---|---|
-| Última atualização | 2026-07-27 |
-| Etapa atual | T1 etapa 6 concluída (2 reviews independentes + todos os achados corrigidos, ver seção T1 acima) — `bun run check` limpo (221 pass, 0 fail, 0 lint errors), branch `feat/tenant-t1-fundacao` pronta pra PR |
-| Próxima etapa | Abrir PR → CodeRabbit → merge do Fred → T2 etapa 1 (Reclamações) |
+| Última atualização | 2026-07-29 |
+| Etapa atual | T1 concluída e mergeada (PR #38, `560bc61`); PR de docs (#37) também mergeada. Branch `feat/tenant-t2-reclamacoes` criada — iniciando T2 etapa 1 (brainstorm) |
+| Próxima etapa | T2 etapa 1 (Brainstorm da slice Reclamações) |
 | Bloqueios | — |
 
 ---
