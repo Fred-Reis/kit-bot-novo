@@ -1,14 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
+import { toast } from 'sonner';
+import { ComplaintsSection } from '@/components/complaints-section';
 import { ContractsSection } from '@/components/contracts-section';
 import { DocGrid } from '@/components/doc-grid';
 import { EmptyState } from '@/components/empty-state';
 import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
+import { adminApi, apiErrorMessage } from '@/lib/api';
 import { formatPhone } from '@/lib/leads';
-import { fetchTenant, fetchTenantContracts, fetchTenantDocuments } from '@/lib/queries';
+import {
+  fetchTenant,
+  fetchTenantComplaints,
+  fetchTenantContracts,
+  fetchTenantDocuments,
+} from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
 export const Route = createFileRoute('/_dashboard/tenants/$tenantId')({
@@ -48,6 +56,24 @@ function TenantDetailPage() {
     queryKey: ['tenant-documents', tenantId],
     queryFn: () => fetchTenantDocuments(tenantId),
     enabled: !!data,
+  });
+
+  const qc = useQueryClient();
+
+  const { data: complaints = [], isLoading: complaintsLoading } = useQuery({
+    queryKey: ['tenant-complaints', tenantId],
+    queryFn: () => fetchTenantComplaints(tenantId),
+    enabled: !!data,
+  });
+
+  const advanceComplaintStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'open' | 'acknowledged' | 'resolved' }) =>
+      adminApi.updateComplaintStatus(id, status),
+    onSuccess: () => {
+      toast.success('Status atualizado.');
+      void qc.invalidateQueries({ queryKey: ['tenant-complaints', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
   });
 
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
@@ -160,6 +186,13 @@ function TenantDetailPage() {
       </div>
 
       <ContractsSection contracts={contracts} isLoading={contractsLoading} />
+
+      <ComplaintsSection
+        complaints={complaints}
+        isLoading={complaintsLoading}
+        isAdvancing={advanceComplaintStatus.isPending}
+        onAdvanceStatus={(id, status) => advanceComplaintStatus.mutate({ id, status })}
+      />
 
       <div
         className="rounded-[10px] bg-surface-raised p-5"
