@@ -15,6 +15,7 @@ type NotifyPayloadMap = {
   media_receive_failure: { leadName: string; leadPhone: string; failureCount: number };
   tenant_escalation: { tenantName: string; tenantPhone: string; reason: string };
   tenant_emergency: { tenantName: string; tenantPhone: string; propertyName: string };
+  tenant_complaint: { tenantName: string; tenantPhone: string; summary: string };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -89,6 +90,10 @@ function buildChannelContent(
     case 'tenant_emergency': {
       const p = payload as NotifyPayloadMap['tenant_emergency'];
       return { whatsapp: buildTenantEmergencyMessage(p), email: null };
+    }
+    case 'tenant_complaint': {
+      const p = payload as NotifyPayloadMap['tenant_complaint'];
+      return { whatsapp: buildTenantComplaintMessage(p), email: null };
     }
   }
 }
@@ -175,6 +180,19 @@ export function buildTenantEmergencyMessage(payload: {
     `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
     `Imóvel: ${payload.propertyName}\n` +
     `Ligue para o inquilino agora, se possível.`
+  );
+}
+
+export function buildTenantComplaintMessage(payload: {
+  tenantName: string;
+  tenantPhone: string;
+  summary: string;
+}): string {
+  return (
+    `📋 Nova reclamação registrada\n` +
+    `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Resumo: ${payload.summary}\n` +
+    `Acesse o painel para ver os detalhes.`
   );
 }
 
