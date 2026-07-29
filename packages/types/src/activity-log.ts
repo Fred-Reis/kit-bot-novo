@@ -12,7 +12,8 @@ export type ActivityLogSubjectType =
   | 'rule_set'
   | 'coordinator'
   | 'owner'
-  | 'workspace';
+  | 'workspace'
+  | 'complaint';
 
 export type ActivityLogAction =
   | 'lead_created'
@@ -59,7 +60,9 @@ export type ActivityLogAction =
   | 'coordinator_unlinked'
   | 'coordinator_bulk_linked'
   | 'tenant_escalated'
-  | 'tenant_emergency';
+  | 'tenant_emergency'
+  | 'complaint_registered'
+  | 'complaint_status_changed';
 
 export interface LogActivityParams {
   ownerId: string;

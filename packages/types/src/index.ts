@@ -1,4 +1,5 @@
 export * from './activity-log';
+export * from './complaint';
 export * from './contract';
 export * from './contract-template';
 export * from './coordinator';
