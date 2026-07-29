@@ -1,4 +1,4 @@
-import type { ContractPreview, LeadStage } from '@kit-manager/types';
+import type { ComplaintStatus, ContractPreview, LeadStage } from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
@@ -99,7 +99,7 @@ export const adminApi = {
     botApi.delete(`/admin/coordinators/${id}/properties/${propertyId}`),
   bulkLinkCoordinator: (id: string, data: { responsibilities: string[] }) =>
     botApi.post(`/admin/coordinators/${id}/properties/bulk-link`, data),
-  updateComplaintStatus: (id: string, status: 'open' | 'acknowledged' | 'resolved') =>
+  updateComplaintStatus: (id: string, status: ComplaintStatus) =>
     botApi.patch(`/admin/complaints/${id}`, { status }),
   previewContract: (data: {
     templateId: string;

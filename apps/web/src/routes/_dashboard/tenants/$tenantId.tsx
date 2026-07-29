@@ -1,3 +1,4 @@
+import type { ComplaintStatus } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
@@ -67,7 +68,7 @@ function TenantDetailPage() {
   });
 
   const advanceComplaintStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'open' | 'acknowledged' | 'resolved' }) =>
+    mutationFn: ({ id, status }: { id: string; status: ComplaintStatus }) =>
       adminApi.updateComplaintStatus(id, status),
     onSuccess: () => {
       toast.success('Status atualizado.');
