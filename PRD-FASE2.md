@@ -157,7 +157,7 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 - [x] 4. Build (TDD): endpoints `PATCH /admin/complaints/:id` + leitura web — sem GET dedicado, painel lê via supabase-js (RLS inerte, mesmo padrão do resto do painel)
 - [x] 4. Build: seção "Chamados & Reclamações" no detalhe do tenant (parte reclamações) — `ComplaintsSection` presentational (sem `useMutation` interno, mutação vive na rota, igual `$leadId.tsx`)
 - [x] 5. Simplify — `agent-skills:code-simplification` aplicado; diff pequeno e já espelhando padrões existentes (T1/coordinators/ContractsSection), sem over-engineering novo. Único achado real: `ComplaintStatus` duplicado como union literal em `lib/api.ts` e `$tenantId.tsx` em vez de reusar o tipo compartilhado (mesmo padrão já usado por `LeadStage`) — corrigido
-- [x] 6. Review local (`agent-skills:code-review-and-quality`, 5 eixos) + **review independente extra** (subagent fresco `agent-skills:code-reviewer`, sem contexto da implementação, re-rodou as duas suites) — ambos sem achados Critical/Important. Confirmado: RLS inerte (diff direto contra o bug do PR #38 e o fix); side effects best-effort não bloqueiam o fluxo principal; sem regressão de tipos (`ComplaintStatus` já unificado, achado do simplify confirmado corrigido). 2 sugestões menores não-bloqueantes: (1) triggers de `registrar_reclamacao` vs `escalar_owner` no prompt se sobrepõem um pouco ("insatisfação com atendimento" vs "estiver irritado") — deixar pra observar em uso real; (2) endpoint aceita qualquer transição de status (sem enforcement forward-only), consistente com todos os outros PATCH admin hoje. PR aberta, aguardando CodeRabbit + merge do Fred
+- [x] 6. Review local (`agent-skills:code-review-and-quality`, 5 eixos) + **review independente extra** (subagent fresco `agent-skills:code-reviewer`, sem contexto da implementação, re-rodou as duas suites) — ambos sem achados Critical/Important. Confirmado: RLS inerte (diff direto contra o bug do PR #38 e o fix); side effects best-effort não bloqueiam o fluxo principal; sem regressão de tipos (`ComplaintStatus` já unificado, achado do simplify confirmado corrigido). 2 sugestões menores não-bloqueantes: (1) triggers de `registrar_reclamacao` vs `escalar_owner` no prompt se sobrepõem um pouco ("insatisfação com atendimento" vs "estiver irritado") — deixar pra observar em uso real; (2) endpoint aceita qualquer transição de status (sem enforcement forward-only), consistente com todos os outros PATCH admin hoje. PR #40 aberta, aguardando CodeRabbit + merge do Fred
 - [ ] Merge (Fred)
 
 Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 erros de lint); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` limpo (122 pass, 0 fail). Pós-simplify: reverificado, tudo continua verde.
@@ -241,8 +241,8 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-29 |
-| Etapa atual | T2 etapa 4 (build) concluída — migration `Complaint`, tool `registrar_reclamacao`, endpoint `PATCH /admin/complaints/:id` e seção "Chamados & Reclamações" no painel; bot e web verificados limpos. Branch `feat/tenant-t2-reclamacoes` |
-| Próxima etapa | T2 etapa 5 (`agent-skills:code-simplification`) → etapa 6 (review local → PR → CodeRabbit → merge do Fred) |
+| Etapa atual | T2 etapas 1-6 concluídas (brainstorm/spec/plan/build/simplify/review — local + independente). PR #40 aberta (`feat/tenant-t2-reclamacoes` → `main`) |
+| Próxima etapa | CodeRabbit na PR #40 → loop de achados (se houver) → merge do Fred → T3 etapa 1 (Manutenção) |
 | Bloqueios | — |
 
 ---
