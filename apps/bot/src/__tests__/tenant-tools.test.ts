@@ -8,6 +8,7 @@ const events: Array<{ chatId: string; role: string; content: string }> = [];
 const sentTexts: Array<{ chatId: string; text: string }> = [];
 const notifyCalls: Array<{ ownerId: string; eventType: string; payload: unknown }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
+const complaintCreates: Array<{ ownerId: string; tenantId: string; summary: string; content: string }> = [];
 
 mock.module('@/db/client', () => ({
   prisma: {
@@ -21,6 +22,14 @@ mock.module('@/db/client', () => ({
       create: async (args: { data: { chatId: string; role: string; content: string } }) => {
         events.push(args.data);
         return args.data;
+      },
+    },
+    complaint: {
+      create: async (args: {
+        data: { ownerId: string; tenantId: string; summary: string; content: string };
+      }) => {
+        complaintCreates.push(args.data);
+        return { id: 'complaint-1', ...args.data, status: 'open', createdAt: new Date().toISOString() };
       },
     },
   },
@@ -90,9 +99,39 @@ describe('escalar_owner', () => {
   });
 });
 
+describe('registrar_reclamacao', () => {
+  beforeEach(() => {
+    conversationUpserts.length = 0;
+    events.length = 0;
+    sentTexts.length = 0;
+    notifyCalls.length = 0;
+    activityLogs.length = 0;
+    complaintCreates.length = 0;
+  });
+
+  it('cria a reclamação, notifica o owner e loga a atividade', async () => {
+    const out = (await getTool('registrar_reclamacao').invoke({
+      resumo: 'Barulho excessivo do vizinho',
+      conteudo: 'O inquilino relata barulho todas as noites desde a semana passada.',
+    })) as string;
+
+    expect(complaintCreates).toHaveLength(1);
+    expect(complaintCreates[0]).toEqual({
+      ownerId: deps.ownerId,
+      tenantId: deps.tenantId,
+      summary: 'Barulho excessivo do vizinho',
+      content: 'O inquilino relata barulho todas as noites desde a semana passada.',
+    });
+    expect(notifyCalls[0]?.eventType).toBe('tenant_complaint');
+    expect(notifyCalls[0]?.payload).toMatchObject({ summary: 'Barulho excessivo do vizinho' });
+    expect(activityLogs[0]).toMatchObject({ action: 'complaint_registered', subjectId: 'complaint-1' });
+    expect(out).toContain('registrada');
+  });
+});
+
 describe('lista completa', () => {
-  it('expõe exatamente 1 tool na T1', () => {
+  it('expõe as 2 tools da T2', () => {
     const names = buildTenantTools(deps).map((t) => t.name);
-    expect(names).toEqual(['escalar_owner']);
+    expect(names).toEqual(['escalar_owner', 'registrar_reclamacao']);
   });
 });

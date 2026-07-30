@@ -1,4 +1,5 @@
 import type {
+  Complaint,
   ContractDetail,
   ContractSummary,
   ContractTemplate,
@@ -479,6 +480,16 @@ export async function fetchTenantContracts(tenantId: string): Promise<ContractDo
     .order('createdAt', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ContractDoc[];
+}
+
+export async function fetchTenantComplaints(tenantId: string): Promise<Complaint[]> {
+  const { data, error } = await supabase
+    .from('Complaint')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Complaint[];
 }
 
 export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {

@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { buildTenantEmergencyMessage, buildTenantEscalationMessage } from '@/services/notify';
+import {
+  buildTenantComplaintMessage,
+  buildTenantEmergencyMessage,
+  buildTenantEscalationMessage,
+} from '@/services/notify';
 
 describe('buildTenantEscalationMessage', () => {
   test('inclui nome, telefone e motivo', () => {
@@ -25,5 +29,18 @@ describe('buildTenantEmergencyMessage', () => {
     expect(msg).toContain('11977776666');
     expect(msg).toContain('Kitnet no Retiro');
     expect(msg.toUpperCase()).toContain('EMERGÊNCIA');
+  });
+});
+
+describe('buildTenantComplaintMessage', () => {
+  test('inclui nome, telefone e resumo', () => {
+    const msg = buildTenantComplaintMessage({
+      tenantName: 'Ana Costa',
+      tenantPhone: '11966665555',
+      summary: 'Barulho excessivo do vizinho à noite',
+    });
+    expect(msg).toContain('Ana Costa');
+    expect(msg).toContain('11966665555');
+    expect(msg).toContain('Barulho excessivo do vizinho à noite');
   });
 });

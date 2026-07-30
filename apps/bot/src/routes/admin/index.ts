@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { botSettingsRoutes } from './bot-settings';
+import { complaintsRoutes } from './complaints';
 import { contractsRoutes } from './contracts';
 import { coordinatorsRoutes } from './coordinators';
 import { leadsRoutes } from './leads';
@@ -17,6 +18,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   await tenantsRoutes(fastify);
   await ruleSetsRoutes(fastify);
   await coordinatorsRoutes(fastify);
+  await complaintsRoutes(fastify);
   await templatesRoutes(fastify);
   await contractsRoutes(fastify);
   await paymentsRoutes(fastify);
