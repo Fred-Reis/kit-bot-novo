@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { logActivity } from '@/services/activity';
 import { sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
+import { createLeadDocumentUrl } from '@/services/storage';
 
 const CHAT_HISTORY_LIMIT = 10;
 const EMERGENCY_SNAPSHOT_TIMEOUT_MS = 2000;
@@ -147,42 +148,73 @@ export async function handleTenantMessage(
     if (nonAudioMedia.length > 0 && !messageText) {
       const displayName = tenantName ?? chatId;
       const mediaUrls = extractMediaUrls(nonAudioMedia);
+
+      // Shared by both the "no open chamado" case and the "attach failed
+      // unexpectedly" case below — the owner still needs the signed links
+      // (not the raw storage paths, which aren't reachable without auth),
+      // and the tenant must always get a reply, even if notify/log fail.
+      const forwardMediaToOwner = async (): Promise<void> => {
+        const signedMediaUrls = await Promise.all(
+          mediaUrls.map((path) =>
+            createLeadDocumentUrl(path).catch((err) => {
+              logger.error({ err, path }, '[tenant.flow] falha ao assinar URL de mídia pro forward ao owner');
+              return null;
+            }),
+          ),
+        );
+        await Promise.allSettled([
+          notifyOwner(ownerId, 'tenant_media_forwarded', {
+            tenantName: displayName,
+            tenantPhone: chatId,
+            mediaUrls: signedMediaUrls.filter((u): u is string => Boolean(u)),
+          }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_media_forwarded failed')),
+          logActivity({
+            ownerId,
+            actorType: 'bot',
+            actorLabel: 'Bot',
+            action: 'tenant_media_forwarded',
+            subjectType: 'tenant',
+            subjectId: tenantId,
+            subject: displayName,
+          }).catch((err) => logger.error({ err }, '[tenant.flow] logActivity tenant_media_forwarded failed')),
+          persistTurn(chatId, ownerId, null, MEDIA_FORWARDED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou no forward de mídia'),
+          ),
+          sendText(chatId, MEDIA_FORWARDED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] sendText falhou no forward de mídia'),
+          ),
+        ]);
+      };
+
       const openRequest = await prisma.maintenanceRequest.findFirst({
         where: { tenantId, status: { in: ['open', 'acknowledged'] } },
         orderBy: { createdAt: 'desc' },
       });
 
       if (openRequest) {
-        await prisma.maintenanceRequest.update({
-          where: { id: openRequest.id },
-          data: { mediaUrls: { push: mediaUrls } },
-        });
-        await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY);
-        await sendText(chatId, MEDIA_ATTACHED_REPLY);
-        return;
+        try {
+          // updateMany + status filter (not the plain `update` a findFirst→update
+          // pair would use) closes the race where the chamado gets resolved
+          // between the lookup above and this write — count === 0 means that
+          // happened, so fall through to the forward-to-owner path instead of
+          // silently attaching media to a ticket that's no longer open.
+          const { count } = await prisma.maintenanceRequest.updateMany({
+            where: { id: openRequest.id, status: { in: ['open', 'acknowledged'] } },
+            data: { mediaUrls: { push: mediaUrls } },
+          });
+          if (count > 0) {
+            await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY);
+            await sendText(chatId, MEDIA_ATTACHED_REPLY);
+            return;
+          }
+        } catch (err) {
+          // Infra failure while attaching — never let the tenant hit silence
+          // (rule 7). Forwarding to the owner still gets them a reply.
+          logger.error({ err, chatId }, '[tenant.flow] falha ao anexar mídia ao chamado aberto — encaminhando ao owner');
+        }
       }
 
-      await Promise.allSettled([
-        notifyOwner(ownerId, 'tenant_media_forwarded', {
-          tenantName: displayName,
-          tenantPhone: chatId,
-        }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_media_forwarded failed')),
-        logActivity({
-          ownerId,
-          actorType: 'bot',
-          actorLabel: 'Bot',
-          action: 'tenant_media_forwarded',
-          subjectType: 'tenant',
-          subjectId: tenantId,
-          subject: displayName,
-        }).catch((err) => logger.error({ err }, '[tenant.flow] logActivity tenant_media_forwarded failed')),
-        persistTurn(chatId, ownerId, null, MEDIA_FORWARDED_REPLY).catch((err) =>
-          logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou no forward de mídia'),
-        ),
-        sendText(chatId, MEDIA_FORWARDED_REPLY).catch((err) =>
-          logger.error({ err, chatId }, '[tenant.flow] sendText falhou no forward de mídia'),
-        ),
-      ]);
+      await forwardMediaToOwner();
       return;
     }
 

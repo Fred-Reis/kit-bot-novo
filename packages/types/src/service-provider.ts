@@ -1,4 +1,6 @@
-export type ServiceProviderType = 'eletrica' | 'hidraulica' | 'civil' | 'limpeza_conservacao';
+import type { ServiceCategory } from './service-category';
+
+export type ServiceProviderType = ServiceCategory;
 
 export interface ServiceProvider {
   id: string;

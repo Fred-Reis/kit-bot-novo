@@ -1,5 +1,5 @@
 import type { ServiceProviderType } from '@kit-manager/types';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CustomButton } from '@/components/ui/btn';
 import { SERVICE_TYPE_LABEL } from '@/lib/service-type-labels';
 
@@ -21,12 +21,32 @@ export function ProviderFormModal({ open, onClose, onSubmit, initialValue }: Pro
   const [phone, setPhone] = useState(initialValue?.phone ?? '');
   const [type, setType] = useState<ServiceProviderType>(initialValue?.type ?? 'eletrica');
 
+  // The modal is kept mounted (see providers/index.tsx) and only hides via
+  // `!open`, so useState's initial value alone never re-runs — switching
+  // from editing one provider to another without closing in between would
+  // otherwise keep showing the previous provider's data.
+  useEffect(() => {
+    if (!open) return;
+    setName(initialValue?.name ?? '');
+    setPhone(initialValue?.phone ?? '');
+    setType(initialValue?.type ?? 'eletrica');
+  }, [open, initialValue]);
+
   if (!open) return null;
 
+  const canSubmit = name.trim().length > 0 && phone.trim().length > 0;
+
   return (
-    <div data-slot="provider-form-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div
+      data-slot="provider-form-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="provider-form-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
       <div className="w-full max-w-sm rounded-xl border border-border bg-surface-raised p-5">
-        <h2 className="mb-4 text-sm font-medium text-foreground">
+        <h2 id="provider-form-modal-title" className="mb-4 text-sm font-medium text-foreground">
           {initialValue ? 'Editar prestador' : 'Novo prestador'}
         </h2>
         <div className="space-y-3">
@@ -65,7 +85,12 @@ export function ProviderFormModal({ open, onClose, onSubmit, initialValue }: Pro
           <CustomButton variant="ghost" onClick={onClose}>
             Cancelar
           </CustomButton>
-          <CustomButton onClick={() => onSubmit({ name, phone, type })}>Salvar</CustomButton>
+          <CustomButton
+            disabled={!canSubmit}
+            onClick={() => onSubmit({ name: name.trim(), phone: phone.trim(), type })}
+          >
+            Salvar
+          </CustomButton>
         </div>
       </div>
     </div>

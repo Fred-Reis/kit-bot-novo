@@ -19,7 +19,7 @@ function ProvidersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceProvider | null>(null);
 
-  const { data: providers = [], isLoading } = useQuery({
+  const { data: providers = [], isLoading, isError } = useQuery({
     queryKey: ['service-providers'],
     queryFn: fetchServiceProviders,
   });
@@ -87,6 +87,18 @@ function ProvidersPage() {
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                   Carregando...
+                </td>
+              </tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-destructive">
+                  Falha ao carregar prestadores.
+                </td>
+              </tr>
+            ) : providers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                  Nenhum prestador cadastrado.
                 </td>
               </tr>
             ) : (

@@ -512,24 +512,28 @@ export async function fetchTenantMaintenanceRequests(tenantId: string): Promise<
   if (error) throw error;
 
   const rawRequests = (data ?? []) as MaintenanceRequest[];
-  return Promise.all(
-    rawRequests.map(async (req) => {
-      if (req.mediaUrls.length === 0) return req;
-      const signedUrls = await Promise.all(
-        req.mediaUrls.map(async (path) => {
-          const { data: signed, error: signErr } = await supabase.storage
-            .from('leads')
-            .createSignedUrl(path, 3600);
-          if (signErr) {
-            console.error(`[fetchTenantMaintenanceRequests] Failed to sign URL for ${path}:`, signErr);
-            return path;
-          }
-          return signed.signedUrl;
-        }),
-      );
-      return { ...req, mediaUrls: signedUrls };
-    }),
-  );
+  const allPaths = rawRequests.flatMap((req) => req.mediaUrls);
+  if (allPaths.length === 0) return rawRequests;
+
+  const { data: signedList, error: signErr } = await supabase.storage
+    .from('leads')
+    .createSignedUrls(allPaths, 3600);
+  if (signErr) {
+    console.error('[fetchTenantMaintenanceRequests] Failed to batch-sign media URLs:', signErr);
+    return rawRequests;
+  }
+
+  const signedByPath = new Map<string, string>();
+  for (const entry of signedList) {
+    if (entry.path && !entry.error && entry.signedUrl) {
+      signedByPath.set(entry.path, entry.signedUrl);
+    }
+  }
+
+  return rawRequests.map((req) => ({
+    ...req,
+    mediaUrls: req.mediaUrls.map((path) => signedByPath.get(path) ?? path),
+  }));
 }
 
 export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {

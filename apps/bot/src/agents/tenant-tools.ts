@@ -1,4 +1,11 @@
-import type { MaintenanceResponsibility, MaintenanceSeverity, MaintenanceType } from '@kit-manager/types';
+import {
+  MAINTENANCE_RESPONSIBILITIES,
+  MAINTENANCE_SEVERITIES,
+  type MaintenanceResponsibility,
+  type MaintenanceSeverity,
+  type MaintenanceType,
+  SERVICE_CATEGORIES,
+} from '@kit-manager/types';
 import { type StructuredToolInterface, tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { prisma } from '@/db/client';
@@ -15,19 +22,6 @@ export interface TenantToolDeps {
   propertyId: string;
   pendingMediaUrls: string[];
 }
-
-const MAINTENANCE_TYPES: [MaintenanceType, ...MaintenanceType[]] = [
-  'eletrica',
-  'hidraulica',
-  'civil',
-  'limpeza_conservacao',
-];
-const MAINTENANCE_SEVERITIES: [MaintenanceSeverity, ...MaintenanceSeverity[]] = ['baixa', 'media', 'urgente'];
-const MAINTENANCE_RESPONSIBILITIES: [MaintenanceResponsibility, ...MaintenanceResponsibility[]] = [
-  'tenant',
-  'owner',
-  'unclear',
-];
 
 function fail(msg: string): string {
   return `Erro: ${msg}`;
@@ -154,7 +148,7 @@ export function buildTenantTools(deps: TenantToolDeps): StructuredToolInterface[
         'owner (estrutura, desgaste natural, vício do imóvel) ou unclear quando o relato não permitir distinguir — ' +
         'nunca decida um caso ambíguo como tenant só para simplificar.',
       schema: z.object({
-        tipo: z.enum(MAINTENANCE_TYPES),
+        tipo: z.enum(SERVICE_CATEGORIES),
         severidade: z.enum(MAINTENANCE_SEVERITIES),
         resumo: z.string(),
         responsabilidade: z.enum(MAINTENANCE_RESPONSIBILITIES),
@@ -184,7 +178,7 @@ export function buildTenantTools(deps: TenantToolDeps): StructuredToolInterface[
         'Indica um profissional cadastrado (eletricista, encanador, pedreiro, diarista) para o tipo de serviço. ' +
         'Use quando o problema for responsabilidade do inquilino (já deu a dica de resolver sozinho) ou o ' +
         'inquilino pedir uma indicação. Se não houver cadastrado, diga isso honestamente — nunca invente um nome.',
-      schema: z.object({ tipo: z.enum(MAINTENANCE_TYPES) }),
+      schema: z.object({ tipo: z.enum(SERVICE_CATEGORIES) }),
     },
   );
 

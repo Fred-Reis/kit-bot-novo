@@ -23,7 +23,7 @@ type NotifyPayloadMap = {
     responsibility: 'tenant' | 'owner' | 'unclear';
     severity: 'baixa' | 'media' | 'urgente';
   };
-  tenant_media_forwarded: { tenantName: string; tenantPhone: string };
+  tenant_media_forwarded: { tenantName: string; tenantPhone: string; mediaUrls: string[] };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -238,11 +238,16 @@ export function buildTenantMaintenanceRequestMessage(payload: {
 export function buildTenantMediaForwardedMessage(payload: {
   tenantName: string;
   tenantPhone: string;
+  mediaUrls: string[];
 }): string {
+  const links =
+    payload.mediaUrls.length > 0
+      ? payload.mediaUrls.join('\n')
+      : 'Não consegui gerar o link agora — acesse o painel para ver o arquivo recebido.';
   return (
     `📎 Inquilino enviou uma foto sem chamado aberto\n` +
     `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
-    `Acesse o painel para ver o arquivo recebido.`
+    `${links}`
   );
 }
 

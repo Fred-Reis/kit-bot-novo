@@ -1,10 +1,10 @@
-import type { ServiceProviderType } from '@kit-manager/types';
+import { SERVICE_CATEGORIES, type ServiceProviderType } from '@kit-manager/types';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity } from '@/services/activity';
 
-const VALID_TYPES: ServiceProviderType[] = ['eletrica', 'hidraulica', 'civil', 'limpeza_conservacao'];
+const VALID_TYPES: readonly ServiceProviderType[] = SERVICE_CATEGORIES;
 
 export async function providersRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/admin/providers', { preHandler: verifyAdminJwt }, async (_request, reply) => {

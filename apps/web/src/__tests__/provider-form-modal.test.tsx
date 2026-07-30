@@ -31,4 +31,37 @@ describe('ProviderFormModal', () => {
     );
     expect(screen.getByLabelText(/nome/i)).toHaveValue('Ana Hidráulica');
   });
+
+  test('reabrir pra editar outro prestador sem desmontar atualiza os campos (não fica com estado obsoleto)', () => {
+    const { rerender } = render(
+      <ProviderFormModal
+        open
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        initialValue={{ name: 'Ana Hidráulica', phone: '11922221111', type: 'hidraulica' }}
+      />,
+    );
+    rerender(
+      <ProviderFormModal
+        open
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        initialValue={{ name: 'Bruno Elétrica', phone: '11933332222', type: 'eletrica' }}
+      />,
+    );
+    expect(screen.getByLabelText(/nome/i)).toHaveValue('Bruno Elétrica');
+    expect(screen.getByLabelText(/telefone/i)).toHaveValue('11933332222');
+  });
+
+  test('Escape fecha o modal', () => {
+    const onClose = vi.fn();
+    render(<ProviderFormModal open onClose={onClose} onSubmit={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test('botão Salvar fica desabilitado com nome ou telefone vazios', () => {
+    render(<ProviderFormModal open onClose={vi.fn()} onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /salvar/i })).toBeDisabled();
+  });
 });

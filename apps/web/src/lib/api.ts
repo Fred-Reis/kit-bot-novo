@@ -1,4 +1,10 @@
-import type { ComplaintStatus, ContractPreview, LeadStage, MaintenanceStatus } from '@kit-manager/types';
+import type {
+  ComplaintStatus,
+  ContractPreview,
+  LeadStage,
+  MaintenanceStatus,
+  ServiceProviderType,
+} from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
@@ -101,11 +107,11 @@ export const adminApi = {
     botApi.post(`/admin/coordinators/${id}/properties/bulk-link`, data),
   updateComplaintStatus: (id: string, status: ComplaintStatus) =>
     botApi.patch(`/admin/complaints/${id}`, { status }),
-  createProvider: (data: { name: string; phone: string; type: string }) =>
+  createProvider: (data: { name: string; phone: string; type: ServiceProviderType }) =>
     botApi.post('/admin/providers', data),
   updateProvider: (
     id: string,
-    data: Partial<{ name: string; phone: string; type: string; active: boolean }>,
+    data: Partial<{ name: string; phone: string; type: ServiceProviderType; active: boolean }>,
   ) => botApi.patch(`/admin/providers/${id}`, data),
   updateMaintenanceStatus: (id: string, status: MaintenanceStatus) =>
     botApi.patch(`/admin/maintenance/${id}`, { status }),

@@ -1,10 +1,10 @@
-import type { MaintenanceStatus } from '@kit-manager/types';
+import { MAINTENANCE_STATUSES, type MaintenanceStatus } from '@kit-manager/types';
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity } from '@/services/activity';
 
-const VALID_STATUSES: MaintenanceStatus[] = ['open', 'acknowledged', 'in_progress', 'resolved'];
+const VALID_STATUSES: readonly MaintenanceStatus[] = MAINTENANCE_STATUSES;
 
 export async function maintenanceRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.patch<{ Params: { id: string }; Body: { status: MaintenanceStatus } }>(

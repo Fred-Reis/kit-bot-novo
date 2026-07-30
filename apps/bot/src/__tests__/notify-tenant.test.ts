@@ -64,12 +64,23 @@ describe('buildTenantMaintenanceRequestMessage', () => {
 });
 
 describe('buildTenantMediaForwardedMessage', () => {
-  test('inclui nome e telefone', () => {
+  test('inclui nome, telefone e os links das mídias', () => {
     const msg = buildTenantMediaForwardedMessage({
       tenantName: 'Paula Reis',
       tenantPhone: '11933332222',
+      mediaUrls: ['https://signed.example/foto1.jpg'],
     });
     expect(msg).toContain('Paula Reis');
     expect(msg).toContain('11933332222');
+    expect(msg).toContain('https://signed.example/foto1.jpg');
+  });
+
+  test('sem mediaUrls, avisa que não conseguiu gerar o link', () => {
+    const msg = buildTenantMediaForwardedMessage({
+      tenantName: 'Paula Reis',
+      tenantPhone: '11933332222',
+      mediaUrls: [],
+    });
+    expect(msg.toLowerCase()).toContain('painel');
   });
 });

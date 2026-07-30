@@ -7,6 +7,7 @@ export * from './lead';
 export * from './maintenance-request';
 export * from './property';
 export * from './rule-set';
+export * from './service-category';
 export * from './service-provider';
 export * from './tenant';
 

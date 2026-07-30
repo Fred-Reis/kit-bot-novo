@@ -1,7 +1,15 @@
-export type MaintenanceType = 'eletrica' | 'hidraulica' | 'civil' | 'limpeza_conservacao';
-export type MaintenanceResponsibility = 'tenant' | 'owner' | 'unclear';
-export type MaintenanceSeverity = 'baixa' | 'media' | 'urgente';
-export type MaintenanceStatus = 'open' | 'acknowledged' | 'in_progress' | 'resolved';
+import type { ServiceCategory } from './service-category';
+
+export type MaintenanceType = ServiceCategory;
+
+export const MAINTENANCE_SEVERITIES = ['baixa', 'media', 'urgente'] as const;
+export type MaintenanceSeverity = (typeof MAINTENANCE_SEVERITIES)[number];
+
+export const MAINTENANCE_RESPONSIBILITIES = ['tenant', 'owner', 'unclear'] as const;
+export type MaintenanceResponsibility = (typeof MAINTENANCE_RESPONSIBILITIES)[number];
+
+export const MAINTENANCE_STATUSES = ['open', 'acknowledged', 'in_progress', 'resolved'] as const;
+export type MaintenanceStatus = (typeof MAINTENANCE_STATUSES)[number];
 
 export interface MaintenanceRequest {
   id: string;
