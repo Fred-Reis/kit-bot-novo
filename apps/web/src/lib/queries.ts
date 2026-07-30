@@ -10,12 +10,14 @@ import type {
   Lead,
   LeadDocument,
   LeadStage,
+  MaintenanceRequest,
   Payment,
   Property,
   PropertyCoordinatorLink,
   PropertyMedia,
   RuleSetDetail,
   RuleSetSummary,
+  ServiceProvider,
   Tenant,
   TenantDocument,
 } from '@kit-manager/types';
@@ -490,6 +492,44 @@ export async function fetchTenantComplaints(tenantId: string): Promise<Complaint
     .order('createdAt', { ascending: false });
   if (error) throw error;
   return (data ?? []) as Complaint[];
+}
+
+export async function fetchServiceProviders(): Promise<ServiceProvider[]> {
+  const { data, error } = await supabase
+    .from('ServiceProvider')
+    .select('*')
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ServiceProvider[];
+}
+
+export async function fetchTenantMaintenanceRequests(tenantId: string): Promise<MaintenanceRequest[]> {
+  const { data, error } = await supabase
+    .from('MaintenanceRequest')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+
+  const rawRequests = (data ?? []) as MaintenanceRequest[];
+  return Promise.all(
+    rawRequests.map(async (req) => {
+      if (req.mediaUrls.length === 0) return req;
+      const signedUrls = await Promise.all(
+        req.mediaUrls.map(async (path) => {
+          const { data: signed, error: signErr } = await supabase.storage
+            .from('leads')
+            .createSignedUrl(path, 3600);
+          if (signErr) {
+            console.error(`[fetchTenantMaintenanceRequests] Failed to sign URL for ${path}:`, signErr);
+            return path;
+          }
+          return signed.signedUrl;
+        }),
+      );
+      return { ...req, mediaUrls: signedUrls };
+    }),
+  );
 }
 
 export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {
