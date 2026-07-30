@@ -41,6 +41,19 @@ const MAINTENANCE_NEXT_STATUS: Record<MaintenanceStatus, MaintenanceStatus | nul
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
+
+// mediaUrls comes from the bot's media pipeline, which accepts any non-audio
+// attachment (photo, video, or document) as chamado evidence — not just
+// photos. Signed URLs carry a query string, so the extension check strips it
+// first; anything that isn't a recognized image extension renders as a file
+// link instead of an <img>, which would otherwise show a broken-image icon.
+function isImageUrl(url: string): boolean {
+  const path = url.split('?')[0] ?? '';
+  const ext = path.split('.').pop()?.toLowerCase();
+  return !!ext && IMAGE_EXTENSIONS.has(ext);
+}
+
 type UnifiedItem =
   | { kind: 'complaint'; createdAt: string; data: Complaint }
   | { kind: 'maintenance'; createdAt: string; data: MaintenanceRequest };
@@ -168,12 +181,24 @@ function MaintenanceRow({
         {request.responsibility}
       </p>
       {request.mediaUrls.length > 0 && (
-        <div className="mt-2 flex gap-2">
-          {request.mediaUrls.map((url) => (
-            <a key={url} href={url} target="_blank" rel="noreferrer">
-              <img src={url} alt="Foto do chamado" className="size-16 rounded-md object-cover" />
-            </a>
-          ))}
+        <div className="mt-2 flex flex-wrap gap-2">
+          {request.mediaUrls.map((url) =>
+            isImageUrl(url) ? (
+              <a key={url} href={url} target="_blank" rel="noreferrer">
+                <img src={url} alt="Foto do chamado" className="size-16 rounded-md object-cover" />
+              </a>
+            ) : (
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-16 items-center rounded-md border border-border px-3 text-xs font-medium text-accent-ink hover:underline"
+              >
+                Ver arquivo
+              </a>
+            ),
+          )}
         </div>
       )}
       <div className="mt-2 flex items-center justify-between">

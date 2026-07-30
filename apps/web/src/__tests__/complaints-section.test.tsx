@@ -125,6 +125,23 @@ describe('ComplaintsSection — manutenção', () => {
     expect(screen.getByAltText(/foto do chamado/i)).toHaveAttribute('src', 'https://signed.example/photo.jpg');
   });
 
+  test('anexo que não é imagem (ex: vídeo/pdf) vira link de arquivo, não <img> quebrada', () => {
+    render(
+      <ComplaintsSection
+        complaints={[]}
+        maintenanceRequests={[
+          makeMaintenanceRequest({ mediaUrls: ['https://signed.example/evidencia.mp4?token=abc'] }),
+        ]}
+        isLoading={false}
+        isAdvancing={false}
+        onAdvanceStatus={vi.fn()}
+        onAdvanceMaintenanceStatus={vi.fn()}
+      />,
+    );
+    expect(screen.queryByAltText(/foto do chamado/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/ver arquivo/i)).toBeInTheDocument();
+  });
+
   test('avança status de manutenção chama onAdvanceMaintenanceStatus com in_progress', () => {
     const onAdvanceMaintenanceStatus = vi.fn();
     render(
