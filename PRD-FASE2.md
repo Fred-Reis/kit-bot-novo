@@ -167,7 +167,7 @@ Verificação final: `bun run check` limpo — 227 pass, 0 fail, 0 erros de lint
 - **Recusado com justificativa:** CodeRabbit assumiu que RLS bloqueia leitura de não-owners em `fetchTenantComplaints` — premissa incorreta pra este schema, RLS é deliberadamente inerte em toda tabela (`Complaint` incluída), se comporta igual a toda outra leitura via supabase-js já existente.
 
 Verificação final pós-CodeRabbit: bot `bun run check` limpo (233 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` limpo (122 pass, 0 fail).
-- [ ] Merge (Fred)
+- [x] Merge (Fred) — PR #40 mergeada (`67ca321`, 2026-07-30)
 
 Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 erros de lint); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` limpo (122 pass, 0 fail). Pós-simplify: reverificado, tudo continua verde.
 
@@ -249,9 +249,9 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 
 | Campo | Valor |
 |---|---|
-| Última atualização | 2026-07-29 |
-| Etapa atual | T2 etapas 1-6 concluídas (brainstorm/spec/plan/build/simplify/review — local + independente). PR #40 aberta (`feat/tenant-t2-reclamacoes` → `main`) |
-| Próxima etapa | CodeRabbit na PR #40 → loop de achados (se houver) → merge do Fred → T3 etapa 1 (Manutenção) |
+| Última atualização | 2026-07-30 |
+| Etapa atual | T2 (Reclamações) concluída e mergeada — PR #40 (`67ca321`). Todas as etapas (brainstorm→spec→plan→build→simplify→review→CodeRabbit→merge) fechadas |
+| Próxima etapa | T3 etapa 1 (Brainstorm da slice Manutenção) |
 | Bloqueios | — |
 
 ---
