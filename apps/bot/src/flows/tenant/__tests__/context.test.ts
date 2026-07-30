@@ -117,4 +117,11 @@ describe('renderTenantContext', () => {
     expect(text).toContain('Kitnet no Retiro');
     expect(text).toContain('900');
   });
+
+  it('inclui o resumo da lei do inquilinato', async () => {
+    const snapshot = await buildTenantSnapshot('5511999999999@s.whatsapp.net');
+    if (!snapshot) throw new Error('snapshot nulo');
+    const text = renderTenantContext(snapshot);
+    expect(text).toContain('Lei do Inquilinato');
+  });
 });

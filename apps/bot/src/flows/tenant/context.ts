@@ -1,8 +1,30 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { prisma } from '@/db/client';
 import { redis } from '@/db/redis';
 import { logger } from '@/lib/logger';
 
 const CACHE_TTL_SECONDS = 1800; // 30 min — design §3.1
+
+// process.cwd() is always the `apps/bot` directory — both in local dev
+// (`cd apps/bot && bun run dev` / `bun test src`) and in the Docker image
+// (WORKDIR ends at /app/apps/bot). Two levels up reaches the repo root
+// locally, and the Dockerfile mirrors that by copying this one file to
+// /app/docs/ — see apps/bot/Dockerfile.
+const MAINTENANCE_LAW_SUMMARY_PATH = join(process.cwd(), '..', '..', 'docs', 'lei-inquilinato-resumo.md');
+
+let cachedMaintenanceLawSummary: string | null = null;
+
+function getMaintenanceLawSummary(): string {
+  if (cachedMaintenanceLawSummary !== null) return cachedMaintenanceLawSummary;
+  try {
+    cachedMaintenanceLawSummary = readFileSync(MAINTENANCE_LAW_SUMMARY_PATH, 'utf-8');
+  } catch (err) {
+    logger.error({ err }, '[tenant.context] Falha ao ler lei-inquilinato-resumo.md — seguindo sem o resumo');
+    cachedMaintenanceLawSummary = '';
+  }
+  return cachedMaintenanceLawSummary;
+}
 
 export interface TenantSnapshot {
   tenantId: string;
@@ -96,6 +118,10 @@ export function renderTenantContext(snapshot: TenantSnapshot): string {
           .map((p) => `${p.month} R$ ${p.amount.toLocaleString('pt-BR')} (${p.status})`)
           .join('; '),
     );
+  }
+  const lawSummary = getMaintenanceLawSummary();
+  if (lawSummary) {
+    lines.push('---', lawSummary);
   }
   return lines.join('\n');
 }

@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy workspace root
 COPY package.json bun.lock* ./
 COPY packages/types ./packages/types/
+COPY docs/lei-inquilinato-resumo.md ./docs/lei-inquilinato-resumo.md
 
 # Copy bot app
 COPY apps/bot/package.json ./apps/bot/
