@@ -61,7 +61,7 @@ export function buildTenantTools(deps: TenantToolDeps): StructuredToolInterface[
           subject: displayName,
           metadata: { summary: resumo },
         }).catch((err) => logger.error({ err }, '[tenant-tools] logActivity complaint_registered falhou'));
-        return 'Reclamação registrada. O proprietário foi avisado e vai acompanhar o caso.';
+        return 'Reclamação registrada com sucesso.';
       } catch (err) {
         logger.error({ err }, '[tenant-tools] registrar_reclamacao');
         return fail('não consegui registrar a reclamação agora.');

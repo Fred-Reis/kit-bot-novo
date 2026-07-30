@@ -1,4 +1,6 @@
 import type { Complaint, ComplaintStatus } from '@kit-manager/types';
+import type { ComponentProps } from 'react';
+import { twMerge } from 'tailwind-merge';
 import { Pill } from '@/components/ui/pill';
 
 const STATUS_TONE: Record<ComplaintStatus, 'warn' | 'accent' | 'ok'> = {
@@ -21,21 +23,30 @@ const NEXT_STATUS: Record<ComplaintStatus, ComplaintStatus | null> = {
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
+interface ComplaintsSectionProps extends Omit<ComponentProps<'div'>, 'children'> {
+  complaints: Complaint[];
+  isLoading: boolean;
+  isAdvancing: boolean;
+  onAdvanceStatus: (id: string, status: ComplaintStatus) => void;
+}
+
 export function ComplaintsSection({
   complaints,
   isLoading,
   isAdvancing,
   onAdvanceStatus,
-}: {
-  complaints: Complaint[];
-  isLoading: boolean;
-  isAdvancing: boolean;
-  onAdvanceStatus: (id: string, status: ComplaintStatus) => void;
-}) {
+  className,
+  ...props
+}: ComplaintsSectionProps) {
   if (!isLoading && complaints.length === 0) return null;
 
   return (
-    <div data-slot="complaints-section" className="rounded-xl border border-border bg-surface-raised p-5">
+    <div
+      data-slot="complaints-section"
+      data-state={isLoading ? 'loading' : 'ready'}
+      className={twMerge('rounded-xl border border-border bg-surface-raised p-5', className)}
+      {...props}
+    >
       <h2 className="mb-4 text-sm font-medium text-foreground">Chamados & Reclamações</h2>
       {isLoading ? (
         <div className="space-y-2">
