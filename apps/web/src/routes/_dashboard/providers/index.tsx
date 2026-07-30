@@ -10,15 +10,9 @@ import { CustomButton } from '@/components/ui/btn';
 import { Toggle } from '@/components/ui/toggle';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { fetchServiceProviders } from '@/lib/queries';
+import { SERVICE_TYPE_LABEL } from '@/lib/service-type-labels';
 
 export const Route = createFileRoute('/_dashboard/providers/')({ component: ProvidersPage });
-
-const TYPE_LABEL: Record<string, string> = {
-  eletrica: 'Elétrica',
-  hidraulica: 'Hidráulica',
-  civil: 'Civil',
-  limpeza_conservacao: 'Limpeza/Conservação',
-};
 
 function ProvidersPage() {
   const qc = useQueryClient();
@@ -100,7 +94,7 @@ function ProvidersPage() {
                 <tr key={p.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 text-foreground">{p.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.phone}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{TYPE_LABEL[p.type] ?? p.type}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{SERVICE_TYPE_LABEL[p.type] ?? p.type}</td>
                   <td className="px-4 py-3">
                     <Toggle
                       checked={p.active}

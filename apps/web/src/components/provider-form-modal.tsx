@@ -1,13 +1,7 @@
 import type { ServiceProviderType } from '@kit-manager/types';
 import { useState } from 'react';
 import { CustomButton } from '@/components/ui/btn';
-
-const TYPE_LABEL: Record<ServiceProviderType, string> = {
-  eletrica: 'Elétrica',
-  hidraulica: 'Hidráulica',
-  civil: 'Civil',
-  limpeza_conservacao: 'Limpeza/Conservação',
-};
+import { SERVICE_TYPE_LABEL } from '@/lib/service-type-labels';
 
 export interface ProviderFormValue {
   name: string;
@@ -59,7 +53,7 @@ export function ProviderFormModal({ open, onClose, onSubmit, initialValue }: Pro
               value={type}
               onChange={(e) => setType(e.target.value as ServiceProviderType)}
             >
-              {Object.entries(TYPE_LABEL).map(([value, label]) => (
+              {Object.entries(SERVICE_TYPE_LABEL).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

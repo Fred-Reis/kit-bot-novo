@@ -2,6 +2,7 @@ import type { Complaint, ComplaintStatus, MaintenanceRequest, MaintenanceStatus 
 import type { ComponentProps } from 'react';
 import { twMerge } from 'tailwind-merge';
 import { Pill } from '@/components/ui/pill';
+import { SERVICE_TYPE_LABEL } from '@/lib/service-type-labels';
 
 const COMPLAINT_STATUS_TONE: Record<ComplaintStatus, 'warn' | 'accent' | 'ok'> = {
   open: 'warn',
@@ -36,13 +37,6 @@ const MAINTENANCE_NEXT_STATUS: Record<MaintenanceStatus, MaintenanceStatus | nul
   acknowledged: 'in_progress',
   in_progress: 'resolved',
   resolved: null,
-};
-
-const MAINTENANCE_TYPE_LABEL: Record<string, string> = {
-  eletrica: 'Elétrica',
-  hidraulica: 'Hidráulica',
-  civil: 'Civil',
-  limpeza_conservacao: 'Limpeza/Conservação',
 };
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
@@ -170,7 +164,7 @@ function MaintenanceRow({
         </Pill>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        {MAINTENANCE_TYPE_LABEL[request.type] ?? request.type} · severidade {request.severity} · responsabilidade{' '}
+        {SERVICE_TYPE_LABEL[request.type] ?? request.type} · severidade {request.severity} · responsabilidade{' '}
         {request.responsibility}
       </p>
       {request.mediaUrls.length > 0 && (
