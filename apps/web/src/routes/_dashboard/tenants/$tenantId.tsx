@@ -1,4 +1,4 @@
-import type { ComplaintStatus } from '@kit-manager/types';
+import type { ComplaintStatus, MaintenanceStatus } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
   fetchTenantComplaints,
   fetchTenantContracts,
   fetchTenantDocuments,
+  fetchTenantMaintenanceRequests,
 } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
@@ -73,6 +74,22 @@ function TenantDetailPage() {
     onSuccess: () => {
       toast.success('Status atualizado.');
       void qc.invalidateQueries({ queryKey: ['tenant-complaints', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
+  });
+
+  const { data: maintenanceRequests = [], isLoading: maintenanceLoading } = useQuery({
+    queryKey: ['tenant-maintenance', tenantId],
+    queryFn: () => fetchTenantMaintenanceRequests(tenantId),
+    enabled: !!data,
+  });
+
+  const advanceMaintenanceStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: MaintenanceStatus }) =>
+      adminApi.updateMaintenanceStatus(id, status),
+    onSuccess: () => {
+      toast.success('Status atualizado.');
+      void qc.invalidateQueries({ queryKey: ['tenant-maintenance', tenantId] });
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
   });
@@ -190,9 +207,11 @@ function TenantDetailPage() {
 
       <ComplaintsSection
         complaints={complaints}
-        isLoading={complaintsLoading}
-        isAdvancing={advanceComplaintStatus.isPending}
+        maintenanceRequests={maintenanceRequests}
+        isLoading={complaintsLoading || maintenanceLoading}
+        isAdvancing={advanceComplaintStatus.isPending || advanceMaintenanceStatus.isPending}
         onAdvanceStatus={(id, status) => advanceComplaintStatus.mutate({ id, status })}
+        onAdvanceMaintenanceStatus={(id, status) => advanceMaintenanceStatus.mutate({ id, status })}
       />
 
       <div
