@@ -4,6 +4,7 @@ import { complaintsRoutes } from './complaints';
 import { contractsRoutes } from './contracts';
 import { coordinatorsRoutes } from './coordinators';
 import { leadsRoutes } from './leads';
+import { maintenanceRoutes } from './maintenance';
 import { paymentsRoutes } from './payments';
 import { propertiesRoutes } from './properties';
 import { providersRoutes } from './providers';
@@ -20,6 +21,7 @@ export async function adminRoutes(fastify: FastifyInstance): Promise<void> {
   await ruleSetsRoutes(fastify);
   await coordinatorsRoutes(fastify);
   await complaintsRoutes(fastify);
+  await maintenanceRoutes(fastify);
   await templatesRoutes(fastify);
   await contractsRoutes(fastify);
   await paymentsRoutes(fastify);
