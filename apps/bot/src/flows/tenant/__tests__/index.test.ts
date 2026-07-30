@@ -4,6 +4,10 @@ const sentTexts: Array<{ chatId: string; text: string }> = [];
 const notifyCalls: Array<{ ownerId: string; eventType: string }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
 const events: Array<{ chatId: string; role: string; content: string }> = [];
+const maintenanceRequests: Array<{ id: string; status: string; createdAt: string }> = [];
+const maintenanceUpdates: Array<{ id: string; data: Record<string, unknown> }> = [];
+const agentCalls: Array<{ question: string }> = [];
+let toolDepsCaptured: { propertyId: string; pendingMediaUrls: string[] } | null = null;
 let botPausedAfterAgent = false;
 
 // Only the leaves buildTenantSnapshot touches are mocked here (db/client,
@@ -46,6 +50,17 @@ mock.module('@/db/client', () => ({
         return {};
       },
     },
+    maintenanceRequest: {
+      findFirst: async (args: { where: { status: { in: string[] } } }) => {
+        const candidates = maintenanceRequests.filter((m) => args.where.status.in.includes(m.status));
+        candidates.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return candidates[0] ?? null;
+      },
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        maintenanceUpdates.push({ id: args.where.id, data: args.data });
+        return {};
+      },
+    },
     $transaction: async (ops: unknown[]) => ops,
   },
 }));
@@ -78,11 +93,17 @@ mock.module('@/services/activity', () => ({
 }));
 
 mock.module('@/agents/tenant-v2', () => ({
-  runTenantAgentV2: async () => 'Resposta do agente.',
+  runTenantAgentV2: async (question: string) => {
+    agentCalls.push({ question });
+    return 'Resposta do agente.';
+  },
 }));
 
 mock.module('@/agents/tenant-tools', () => ({
-  buildTenantTools: () => [],
+  buildTenantTools: (deps: { propertyId: string; pendingMediaUrls: string[] }) => {
+    toolDepsCaptured = { propertyId: deps.propertyId, pendingMediaUrls: deps.pendingMediaUrls };
+    return [];
+  },
 }));
 
 import type { MediaItem } from '@/buffer';
@@ -101,6 +122,10 @@ describe('handleTenantMessage', () => {
     tenantFindUniqueShouldThrow = false;
     tenantFindUniqueShouldHang = false;
     sendTextShouldThrow = false;
+    maintenanceRequests.length = 0;
+    maintenanceUpdates.length = 0;
+    agentCalls.length = 0;
+    toolDepsCaptured = null;
   });
 
   it('saudação simples → resposta hardcoded personalizada, sem chamar o agente', async () => {
@@ -228,5 +253,46 @@ describe('handleTenantMessage', () => {
     expect(sentTexts[0]?.text).toContain('instabilidade');
     expect(notifyCalls).toHaveLength(1);
     expect(notifyCalls[0]?.eventType).toBe('tenant_escalation');
+  });
+
+  it('foto sem texto + chamado open existente → anexa direto, zero LLM', async () => {
+    maintenanceRequests.push({ id: 'mr-1', status: 'open', createdAt: '2026-07-01T00:00:00Z' });
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      null,
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/1.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(maintenanceUpdates[0]).toMatchObject({ id: 'mr-1' });
+    expect(sentTexts[0]?.text).toContain('anexei');
+    expect(agentCalls).toHaveLength(0);
+  });
+
+  it('foto sem texto + sem chamado aberto → encaminha ao owner, zero LLM', async () => {
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      null,
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/2.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(notifyCalls.find((c) => c.eventType === 'tenant_media_forwarded')).toBeDefined();
+    expect(agentCalls).toHaveLength(0);
+  });
+
+  it('foto COM texto → segue pro agente, mediaUrls disponíveis via deps', async () => {
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'Tá vazando embaixo da pia',
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/3.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(agentCalls).toHaveLength(1);
+    expect(toolDepsCaptured?.pendingMediaUrls).toEqual(['leads/5511999999999/3.jpg']);
   });
 });
