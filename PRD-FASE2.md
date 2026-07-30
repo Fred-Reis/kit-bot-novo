@@ -180,14 +180,21 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
   - Decisões de implementação sem necessidade de aprovação (padrões já existentes no repo, sem ambiguidade): página `/providers` clona o padrão CRUD+modal+toggle de `coordinators/index.tsx` (mesmo shape de `ServiceProvider`: nome/telefone/tipo/ativo); múltiplos chamados `open` pro mesmo tenant (não impedido pelo schema) → pipeline anexa no mais recente (`createdAt desc`); `docs/lei-inquilinato-resumo.md` rascunhado no Build e revisado pelo Fred antes do merge (conteúdo jurídico, não é decisão de arquitetura).
 - [x] 2. Spec da slice fechada — design §3.2 (tools)/§4 (models)/§5 (painel)/§6 cobrem os critérios de aceite; 3 notas de correção do brainstorm registradas na spec (§3, bloco "Nota T3"); sem TBDs
 - [x] 3. Plan (`docs/superpowers/plans/2026-07-29-t3-manutencao-plan.md`) — 14 tasks TDD: tipos compartilhados; migration; `lei-inquilinato-resumo.md`; tools `abrir_chamado`/`indicar_profissional`; templates de notif; injeção do resumo no contexto do agente; pipeline determinístico de mídia; endpoints `/admin/providers` + `/admin/maintenance/:id`; página `/providers`; extensão da seção "Chamados & Reclamações" com galeria de fotos; verificação final. Self-review aplicado (achado e corrigido: `TenantToolDeps` ganhando campos obrigatórios quebraria o fixture de teste do T1/T2; `apiErrorMessage` chamado com aridade errada)
-- [ ] 4. Build (TDD): migration `MaintenanceRequest` + `ServiceProvider` + RLS inertes + types
-- [ ] 4. Build: `docs/lei-inquilinato-resumo.md` (conteúdo revisado pelo Fred)
-- [ ] 4. Build (TDD): tool `abrir_chamado` (responsabilidade/tipo/severidade; owner/unclear/urgente → notif)
-- [ ] 4. Build (TDD): tool `indicar_profissional` (só do banco; vazio → honestidade)
-- [ ] 4. Build (TDD): pipeline de mídia anexa foto em chamado aberto (`mediaUrls`)
-- [ ] 4. Build (TDD): endpoints `GET/POST/PATCH /admin/providers` + `PATCH /admin/maintenance/:id`
-- [ ] 4. Build: página `/providers` (tabela + modal + toggle ativo)
-- [ ] 4. Build: chamados + galeria de fotos no detalhe do tenant
+- [x] 4. Build (TDD): migration `MaintenanceRequest` + `ServiceProvider` + RLS inertes + types — migration escrita à mão (padrão `Complaint`), aplicada via `prisma db execute` + `migrate resolve --applied` (mesma limitação de shadow-db já documentada)
+- [x] 4. Build: `docs/lei-inquilinato-resumo.md` — rascunho escrito; **pendente revisão de conteúdo jurídico pelo Fred antes do merge** (não é achado de review técnico)
+- [x] 4. Build (TDD): tool `abrir_chamado` (responsabilidade/tipo/severidade; owner/unclear/urgente → notif) — responsabilidade decidida pelo próprio LLM (tem lei-resumo + contrato no contexto), passada como parâmetro validado por Zod; nunca inferida em código
+- [x] 4. Build (TDD): tool `indicar_profissional` (só do banco; vazio → honestidade)
+- [x] 4. Build (TDD): pipeline de mídia anexa foto em chamado aberto (`mediaUrls`) — reusa o storage path já gerado no bucket `leads` por `buffer.ts` (achado do brainstorm); com texto presente e sem chamado aberto, `mediaUrls` pendentes ficam disponíveis pra `abrir_chamado` anexar na criação
+- [x] 4. Build (TDD): endpoints `GET/POST/PATCH /admin/providers` + `PATCH /admin/maintenance/:id` — sem rota de teste HTTP dedicada (nenhuma rota admin do repo tem hoje); cobertura via typecheck+lint, smoke test manual pendente antes do merge
+- [x] 4. Build: página `/providers` (tabela + modal + toggle ativo) — clona o padrão CRUD de `coordinators/index.tsx`; `ProviderFormModal` testado (TDD)
+- [x] 4. Build: chamados + galeria de fotos no detalhe do tenant — `ComplaintsSection` estendida (unifica `Complaint`+`MaintenanceRequest`, ordenados por `createdAt`); galeria assina URL client-side via `supabase.storage.from('leads')`, mesmo padrão de `fetchTenantDocuments`
+
+**Achados corrigidos durante o Build (nenhum estava no plano original):**
+- `docs/lei-inquilinato-resumo.md` é injetado no contexto do agente via `readFileSync`, mas o plano original calculava o caminho a partir de `process.cwd() + 'docs/...'` — `process.cwd()` é sempre `apps/bot` (dev local e Docker) e o `Dockerfile` do bot nunca copiava a pasta `docs/` da raiz, então a implementação literal do plano teria funcionado em teste/dev e falhado silenciosamente (fallback vazio) em produção. Corrigido: caminho `process.cwd() + '../../docs/...'` + uma linha `COPY docs/lei-inquilinato-resumo.md` no Dockerfile (só este arquivo, não a pasta inteira).
+- `metadata: { active }` no endpoint `PATCH /admin/providers/:id` não compilava (`boolean | undefined` não é `JsonValue`) — corrigido para `active ?? null`.
+- Nota de correção do brainstorm (achados de storage/precedência/heurística) tinha sido escrita na spec mas nunca commitada antes de eu seguir pro Plan — pego via `git status` no meio do Build e commitado à parte.
+
+Verificação final: bot `bun run check` limpo (typecheck+lint+test, 246 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` (128 pass, 0 fail) + `bun run build` limpo.
 - [ ] 5. Simplify
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
@@ -254,8 +261,8 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-30 |
-| Etapa atual | T2 (Reclamações) concluída e mergeada — PR #40 (`67ca321`). Todas as etapas (brainstorm→spec→plan→build→simplify→review→CodeRabbit→merge) fechadas |
-| Próxima etapa | T3 etapa 1 (Brainstorm da slice Manutenção) |
+| Etapa atual | T3 (Manutenção) — brainstorm→spec→plan→build fechados, branch `feat/tenant-t3-manutencao`, ainda não commitado em PR. `bun run check` (bot) e tsc+lint+vitest+build (web) 100% verdes |
+| Próxima etapa | T3 etapa 5 (Simplify) → etapa 6 (Review local → PR → CodeRabbit). `docs/lei-inquilinato-resumo.md` precisa de revisão de conteúdo pelo Fred antes do merge |
 | Bloqueios | — |
 
 ---
