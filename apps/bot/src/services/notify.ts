@@ -16,6 +16,14 @@ type NotifyPayloadMap = {
   tenant_escalation: { tenantName: string; tenantPhone: string; reason: string };
   tenant_emergency: { tenantName: string; tenantPhone: string; propertyName: string };
   tenant_complaint: { tenantName: string; tenantPhone: string; summary: string };
+  tenant_maintenance_request: {
+    tenantName: string;
+    tenantPhone: string;
+    summary: string;
+    responsibility: 'tenant' | 'owner' | 'unclear';
+    severity: 'baixa' | 'media' | 'urgente';
+  };
+  tenant_media_forwarded: { tenantName: string; tenantPhone: string };
 };
 
 type NotifyOwnerEventType = keyof NotifyPayloadMap;
@@ -94,6 +102,14 @@ function buildChannelContent(
     case 'tenant_complaint': {
       const p = payload as NotifyPayloadMap['tenant_complaint'];
       return { whatsapp: buildTenantComplaintMessage(p), email: null };
+    }
+    case 'tenant_maintenance_request': {
+      const p = payload as NotifyPayloadMap['tenant_maintenance_request'];
+      return { whatsapp: buildTenantMaintenanceRequestMessage(p), email: null };
+    }
+    case 'tenant_media_forwarded': {
+      const p = payload as NotifyPayloadMap['tenant_media_forwarded'];
+      return { whatsapp: buildTenantMediaForwardedMessage(p), email: null };
     }
   }
 }
@@ -193,6 +209,40 @@ export function buildTenantComplaintMessage(payload: {
     `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
     `Resumo: ${payload.summary}\n` +
     `Acesse o painel para ver os detalhes.`
+  );
+}
+
+const RESPONSIBILITY_LABEL: Record<'tenant' | 'owner' | 'unclear', string> = {
+  tenant: 'inquilino',
+  owner: 'proprietário',
+  unclear: 'indefinida',
+};
+
+export function buildTenantMaintenanceRequestMessage(payload: {
+  tenantName: string;
+  tenantPhone: string;
+  summary: string;
+  responsibility: 'tenant' | 'owner' | 'unclear';
+  severity: 'baixa' | 'media' | 'urgente';
+}): string {
+  return (
+    `🔧 Novo chamado de manutenção\n` +
+    `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Resumo: ${payload.summary}\n` +
+    `Responsabilidade sugerida: ${RESPONSIBILITY_LABEL[payload.responsibility]}\n` +
+    `Severidade: ${payload.severity}\n` +
+    `Acesse o painel para ver os detalhes.`
+  );
+}
+
+export function buildTenantMediaForwardedMessage(payload: {
+  tenantName: string;
+  tenantPhone: string;
+}): string {
+  return (
+    `📎 Inquilino enviou uma foto sem chamado aberto\n` +
+    `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Acesse o painel para ver o arquivo recebido.`
   );
 }
 

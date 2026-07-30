@@ -3,6 +3,8 @@ import {
   buildTenantComplaintMessage,
   buildTenantEmergencyMessage,
   buildTenantEscalationMessage,
+  buildTenantMaintenanceRequestMessage,
+  buildTenantMediaForwardedMessage,
 } from '@/services/notify';
 
 describe('buildTenantEscalationMessage', () => {
@@ -42,5 +44,32 @@ describe('buildTenantComplaintMessage', () => {
     expect(msg).toContain('Ana Costa');
     expect(msg).toContain('11966665555');
     expect(msg).toContain('Barulho excessivo do vizinho à noite');
+  });
+});
+
+describe('buildTenantMaintenanceRequestMessage', () => {
+  test('inclui nome, telefone, resumo, responsabilidade e severidade', () => {
+    const msg = buildTenantMaintenanceRequestMessage({
+      tenantName: 'Carlos Nunes',
+      tenantPhone: '11944443333',
+      summary: 'Vazamento sob a pia da cozinha',
+      responsibility: 'owner',
+      severity: 'media',
+    });
+    expect(msg).toContain('Carlos Nunes');
+    expect(msg).toContain('11944443333');
+    expect(msg).toContain('Vazamento sob a pia da cozinha');
+    expect(msg.toLowerCase()).toContain('proprietário');
+  });
+});
+
+describe('buildTenantMediaForwardedMessage', () => {
+  test('inclui nome e telefone', () => {
+    const msg = buildTenantMediaForwardedMessage({
+      tenantName: 'Paula Reis',
+      tenantPhone: '11933332222',
+    });
+    expect(msg).toContain('Paula Reis');
+    expect(msg).toContain('11933332222');
   });
 });
