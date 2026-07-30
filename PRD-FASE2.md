@@ -195,7 +195,7 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 - Nota de correção do brainstorm (achados de storage/precedência/heurística) tinha sido escrita na spec mas nunca commitada antes de eu seguir pro Plan — pego via `git status` no meio do Build e commitado à parte.
 
 Verificação final: bot `bun run check` limpo (typecheck+lint+test, 246 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` (128 pass, 0 fail) + `bun run build` limpo.
-- [ ] 5. Simplify
+- [x] 5. Simplify — `agent-skills:code-simplification` aplicado; achado real (mesmo mapa `eletrica/hidraulica/civil/limpeza_conservacao → label PT-BR` copiado ao pé da letra em 3 arquivos: `provider-form-modal.tsx`, `providers/index.tsx`, `complaints-section.tsx`) extraído pra `lib/service-type-labels.ts` (padrão de `lib/activity-labels.ts`). Demais achados considerados aceitáveis pelo princípio de "manter equilíbrio" do skill: `ComplaintRow`/`MaintenanceRow` em `complaints-section.tsx` têm shell parecido (header+pill / footer com botão de avançar status) mas corpo bem diferente — extrair um shell genérico agora seria abstração prematura pra só 2 variantes, e T6 (triagem visual) deve divergir ainda mais o `MaintenanceRow`. Rotas admin (`providers.ts`/`maintenance.ts`) seguem o mesmo padrão replicado das rotas irmãs (`coordinators.ts`/`complaints.ts`) — já é a convenção estabelecida do repo, não uma duplicação nova desta slice
 - [ ] 6. Review local → PR → CodeRabbit limpo
 - [ ] Merge (Fred)
 
