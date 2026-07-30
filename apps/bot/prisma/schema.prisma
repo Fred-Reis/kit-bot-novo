@@ -26,6 +26,8 @@ model Owner {
   ruleSets          RuleSet[]
   coordinators      Coordinator[]
   complaints        Complaint[]
+  maintenanceRequests MaintenanceRequest[]
+  serviceProviders  ServiceProvider[]
   contractTemplates ContractTemplate[]
   propertyMedias    PropertyMedia[]
   leadDocuments     LeadDocument[]
@@ -79,6 +81,7 @@ model Property {
   coordinators           PropertyCoordinator[]
   contracts              Contract[]
   payments               Payment[]
+  maintenanceRequests    MaintenanceRequest[]
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
@@ -181,6 +184,7 @@ model Tenant {
   contracts     Contract[]
   documents     TenantDocument[]
   complaints    Complaint[]
+  maintenanceRequests MaintenanceRequest[]
   createdAt     DateTime   @default(now())
 
   @@index([ownerId])
@@ -214,6 +218,40 @@ model Complaint {
 
   @@index([ownerId])
   @@index([tenantId])
+}
+
+model MaintenanceRequest {
+  id             String   @id @default(uuid())
+  ownerId        String
+  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  propertyId     String
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  type           String   // eletrica | hidraulica | civil | limpeza_conservacao
+  responsibility String   // tenant | owner | unclear
+  severity       String   // baixa | media | urgente
+  summary        String
+  status         String   @default("open") // open | acknowledged | in_progress | resolved
+  mediaUrls      String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([tenantId])
+}
+
+model ServiceProvider {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  name      String
+  phone     String
+  type      String   // eletrica | hidraulica | civil | limpeza_conservacao
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([ownerId])
 }
 
 model Payment {
