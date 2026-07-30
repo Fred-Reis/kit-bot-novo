@@ -196,7 +196,7 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 
 Verificação final: bot `bun run check` limpo (typecheck+lint+test, 246 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros, mesmo baseline de warnings pré-existente) + `bunx vitest run` (128 pass, 0 fail) + `bun run build` limpo.
 - [x] 5. Simplify — `agent-skills:code-simplification` aplicado; achado real (mesmo mapa `eletrica/hidraulica/civil/limpeza_conservacao → label PT-BR` copiado ao pé da letra em 3 arquivos: `provider-form-modal.tsx`, `providers/index.tsx`, `complaints-section.tsx`) extraído pra `lib/service-type-labels.ts` (padrão de `lib/activity-labels.ts`). Demais achados considerados aceitáveis pelo princípio de "manter equilíbrio" do skill: `ComplaintRow`/`MaintenanceRow` em `complaints-section.tsx` têm shell parecido (header+pill / footer com botão de avançar status) mas corpo bem diferente — extrair um shell genérico agora seria abstração prematura pra só 2 variantes, e T6 (triagem visual) deve divergir ainda mais o `MaintenanceRow`. Rotas admin (`providers.ts`/`maintenance.ts`) seguem o mesmo padrão replicado das rotas irmãs (`coordinators.ts`/`complaints.ts`) — já é a convenção estabelecida do repo, não uma duplicação nova desta slice
-- [~] 6. Review local (`agent-skills:code-review-and-quality`, 5 eixos, suíte re-executada de verdade) → PR aberta, aguardando CodeRabbit
+- [~] 6. Review local (`agent-skills:code-review-and-quality`, 5 eixos, suíte re-executada de verdade) → PR #42 aberta (2026-07-30), aguardando CodeRabbit
   - **Corrigido (achado real):** pipeline de mídia anexa qualquer mídia não-áudio (imagem, documento ou vídeo — a Evolution API manda os 3 tipos) em `MaintenanceRequest.mediaUrls`, mas a galeria renderizava tudo como `<img>` incondicionalmente — um PDF ou vídeo de evidência (ex: vazamento intermitente) virava ícone de imagem quebrada no painel, sem teste cobrindo o caso não-imagem. Corrigido: `isImageUrl()` detecta a extensão (ignorando querystring da signed URL) e renderiza link de arquivo pros casos não-imagem, em vez de restringir o que o bot aceita (vídeo como evidência é legítimo).
   - **Aceito como consistente com o padrão existente (não é achado novo desta slice):** o branch "anexa em chamado aberto" usa `await` sequencial (não `Promise.allSettled`), então uma falha do `maintenanceRequest.update` cairia no catch-all externo sem avisar o inquilino — mas greeting/áudio/frustração já têm exatamente o mesmo padrão hoje; só emergência e o novo forward-ao-owner (efeito colateral pro proprietário) recebem o tratamento mais resiliente. Não é regressão desta slice, é o nível de resiliência já estabelecido pro resto do arquivo.
   - **Nitpick aceito:** `metadata: { active: active ?? null }` em `PATCH /admin/providers/:id` grava `active: null` no log de atividade mesmo quando o campo não foi tocado no PATCH (só nome/telefone mudaram) — ambíguo mas inofensivo (mesmo padrão de `metadata` opcional usado em outras rotas admin); não bloqueante.
@@ -264,8 +264,8 @@ Verificação final: bot `bun run check` limpo (typecheck+lint+test, 246 pass, 0
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-07-30 |
-| Etapa atual | T3 (Manutenção) — brainstorm→spec→plan→build fechados, branch `feat/tenant-t3-manutencao`, ainda não commitado em PR. `bun run check` (bot) e tsc+lint+vitest+build (web) 100% verdes |
-| Próxima etapa | T3 etapa 5 (Simplify) → etapa 6 (Review local → PR → CodeRabbit). `docs/lei-inquilinato-resumo.md` precisa de revisão de conteúdo pelo Fred antes do merge |
+| Etapa atual | T3 (Manutenção) — brainstorm→spec→plan→build→simplify→review local fechados. PR #42 aberta, aguardando CodeRabbit |
+| Próxima etapa | Loop CodeRabbit → triagem → fix → commit até PR limpa. `docs/lei-inquilinato-resumo.md` precisa de revisão de conteúdo pelo Fred antes do merge |
 | Bloqueios | — |
 
 ---
