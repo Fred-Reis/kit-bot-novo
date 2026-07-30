@@ -192,6 +192,12 @@ export async function handleTenantMessage(
       });
 
       if (openRequest) {
+        // Only the write itself decides attach-vs-forward — a failure *after*
+        // a successful attach (persistTurn/sendText) must never fall through
+        // to forwardMediaToOwner, which would both lie to the tenant ("I
+        // forwarded it") and log a misleading tenant_media_forwarded event
+        // for media that's already correctly attached to the real chamado.
+        let attached = false;
         try {
           // updateMany + status filter (not the plain `update` a findFirst→update
           // pair would use) closes the race where the chamado gets resolved
@@ -202,15 +208,16 @@ export async function handleTenantMessage(
             where: { id: openRequest.id, status: { in: ['open', 'acknowledged'] } },
             data: { mediaUrls: { push: mediaUrls } },
           });
-          if (count > 0) {
-            await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY);
-            await sendText(chatId, MEDIA_ATTACHED_REPLY);
-            return;
-          }
+          attached = count > 0;
         } catch (err) {
           // Infra failure while attaching — never let the tenant hit silence
           // (rule 7). Forwarding to the owner still gets them a reply.
           logger.error({ err, chatId }, '[tenant.flow] falha ao anexar mídia ao chamado aberto — encaminhando ao owner');
+        }
+        if (attached) {
+          await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY);
+          await sendText(chatId, MEDIA_ATTACHED_REPLY);
+          return;
         }
       }
 

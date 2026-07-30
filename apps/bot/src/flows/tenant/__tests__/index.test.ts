@@ -295,6 +295,24 @@ describe('handleTenantMessage', () => {
     expect(agentCalls).toHaveLength(0);
   });
 
+  it('anexo bem-sucedido + sendText falha depois → não cai em forwardMediaToOwner (sem mensagem falsa de encaminhamento)', async () => {
+    maintenanceRequests.push({ id: 'mr-1', status: 'open', createdAt: '2026-07-01T00:00:00Z' });
+    sendTextShouldThrow = true;
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      null,
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/1.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    // The attach itself must have gone through — a failure to *reply* after
+    // a successful write must not be treated as "attach failed".
+    expect(maintenanceUpdates).toHaveLength(1);
+    expect(notifyCalls.find((c) => c.eventType === 'tenant_media_forwarded')).toBeUndefined();
+    expect(sentTexts).toHaveLength(0);
+  });
+
   it('foto sem texto + chamado fica resolvido entre a busca e o anexo (corrida) → encaminha ao owner', async () => {
     maintenanceRequests.push({ id: 'mr-1', status: 'open', createdAt: '2026-07-01T00:00:00Z' });
     maintenanceUpdateManyResolvedCount = 0; // simula 0 linhas afetadas: já não estava mais open/acknowledged
