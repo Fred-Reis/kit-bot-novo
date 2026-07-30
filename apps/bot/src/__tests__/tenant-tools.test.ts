@@ -9,6 +9,8 @@ const sentTexts: Array<{ chatId: string; text: string }> = [];
 const notifyCalls: Array<{ ownerId: string; eventType: string; payload: unknown }> = [];
 const activityLogs: Array<Record<string, unknown>> = [];
 const complaintCreates: Array<{ ownerId: string; tenantId: string; summary: string; content: string }> = [];
+const maintenanceCreates: Array<Record<string, unknown>> = [];
+const serviceProviders: Array<Record<string, unknown>> = [];
 
 mock.module('@/db/client', () => ({
   prisma: {
@@ -30,6 +32,27 @@ mock.module('@/db/client', () => ({
       }) => {
         complaintCreates.push(args.data);
         return { id: 'complaint-1', ...args.data, status: 'open', createdAt: new Date().toISOString() };
+      },
+    },
+    maintenanceRequest: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        maintenanceCreates.push(args.data);
+        return {
+          id: 'maintenance-1',
+          ...args.data,
+          status: 'open',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      },
+    },
+    serviceProvider: {
+      findFirst: async (args: { where: Record<string, unknown> }) => {
+        return (
+          serviceProviders.find(
+            (p) => p.ownerId === args.where.ownerId && p.type === args.where.type && p.active === true,
+          ) ?? null
+        );
       },
     },
   },
@@ -60,10 +83,20 @@ const deps = {
   tenantId: 'tenant-1',
   ownerId: 'owner-1',
   tenantName: 'Maria',
+  propertyId: 'property-1',
+  pendingMediaUrls: [] as string[],
 };
+
+const depsWithMedia = { ...deps, pendingMediaUrls: ['leads/5511999999999/123.jpg'] };
 
 function getTool(name: string) {
   const t = buildTenantTools(deps).find((x) => x.name === name);
+  if (!t) throw new Error(`tool ${name} não encontrada`);
+  return t;
+}
+
+function getToolWithMedia(name: string) {
+  const t = buildTenantTools(depsWithMedia).find((x) => x.name === name);
   if (!t) throw new Error(`tool ${name} não encontrada`);
   return t;
 }
@@ -129,9 +162,107 @@ describe('registrar_reclamacao', () => {
   });
 });
 
+describe('abrir_chamado', () => {
+  beforeEach(() => {
+    maintenanceCreates.length = 0;
+    notifyCalls.length = 0;
+    activityLogs.length = 0;
+  });
+
+  it('cria o chamado com mediaUrls pendentes e não notifica quando é tenant + severidade baixa', async () => {
+    const out = (await getToolWithMedia('abrir_chamado').invoke({
+      tipo: 'eletrica',
+      severidade: 'baixa',
+      resumo: 'Lâmpada queimada na sala',
+      responsabilidade: 'tenant',
+    })) as string;
+
+    expect(maintenanceCreates).toHaveLength(1);
+    expect(maintenanceCreates[0]).toMatchObject({
+      ownerId: 'owner-1',
+      tenantId: 'tenant-1',
+      propertyId: 'property-1',
+      type: 'eletrica',
+      severity: 'baixa',
+      responsibility: 'tenant',
+      summary: 'Lâmpada queimada na sala',
+      mediaUrls: ['leads/5511999999999/123.jpg'],
+    });
+    expect(notifyCalls).toHaveLength(0);
+    expect(activityLogs[0]).toMatchObject({ action: 'maintenance_request_created', subjectId: 'maintenance-1' });
+    expect(out).toContain('registrado');
+  });
+
+  it('notifica o owner quando responsabilidade é owner', async () => {
+    await getTool('abrir_chamado').invoke({
+      tipo: 'hidraulica',
+      severidade: 'media',
+      resumo: 'Vazamento sob a pia',
+      responsabilidade: 'owner',
+    });
+    expect(notifyCalls[0]?.eventType).toBe('tenant_maintenance_request');
+    expect(notifyCalls[0]?.payload).toMatchObject({ responsibility: 'owner' });
+  });
+
+  it('notifica o owner quando responsabilidade é unclear', async () => {
+    await getTool('abrir_chamado').invoke({
+      tipo: 'civil',
+      severidade: 'media',
+      resumo: 'Rachadura na parede, causa incerta',
+      responsabilidade: 'unclear',
+    });
+    expect(notifyCalls[0]?.eventType).toBe('tenant_maintenance_request');
+  });
+
+  it('notifica o owner quando severidade é urgente, mesmo com responsabilidade tenant', async () => {
+    await getTool('abrir_chamado').invoke({
+      tipo: 'hidraulica',
+      severidade: 'urgente',
+      resumo: 'Cano estourou, água alagando o quarto',
+      responsabilidade: 'tenant',
+    });
+    expect(notifyCalls[0]?.eventType).toBe('tenant_maintenance_request');
+  });
+
+  it('sem mediaUrls pendentes, cria o chamado com array vazio', async () => {
+    await getTool('abrir_chamado').invoke({
+      tipo: 'limpeza_conservacao',
+      severidade: 'baixa',
+      resumo: "Caixa d'água precisa de limpeza",
+      responsabilidade: 'owner',
+    });
+    expect(maintenanceCreates[0]?.mediaUrls).toEqual([]);
+  });
+});
+
+describe('indicar_profissional', () => {
+  beforeEach(() => {
+    serviceProviders.length = 0;
+  });
+
+  it('retorna nome e telefone do profissional ativo', async () => {
+    serviceProviders.push({
+      id: 'sp-1',
+      ownerId: 'owner-1',
+      name: 'João Elétrica',
+      phone: '11955554444',
+      type: 'eletrica',
+      active: true,
+    });
+    const out = (await getTool('indicar_profissional').invoke({ tipo: 'eletrica' })) as string;
+    expect(out).toContain('João Elétrica');
+    expect(out).toContain('11955554444');
+  });
+
+  it('sem profissional cadastrado, responde honestamente', async () => {
+    const out = (await getTool('indicar_profissional').invoke({ tipo: 'hidraulica' })) as string;
+    expect(out.toLowerCase()).toContain('não há profissional');
+  });
+});
+
 describe('lista completa', () => {
-  it('expõe as 2 tools da T2', () => {
+  it('expõe as 4 tools da T1-T3', () => {
     const names = buildTenantTools(deps).map((t) => t.name);
-    expect(names).toEqual(['escalar_owner', 'registrar_reclamacao']);
+    expect(names).toEqual(['escalar_owner', 'registrar_reclamacao', 'abrir_chamado', 'indicar_profissional']);
   });
 });

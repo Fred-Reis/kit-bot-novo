@@ -13,7 +13,9 @@ export type ActivityLogSubjectType =
   | 'coordinator'
   | 'owner'
   | 'workspace'
-  | 'complaint';
+  | 'complaint'
+  | 'maintenance_request'
+  | 'service_provider';
 
 export type ActivityLogAction =
   | 'lead_created'
@@ -61,8 +63,13 @@ export type ActivityLogAction =
   | 'coordinator_bulk_linked'
   | 'tenant_escalated'
   | 'tenant_emergency'
+  | 'tenant_media_forwarded'
   | 'complaint_registered'
-  | 'complaint_status_changed';
+  | 'complaint_status_changed'
+  | 'maintenance_request_created'
+  | 'maintenance_status_changed'
+  | 'provider_created'
+  | 'provider_updated';
 
 export interface LogActivityParams {
   ownerId: string;
