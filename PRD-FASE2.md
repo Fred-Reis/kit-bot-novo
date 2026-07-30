@@ -173,9 +173,13 @@ Verificação final pós-build: bot `bun run check` limpo (233 pass, 0 fail, 0 e
 
 ### T3 — Manutenção
 
-- [ ] 1. Brainstorm da slice
-- [ ] 2. Spec da slice fechada
-- [ ] 3. Plan
+- [x] 1. Brainstorm da slice (2026-07-29) — design §3/§4/§5/§6 cobre a arquitetura, models e endpoints; 3 deltas reais achados explorando o código (spec descreve intenção, não a implementação atual) e aprovados pelo Fred:
+  1. **Storage:** spec cita bucket `tenants/{tenantId}/...`, mas `buffer.ts` já sobe toda mídia não-áudio pro bucket `leads` (`uploadLeadDocument`) ANTES do router saber se é lead ou tenant. Decisão: reusar o path já gerado no bucket `leads` — `MaintenanceRequest.mediaUrls` guarda esse storage path, sem bucket novo nem refactor em `buffer.ts`. Nota de correção a registrar na spec (mesmo padrão da nota §3.1 sobre `catalog.ts`).
+  2. **Precedência mídia+texto:** spec diz "chamado aberto → anexa; senão → encaminha ao owner", o que impediria abrir um chamado novo já com foto no mesmo turno (caso comum: foto + "tá vazando na cozinha"). Decisão: pipeline determinístico (zero LLM) só age quando (a) já existe `MaintenanceRequest` open/acknowledged pro tenant, ou (b) mídia chega sem texto nenhum (`hasMedia && !messageText`, espelha o branch de áudio já existente em `index.ts`). Com texto presente e sem chamado aberto, os `mediaUrls` pendentes ficam disponíveis pra tool `abrir_chamado` anexar na criação — agente decide.
+  3. **"Conversa em contexto de manutenção" (spec §3):** heurística sobre histórico de chat cortada (YAGNI) — só chamado `open`/`acknowledged` real no banco conta. Sem chamado real, cai nos branches acima.
+  - Decisões de implementação sem necessidade de aprovação (padrões já existentes no repo, sem ambiguidade): página `/providers` clona o padrão CRUD+modal+toggle de `coordinators/index.tsx` (mesmo shape de `ServiceProvider`: nome/telefone/tipo/ativo); múltiplos chamados `open` pro mesmo tenant (não impedido pelo schema) → pipeline anexa no mais recente (`createdAt desc`); `docs/lei-inquilinato-resumo.md` rascunhado no Build e revisado pelo Fred antes do merge (conteúdo jurídico, não é decisão de arquitetura).
+- [x] 2. Spec da slice fechada — design §3.2 (tools)/§4 (models)/§5 (painel)/§6 cobrem os critérios de aceite; 3 notas de correção do brainstorm registradas na spec (§3, bloco "Nota T3"); sem TBDs
+- [x] 3. Plan (`docs/superpowers/plans/2026-07-29-t3-manutencao-plan.md`) — 14 tasks TDD: tipos compartilhados; migration; `lei-inquilinato-resumo.md`; tools `abrir_chamado`/`indicar_profissional`; templates de notif; injeção do resumo no contexto do agente; pipeline determinístico de mídia; endpoints `/admin/providers` + `/admin/maintenance/:id`; página `/providers`; extensão da seção "Chamados & Reclamações" com galeria de fotos; verificação final. Self-review aplicado (achado e corrigido: `TenantToolDeps` ganhando campos obrigatórios quebraria o fixture de teste do T1/T2; `apiErrorMessage` chamado com aridade errada)
 - [ ] 4. Build (TDD): migration `MaintenanceRequest` + `ServiceProvider` + RLS inertes + types
 - [ ] 4. Build: `docs/lei-inquilinato-resumo.md` (conteúdo revisado pelo Fred)
 - [ ] 4. Build (TDD): tool `abrir_chamado` (responsabilidade/tipo/severidade; owner/unclear/urgente → notif)
