@@ -182,10 +182,14 @@ function MaintenanceRow({
       </p>
       {request.mediaUrls.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {request.mediaUrls.map((url) =>
+          {request.mediaUrls.map((url, i) =>
             isImageUrl(url) ? (
               <a key={url} href={url} target="_blank" rel="noreferrer">
-                <img src={url} alt="Foto do chamado" className="size-16 rounded-md object-cover" />
+                <img
+                  src={url}
+                  alt={`Foto ${i + 1} do chamado`}
+                  className="size-16 rounded-md object-cover"
+                />
               </a>
             ) : (
               <a

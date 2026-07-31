@@ -264,6 +264,23 @@ describe('handleTenantMessage', () => {
     expect(sentTexts).toHaveLength(0);
   });
 
+  it('frustração + foto com chamado open existente → anexa a foto E escala pro owner (nenhum efeito cancela o outro)', async () => {
+    maintenanceRequests.push({ id: 'mr-1', status: 'open', createdAt: '2026-07-01T00:00:00Z' });
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'Isso aqui é um lixo, ninguém resolve nada',
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/9.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(maintenanceUpdates[0]).toMatchObject({
+      id: 'mr-1',
+      data: { mediaUrls: { push: ['leads/5511999999999/9.jpg'] } },
+    });
+    expect(notifyCalls.find((c) => c.eventType === 'tenant_escalation')).toBeDefined();
+  });
+
   it('snapshot ausente → mensagem neutra ao inquilino + notifica owner (regra 8)', async () => {
     tenantRowForSnapshot = null;
     await handleTenantMessage(

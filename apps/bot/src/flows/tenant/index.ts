@@ -31,6 +31,32 @@ function extractMediaUrls(items: MediaItem[]): string[] {
   return items.map((m) => m.url).filter((u): u is string => Boolean(u));
 }
 
+// Shared by the media pipeline and the frustration branch — both need to
+// enrich an already-open chamado with incoming photos. Never throws: any
+// failure (lookup, race with a concurrent resolve, infra) just means "did
+// not attach", leaving the caller free to fall back (forward to owner) or,
+// for frustration, to escalate regardless since a human is taking over anyway.
+async function attachMediaToOpenChamado(tenantId: string, mediaUrls: string[]): Promise<boolean> {
+  if (mediaUrls.length === 0) return false;
+  try {
+    const openRequest = await prisma.maintenanceRequest.findFirst({
+      where: { tenantId, status: { in: ['open', 'acknowledged'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!openRequest) return false;
+    // updateMany + status filter (not a plain `update`) closes the race
+    // where the chamado gets resolved between the lookup and this write.
+    const { count } = await prisma.maintenanceRequest.updateMany({
+      where: { id: openRequest.id, status: { in: ['open', 'acknowledged'] } },
+      data: { mediaUrls: { push: mediaUrls } },
+    });
+    return count > 0;
+  } catch (err) {
+    logger.error({ err, tenantId }, '[tenant.flow] falha ao tentar anexar mídia a chamado aberto');
+    return false;
+  }
+}
+
 async function loadChatHistory(
   chatId: string,
 ): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
@@ -186,47 +212,18 @@ export async function handleTenantMessage(
         ]);
       };
 
-      const openRequest = await prisma.maintenanceRequest.findFirst({
-        where: { tenantId, status: { in: ['open', 'acknowledged'] } },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (openRequest) {
-        // Only the write itself decides attach-vs-forward — a failure *after*
-        // a successful attach (persistTurn/sendText) must never fall through
-        // to forwardMediaToOwner, which would both lie to the tenant ("I
-        // forwarded it") and log a misleading tenant_media_forwarded event
-        // for media that's already correctly attached to the real chamado.
-        let attached = false;
-        try {
-          // updateMany + status filter (not the plain `update` a findFirst→update
-          // pair would use) closes the race where the chamado gets resolved
-          // between the lookup above and this write — count === 0 means that
-          // happened, so fall through to the forward-to-owner path instead of
-          // silently attaching media to a ticket that's no longer open.
-          const { count } = await prisma.maintenanceRequest.updateMany({
-            where: { id: openRequest.id, status: { in: ['open', 'acknowledged'] } },
-            data: { mediaUrls: { push: mediaUrls } },
-          });
-          attached = count > 0;
-        } catch (err) {
-          // Infra failure while attaching — never let the tenant hit silence
-          // (rule 7). Forwarding to the owner still gets them a reply.
-          logger.error({ err, chatId }, '[tenant.flow] falha ao anexar mídia ao chamado aberto — encaminhando ao owner');
-        }
-        if (attached) {
-          // Isolated like the forward-to-owner branch below: the attach
-          // itself already succeeded, so a failure in either of these must
-          // not stop the other, and must never bubble up to fall through to
-          // forwardMediaToOwner (which would mislabel already-attached media).
-          await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY).catch((err) =>
-            logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou após anexar mídia'),
-          );
-          await sendText(chatId, MEDIA_ATTACHED_REPLY).catch((err) =>
-            logger.error({ err, chatId }, '[tenant.flow] sendText falhou após anexar mídia'),
-          );
-          return;
-        }
+      if (await attachMediaToOpenChamado(tenantId, mediaUrls)) {
+        // Isolated (not one shared try/catch): the attach itself already
+        // succeeded, so a failure in either of these must not stop the
+        // other, and must never bubble up to fall through to
+        // forwardMediaToOwner (which would mislabel already-attached media).
+        await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou após anexar mídia'),
+        );
+        await sendText(chatId, MEDIA_ATTACHED_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] sendText falhou após anexar mídia'),
+        );
+        return;
       }
 
       await forwardMediaToOwner();
@@ -253,6 +250,16 @@ export async function handleTenantMessage(
 
     // 5. Frustration → escalate before spending an LLM call
     if (detectFrustration(messageText)) {
+      // A photo attached to a frustrated message (e.g. "isso aqui é um
+      // lixo" + another photo of the same problem) must not vanish —
+      // silently enrich an already-open chamado if there is one. No
+      // separate owner notification here: escalateTenantToOwner already
+      // notifies the owner that a human needs to step in, and a photo with
+      // no open chamado to attach to just stays in Storage for the human to
+      // ask for again — not worth a second, confusing notification.
+      if (nonAudioMedia.length > 0) {
+        await attachMediaToOpenChamado(tenantId, extractMediaUrls(nonAudioMedia));
+      }
       await escalateTenantToOwner(chatId, ownerId, tenantId, tenantName, 'frustration');
       await persistTurn(chatId, ownerId, messageText || null, null);
       return;

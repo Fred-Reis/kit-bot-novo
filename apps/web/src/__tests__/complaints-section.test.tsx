@@ -122,7 +122,26 @@ describe('ComplaintsSection — manutenção', () => {
         onAdvanceMaintenanceStatus={vi.fn()}
       />,
     );
-    expect(screen.getByAltText(/foto do chamado/i)).toHaveAttribute('src', 'https://signed.example/photo.jpg');
+    expect(screen.getByAltText(/foto \d+ do chamado/i)).toHaveAttribute('src', 'https://signed.example/photo.jpg');
+  });
+
+  test('múltiplas fotos no mesmo chamado têm alt text distinto (não repetido)', () => {
+    render(
+      <ComplaintsSection
+        complaints={[]}
+        maintenanceRequests={[
+          makeMaintenanceRequest({
+            mediaUrls: ['https://signed.example/foto-a.jpg', 'https://signed.example/foto-b.jpg'],
+          }),
+        ]}
+        isLoading={false}
+        isAdvancing={false}
+        onAdvanceStatus={vi.fn()}
+        onAdvanceMaintenanceStatus={vi.fn()}
+      />,
+    );
+    expect(screen.getByAltText('Foto 1 do chamado')).toHaveAttribute('src', 'https://signed.example/foto-a.jpg');
+    expect(screen.getByAltText('Foto 2 do chamado')).toHaveAttribute('src', 'https://signed.example/foto-b.jpg');
   });
 
   test('anexo que não é imagem (ex: vídeo/pdf) vira link de arquivo, não <img> quebrada', () => {
@@ -138,7 +157,7 @@ describe('ComplaintsSection — manutenção', () => {
         onAdvanceMaintenanceStatus={vi.fn()}
       />,
     );
-    expect(screen.queryByAltText(/foto do chamado/i)).not.toBeInTheDocument();
+    expect(screen.queryByAltText(/foto \d+ do chamado/i)).not.toBeInTheDocument();
     expect(screen.getByText(/ver arquivo/i)).toBeInTheDocument();
   });
 
