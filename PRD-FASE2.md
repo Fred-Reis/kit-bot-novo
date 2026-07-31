@@ -231,6 +231,14 @@ Verificação pós-2ª rodada: bot `bun run check` limpo (251 pass, 0 fail); web
 - **Recusado com justificativa:** ativar RLS em `ServiceProvider`/`MaintenanceRequest` — RLS activation é trilha própria já gated pra Fase 2 inteira (ver "Fora de escopo" abaixo), não algo pra ligar só nessas 2 tabelas.
 
 Verificação pós-3ª rodada: bot `bun run check` limpo (252 pass, 0 fail, 0 erros de lint).
+
+**4ª rodada CodeRabbit na PR #42 (2026-07-31) — pegou 1 achado real novo (gap de comportamento, não só robustez):**
+- **Corrigido (achado real):** mídia junto de mensagem de frustração (ex: "isso aqui é um lixo" + outra foto do mesmo problema) era descartada silenciosamente — o branch de frustração escalava e persistia o texto sem nunca olhar pra `nonAudioMedia`. Extraída a lógica de "anexar em chamado aberto" do pipeline de mídia pra um helper `attachMediaToOpenChamado()` compartilhado, chamado também (best-effort) antes de escalar por frustração. Escopo deliberado: só o caso de chamado já aberto — sem forward-to-owner separado quando não há chamado pra anexar, já que `escalateTenantToOwner` já avisa o proprietário que um humano vai assumir; uma segunda notificação pra mesma mensagem seria só ruído, e a foto continua segura no Storage de qualquer forma.
+- **Corrigido (nitpick):** múltiplas fotos no mesmo chamado tinham `alt="Foto do chamado"` idêntico — leitor de tela não distinguia. Agora indexado (`Foto 1 do chamado`, `Foto 2 do chamado`, ...).
+- **Recusado com justificativa (4ª vez):** responsabilidade decidida pelo LLM + mover resumo legal pra DB — mesmo pacote de achados, mesma decisão T-D confirmada, já recusado 3x.
+- **Recusado com justificativa (repete o padrão da rodada anterior, agora em `providers.ts`):** transação/outbox pro audit log de `provider_created`/`provider_updated`, e guard de body malformado antes do destructure — mesmos dois achados já recusados pra `maintenance.ts`, mesma razão: bate com o padrão idêntico de `complaints.ts`, convenção de toda rota admin do repo.
+
+Verificação pós-4ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (133 pass, 0 fail).
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
