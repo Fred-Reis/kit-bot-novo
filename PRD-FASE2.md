@@ -220,6 +220,17 @@ Verificação pós-CodeRabbit (1ª rodada): bot `bun run check` limpo (250 pass,
 - **Recusado com justificativa:** CodeRabbit marcou `POST /admin/providers` associando o prestador via `prisma.owner.findFirst()` (owner arbitrário) em vez de resolvido pela autorização do admin. É o padrão do app inteiro (11+ rotas admin fazem o mesmo — coordinators, properties, payments, rule-sets, templates, visits, tenants, bot-settings), não uma introdução desta slice; multi-tenancy/escopo por owner é explicitamente fora de escopo da Fase 2, e o CodeRabbit já tinha levantado o mesmo ponto idêntico na PR #40 (T2) pra `complaints.ts`, recusado pela mesma razão lá.
 
 Verificação pós-2ª rodada: bot `bun run check` limpo (251 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (132 pass, 0 fail).
+
+**3ª rodada CodeRabbit na PR #42 (2026-07-31) — pegou 2 achados reais que as 2 rodadas anteriores não pegaram (um deles fora da minha própria correção da rodada 2):**
+- **Corrigido (achado real):** a resposta pós-anexo (`persistTurn`+`sendText`) do fix da 2ª rodada ainda rodava sequencial sem isolamento próprio — falha em `persistTurn` pulava o `sendText` e subia pro catch externo, deixando o inquilino sem resposta nenhuma mesmo com o anexo já feito. Isolados os dois com `.catch()` próprio, igual ao ramo de encaminhamento. Teste novo revelou que o mock de `$transaction` no teste (`async (ops) => ops`) nunca esperava as operações de verdade — corrigido pra `Promise.all(ops)`, batendo com a semântica real do Prisma.
+- **Corrigido (achado real, fora da lista numerada — estava só no resumo "outside diff"):** `getMaintenanceLawSummary()` cacheava falha de leitura permanentemente (`cachedMaintenanceLawSummary = ''` numa falha nunca mais tentava de novo) — uma falha transitória (ex: arquivo ainda não montado no cold start do container) travaria o resumo legal vazio pro resto da vida do processo. Corrigido: só sucesso popula o cache.
+- **Corrigido (nitpicks):** `notify.ts` ainda tinha `'tenant'|'owner'|'unclear'`/`'baixa'|'media'|'urgente'` como union literal inline em 3 lugares em vez de importar `MaintenanceResponsibility`/`MaintenanceSeverity` de `@kit-manager/types` — mesma classe de drift já corrigida pra `ServiceCategory`/`MaintenanceType` na rodada anterior, só que esquecida aqui; teste "...severidade" não checava a severidade de fato — assertion adicionada.
+- **Recusado com justificativa (3ª vez):** responsabilidade decidida pelo LLM em `tenant-tools.ts`/`tenant-v2.ts` — mesma decisão T-D confirmada, já recusada 2x.
+- **Recusado com justificativa:** mover o resumo legal pra DB/Supabase Storage em vez de arquivo local — mesmo redesenho desproporcional já recusado; o bug de cache que vinha junto foi corrigido acima.
+- **Recusado com justificativa (2 achados):** transação/outbox pro audit log de `PATCH /admin/maintenance/:id` e guard de body malformado antes do destructure — ambos batem exatamente com o padrão idêntico de `complaints.ts` (mesmo fire-and-forget `logActivity(...).catch(warn)`, mesmo `const { status } = request.body` sem guard); é convenção de toda rota admin do repo, não introdução desta slice.
+- **Recusado com justificativa:** ativar RLS em `ServiceProvider`/`MaintenanceRequest` — RLS activation é trilha própria já gated pra Fase 2 inteira (ver "Fora de escopo" abaixo), não algo pra ligar só nessas 2 tabelas.
+
+Verificação pós-3ª rodada: bot `bun run check` limpo (252 pass, 0 fail, 0 erros de lint).
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
