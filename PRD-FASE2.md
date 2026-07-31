@@ -239,6 +239,14 @@ Verificação pós-3ª rodada: bot `bun run check` limpo (252 pass, 0 fail, 0 er
 - **Recusado com justificativa (repete o padrão da rodada anterior, agora em `providers.ts`):** transação/outbox pro audit log de `provider_created`/`provider_updated`, e guard de body malformado antes do destructure — mesmos dois achados já recusados pra `maintenance.ts`, mesma razão: bate com o padrão idêntico de `complaints.ts`, convenção de toda rota admin do repo.
 
 Verificação pós-4ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (133 pass, 0 fail).
+
+**5ª rodada CodeRabbit na PR #42 (2026-07-31) — 1 achado real (não só polish):**
+- **Corrigido (achado real):** `fetchTenantMaintenanceRequests` caía pro path bruto do Storage quando a assinatura de uma URL individual falhava — um valor tipo `leads/5511.../163....jpg` não é URL nenhuma (nem "quebrada visível", só mais um item morto na galeria). Agora filtra a entrada sem URL assinada em vez de vazar o path bruto, e loga a falha por item (antes só logava falha do lote inteiro).
+- **Corrigido (nitpicks, 3 mudanças):** notificação do owner pro chamado novo (WhatsApp) não incluía o tipo de serviço, só resumo/responsabilidade/severidade — adicionado `type` no payload e na mensagem; `MEDIA_ATTACHED_REPLY`/`buildTenantMediaForwardedMessage` diziam "foto" especificamente, mas o pipeline aceita qualquer mídia não-áudio (imagem/vídeo/documento) — reescrito pra "arquivo", termo neutro; `ProviderFormModal` não tinha proteção contra duplo clique em Salvar durante a mutation — `isSubmitting` adicionado, plugado em `createMutation.isPending || updateMutation.isPending`.
+- **Recusado com justificativa (5ª vez):** responsabilidade decidida pelo LLM + mover resumo legal pra DB — mesmo pacote, mesma decisão T-D confirmada, já recusado 4x.
+- **Recusado com justificativa:** fixture de teste usando `https://signed.example/foto1.jpg` em vez de formato de URL do Supabase Storage — o próprio CodeRabbit rotulou como "💤 Low value"; a função testada só interpola a string na mensagem, não faz parsing/validação de URL, então um domínio claramente fake é a convenção padrão de teste, não um defeito.
+
+Verificação pós-5ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (134 pass, 0 fail).
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
