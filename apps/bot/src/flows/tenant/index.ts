@@ -21,7 +21,7 @@ const CHAT_HISTORY_LIMIT = 10;
 const EMERGENCY_SNAPSHOT_TIMEOUT_MS = 2000;
 const EMERGENCY_UNKNOWN_PROPERTY = 'imóvel não identificado';
 const MEDIA_FORWARDED_REPLY = 'Recebi, encaminhei ao proprietário.';
-const MEDIA_ATTACHED_REPLY = 'Recebi a foto, anexei ao chamado ✅';
+const MEDIA_ATTACHED_REPLY = 'Recebi o arquivo, anexei ao chamado ✅';
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');

@@ -1,4 +1,4 @@
-import type { MaintenanceResponsibility, MaintenanceSeverity } from '@kit-manager/types';
+import type { MaintenanceResponsibility, MaintenanceSeverity, MaintenanceType } from '@kit-manager/types';
 import { Resend } from 'resend';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
@@ -21,6 +21,7 @@ type NotifyPayloadMap = {
     tenantName: string;
     tenantPhone: string;
     summary: string;
+    type: MaintenanceType;
     responsibility: MaintenanceResponsibility;
     severity: MaintenanceSeverity;
   };
@@ -219,16 +220,25 @@ const RESPONSIBILITY_LABEL: Record<MaintenanceResponsibility, string> = {
   unclear: 'indefinida',
 };
 
+const MAINTENANCE_TYPE_LABEL: Record<MaintenanceType, string> = {
+  eletrica: 'Elétrica',
+  hidraulica: 'Hidráulica',
+  civil: 'Civil',
+  limpeza_conservacao: 'Limpeza/Conservação',
+};
+
 export function buildTenantMaintenanceRequestMessage(payload: {
   tenantName: string;
   tenantPhone: string;
   summary: string;
+  type: MaintenanceType;
   responsibility: MaintenanceResponsibility;
   severity: MaintenanceSeverity;
 }): string {
   return (
     `🔧 Novo chamado de manutenção\n` +
     `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
+    `Tipo: ${MAINTENANCE_TYPE_LABEL[payload.type]}\n` +
     `Resumo: ${payload.summary}\n` +
     `Responsabilidade sugerida: ${RESPONSIBILITY_LABEL[payload.responsibility]}\n` +
     `Severidade: ${payload.severity}\n` +
@@ -246,7 +256,7 @@ export function buildTenantMediaForwardedMessage(payload: {
       ? payload.mediaUrls.join('\n')
       : 'Não consegui gerar o link agora — acesse o painel para ver o arquivo recebido.';
   return (
-    `📎 Inquilino enviou uma foto sem chamado aberto\n` +
+    `📎 Inquilino enviou um arquivo sem chamado aberto\n` +
     `Inquilino: ${payload.tenantName} (${payload.tenantPhone})\n` +
     `${links}`
   );

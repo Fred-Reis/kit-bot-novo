@@ -48,11 +48,12 @@ describe('buildTenantComplaintMessage', () => {
 });
 
 describe('buildTenantMaintenanceRequestMessage', () => {
-  test('inclui nome, telefone, resumo, responsabilidade e severidade', () => {
+  test('inclui nome, telefone, tipo, resumo, responsabilidade e severidade', () => {
     const msg = buildTenantMaintenanceRequestMessage({
       tenantName: 'Carlos Nunes',
       tenantPhone: '11944443333',
       summary: 'Vazamento sob a pia da cozinha',
+      type: 'hidraulica',
       responsibility: 'owner',
       severity: 'media',
     });
@@ -61,6 +62,7 @@ describe('buildTenantMaintenanceRequestMessage', () => {
     expect(msg).toContain('Vazamento sob a pia da cozinha');
     expect(msg.toLowerCase()).toContain('proprietário');
     expect(msg).toContain('media');
+    expect(msg).toContain('Hidráulica');
   });
 });
 

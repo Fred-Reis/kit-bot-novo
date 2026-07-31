@@ -527,12 +527,18 @@ export async function fetchTenantMaintenanceRequests(tenantId: string): Promise<
   for (const entry of signedList) {
     if (entry.path && !entry.error && entry.signedUrl) {
       signedByPath.set(entry.path, entry.signedUrl);
+    } else {
+      console.error(`[fetchTenantMaintenanceRequests] Failed to sign URL for ${entry.path}:`, entry.error);
     }
   }
 
+  // A path with no signed URL is dropped, not left as the raw storage path —
+  // the raw value (e.g. "leads/551199.../163....jpg") is a Storage object
+  // path, not a fetchable URL, so leaving it in would just render another
+  // broken image/link in the gallery instead of a clear one-item gap.
   return rawRequests.map((req) => ({
     ...req,
-    mediaUrls: req.mediaUrls.map((path) => signedByPath.get(path) ?? path),
+    mediaUrls: req.mediaUrls.map((path) => signedByPath.get(path)).filter((u): u is string => Boolean(u)),
   }));
 }
 

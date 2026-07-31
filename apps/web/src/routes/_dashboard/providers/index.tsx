@@ -143,6 +143,7 @@ function ProvidersPage() {
           editing ? updateMutation.mutate({ id: editing.id, value }) : createMutation.mutate(value)
         }
         initialValue={editing ?? undefined}
+        isSubmitting={createMutation.isPending || updateMutation.isPending}
       />
     </div>
   );

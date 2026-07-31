@@ -64,4 +64,21 @@ describe('ProviderFormModal', () => {
     render(<ProviderFormModal open onClose={vi.fn()} onSubmit={vi.fn()} />);
     expect(screen.getByRole('button', { name: /salvar/i })).toBeDisabled();
   });
+
+  test('botão Salvar fica desabilitado enquanto isSubmitting, mesmo com campos válidos (evita duplo envio)', () => {
+    const onSubmit = vi.fn();
+    render(
+      <ProviderFormModal
+        open
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        isSubmitting
+        initialValue={{ name: 'Ana Hidráulica', phone: '11922221111', type: 'hidraulica' }}
+      />,
+    );
+    const salvar = screen.getByRole('button', { name: /salvar/i });
+    expect(salvar).toBeDisabled();
+    fireEvent.click(salvar);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

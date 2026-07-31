@@ -118,6 +118,7 @@ export function buildTenantTools(deps: TenantToolDeps): StructuredToolInterface[
             tenantName: displayName,
             tenantPhone: deps.chatId,
             summary: resumo,
+            type: tipo,
             responsibility: responsabilidade,
             severity: severidade,
           }).catch((err) => logger.error({ err }, '[tenant-tools] notifyOwner tenant_maintenance_request falhou'));

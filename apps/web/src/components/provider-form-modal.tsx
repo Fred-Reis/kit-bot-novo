@@ -14,9 +14,16 @@ interface ProviderFormModalProps {
   onClose: () => void;
   onSubmit: (value: ProviderFormValue) => void;
   initialValue?: ProviderFormValue;
+  isSubmitting?: boolean;
 }
 
-export function ProviderFormModal({ open, onClose, onSubmit, initialValue }: ProviderFormModalProps) {
+export function ProviderFormModal({
+  open,
+  onClose,
+  onSubmit,
+  initialValue,
+  isSubmitting = false,
+}: ProviderFormModalProps) {
   const [name, setName] = useState(initialValue?.name ?? '');
   const [phone, setPhone] = useState(initialValue?.phone ?? '');
   const [type, setType] = useState<ServiceProviderType>(initialValue?.type ?? 'eletrica');
@@ -34,7 +41,7 @@ export function ProviderFormModal({ open, onClose, onSubmit, initialValue }: Pro
 
   if (!open) return null;
 
-  const canSubmit = name.trim().length > 0 && phone.trim().length > 0;
+  const canSubmit = name.trim().length > 0 && phone.trim().length > 0 && !isSubmitting;
 
   return (
     <div
