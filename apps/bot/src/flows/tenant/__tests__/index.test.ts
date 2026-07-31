@@ -11,6 +11,7 @@ let toolDepsCaptured: { propertyId: string; pendingMediaUrls: string[] } | null 
 let botPausedAfterAgent = false;
 let maintenanceUpdateManyShouldThrow = false;
 let maintenanceUpdateManyResolvedCount = -1; // -1 = "match how many candidates found"
+let eventCreateShouldThrow = false;
 
 // Only the leaves buildTenantSnapshot touches are mocked here (db/client,
 // db/redis) — NOT '@/flows/tenant/context' itself. Mocking a sibling module
@@ -42,6 +43,7 @@ mock.module('@/db/client', () => ({
     event: {
       findMany: async () => [],
       create: async (args: { data: { chatId: string; role: string; content: string } }) => {
+        if (eventCreateShouldThrow) throw new Error('DB down');
         events.push(args.data);
         return args.data;
       },
@@ -71,7 +73,7 @@ mock.module('@/db/client', () => ({
         return { count: stillEligible ? 1 : 0 };
       },
     },
-    $transaction: async (ops: unknown[]) => ops,
+    $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
   },
 }));
 
@@ -148,6 +150,7 @@ describe('handleTenantMessage', () => {
     maintenanceUpdateManyShouldThrow = false;
     maintenanceUpdateManyResolvedCount = -1;
     createLeadDocumentUrlShouldThrow = false;
+    eventCreateShouldThrow = false;
   });
 
   it('saudação simples → resposta hardcoded personalizada, sem chamar o agente', async () => {
@@ -311,6 +314,23 @@ describe('handleTenantMessage', () => {
     expect(maintenanceUpdates).toHaveLength(1);
     expect(notifyCalls.find((c) => c.eventType === 'tenant_media_forwarded')).toBeUndefined();
     expect(sentTexts).toHaveLength(0);
+  });
+
+  it('anexo bem-sucedido + persistTurn falha → sendText ainda roda (efeitos isolados, sem cair no forward)', async () => {
+    maintenanceRequests.push({ id: 'mr-1', status: 'open', createdAt: '2026-07-01T00:00:00Z' });
+    eventCreateShouldThrow = true;
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      null,
+      [{ type: 'image', mime: 'image/jpeg', url: 'leads/5511999999999/1.jpg' }],
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(maintenanceUpdates).toHaveLength(1);
+    // persistTurn failing must not stop sendText from still running.
+    expect(sentTexts[0]?.text).toContain('anexei');
+    expect(notifyCalls.find((c) => c.eventType === 'tenant_media_forwarded')).toBeUndefined();
   });
 
   it('foto sem texto + chamado fica resolvido entre a busca e o anexo (corrida) → encaminha ao owner', async () => {

@@ -215,8 +215,16 @@ export async function handleTenantMessage(
           logger.error({ err, chatId }, '[tenant.flow] falha ao anexar mídia ao chamado aberto — encaminhando ao owner');
         }
         if (attached) {
-          await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY);
-          await sendText(chatId, MEDIA_ATTACHED_REPLY);
+          // Isolated like the forward-to-owner branch below: the attach
+          // itself already succeeded, so a failure in either of these must
+          // not stop the other, and must never bubble up to fall through to
+          // forwardMediaToOwner (which would mislabel already-attached media).
+          await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou após anexar mídia'),
+          );
+          await sendText(chatId, MEDIA_ATTACHED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] sendText falhou após anexar mídia'),
+          );
           return;
         }
       }

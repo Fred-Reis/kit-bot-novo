@@ -60,6 +60,7 @@ describe('buildTenantMaintenanceRequestMessage', () => {
     expect(msg).toContain('11944443333');
     expect(msg).toContain('Vazamento sob a pia da cozinha');
     expect(msg.toLowerCase()).toContain('proprietário');
+    expect(msg).toContain('media');
   });
 });
 

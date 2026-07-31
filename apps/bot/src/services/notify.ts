@@ -1,3 +1,4 @@
+import type { MaintenanceResponsibility, MaintenanceSeverity } from '@kit-manager/types';
 import { Resend } from 'resend';
 import { config } from '@/config';
 import { prisma } from '@/db/client';
@@ -20,8 +21,8 @@ type NotifyPayloadMap = {
     tenantName: string;
     tenantPhone: string;
     summary: string;
-    responsibility: 'tenant' | 'owner' | 'unclear';
-    severity: 'baixa' | 'media' | 'urgente';
+    responsibility: MaintenanceResponsibility;
+    severity: MaintenanceSeverity;
   };
   tenant_media_forwarded: { tenantName: string; tenantPhone: string; mediaUrls: string[] };
 };
@@ -212,7 +213,7 @@ export function buildTenantComplaintMessage(payload: {
   );
 }
 
-const RESPONSIBILITY_LABEL: Record<'tenant' | 'owner' | 'unclear', string> = {
+const RESPONSIBILITY_LABEL: Record<MaintenanceResponsibility, string> = {
   tenant: 'inquilino',
   owner: 'proprietário',
   unclear: 'indefinida',
@@ -222,8 +223,8 @@ export function buildTenantMaintenanceRequestMessage(payload: {
   tenantName: string;
   tenantPhone: string;
   summary: string;
-  responsibility: 'tenant' | 'owner' | 'unclear';
-  severity: 'baixa' | 'media' | 'urgente';
+  responsibility: MaintenanceResponsibility;
+  severity: MaintenanceSeverity;
 }): string {
   return (
     `🔧 Novo chamado de manutenção\n` +

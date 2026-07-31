@@ -18,10 +18,14 @@ let cachedMaintenanceLawSummary: string | null = null;
 function getMaintenanceLawSummary(): string {
   if (cachedMaintenanceLawSummary !== null) return cachedMaintenanceLawSummary;
   try {
+    // Only a successful read is cached — a transient failure (e.g. the file
+    // not yet mounted at cold start) must not become permanent for the rest
+    // of the process's life; leaving the cache at null lets the next call
+    // retry instead of being stuck on '' forever.
     cachedMaintenanceLawSummary = readFileSync(MAINTENANCE_LAW_SUMMARY_PATH, 'utf-8');
   } catch (err) {
     logger.error({ err }, '[tenant.context] Falha ao ler lei-inquilinato-resumo.md — seguindo sem o resumo');
-    cachedMaintenanceLawSummary = '';
+    return '';
   }
   return cachedMaintenanceLawSummary;
 }
