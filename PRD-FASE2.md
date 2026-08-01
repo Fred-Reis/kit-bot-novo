@@ -320,3 +320,7 @@ Verificação pós-5ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web
 ## Fora de escopo da Fase 2
 
 Boleto automático / provedor PIX (Asaas/Efí), timer auto-retomada 24h do bot, kanban de manutenção, página dedicada de reclamações, timeline do tenant, RLS activation (trilha separada), multi-tenancy.
+
+## Backlog técnico (fora do escopo desta fase, valor real se retomado)
+
+- **Validação de `request.body` nas rotas admin** (achado do CodeRabbit na PR #42, recusado por rota isolada — ver T3 acima): hoje toda rota PATCH/POST admin (`complaints.ts`, `maintenance.ts`, `providers.ts`, etc.) desestrutura `request.body` sem guard, retornando 500 em vez de 400 pra corpo malformado/ausente. Baixo risco real (painel autenticado, sempre manda JSON válido), mas solução de valor se algum dia for feita: um `preValidation` hook Fastify compartilhado (schema por rota) em vez de guard duplicado arquivo por arquivo — corrige tudo de uma vez, não é fix pontual.
