@@ -9,6 +9,7 @@ import { ContractsSection } from '@/components/contracts-section';
 import { DocGrid } from '@/components/doc-grid';
 import { CustomButton } from '@/components/ui/btn';
 import { Input } from '@/components/ui/input';
+import { Toggle } from '@/components/ui/toggle';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { formatPhone, SOURCE_LABELS, STAGES, stageToStepKey } from '@/lib/leads';
 import { fetchLead, fetchLeadContracts, fetchProperty, fetchTenantIdByPhone } from '@/lib/queries';
@@ -451,13 +452,14 @@ function LeadDetailPage() {
                 </option>
               ))}
           </select>
-          <CustomButton
-            variant="secondary"
-            onClick={() => togglePause.mutate(!lead.botPaused)}
-            disabled={togglePause.isPending}
-          >
-            {lead.botPaused ? 'Retomar bot' : 'Pausar bot'}
-          </CustomButton>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Bot ativo</span>
+            <Toggle
+              checked={!lead.botPaused}
+              onChange={(v) => togglePause.mutate(!v)}
+              aria-label={lead.botPaused ? 'Reativar bot' : 'Pausar bot'}
+            />
+          </div>
         </div>
 
         <div className="mt-4 border-t border-border pt-4">
