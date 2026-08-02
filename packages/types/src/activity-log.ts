@@ -68,6 +68,7 @@ export type ActivityLogAction =
   | 'complaint_status_changed'
   | 'maintenance_request_created'
   | 'maintenance_status_changed'
+  | 'maintenance_responsibility_changed'
   | 'provider_created'
   | 'provider_updated';
 
