@@ -9,9 +9,11 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date(iso));
 }
 
 export function relativeTime(iso: string): string {

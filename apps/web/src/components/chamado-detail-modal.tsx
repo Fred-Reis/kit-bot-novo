@@ -18,7 +18,11 @@ interface ChamadoDetailModalProps {
   isSavingResponsibility?: boolean;
 }
 
-const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+const dateFmt = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: 'America/Sao_Paulo',
+});
 
 export function ChamadoDetailModal({
   item,
