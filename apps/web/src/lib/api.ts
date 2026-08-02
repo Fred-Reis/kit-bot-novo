@@ -152,6 +152,8 @@ export const adminApi = {
   deleteContractTemplate: (id: string) => botApi.delete(`/admin/contract-templates/${id}`),
   pauseLead: (leadId: string, paused: boolean) =>
     botApi.patch(`/admin/leads/${leadId}/pause-bot`, { paused }),
+  pauseTenant: (tenantId: string, paused: boolean) =>
+    botApi.patch(`/admin/tenants/${tenantId}/pause-bot`, { paused }),
   archiveLead: (leadId: string, archived: boolean) =>
     botApi.patch(`/admin/leads/${leadId}/archive`, { archived }),
   updateLeadSource: (leadId: string, source: string) =>

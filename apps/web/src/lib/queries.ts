@@ -217,7 +217,9 @@ export async function fetchTenantIdByPhone(phone: string): Promise<string | null
   return (data as { id: string } | null)?.id ?? null;
 }
 
-export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
+export async function fetchTenant(
+  id: string,
+): Promise<Tenant & { botPaused: boolean; payments: Payment[] }> {
   const [{ data: tenant, error: tenantErr }, { data: payments, error: paymentsErr }] =
     await Promise.all([
       supabase.from('Tenant').select('*, property:Property(name)').eq('id', id).single(),
@@ -225,7 +227,21 @@ export async function fetchTenant(id: string): Promise<Tenant & { payments: Paym
     ]);
   if (tenantErr) throw tenantErr;
   if (paymentsErr) throw paymentsErr;
-  return { ...mapTenantRow(tenant as TenantRow), payments: (payments as Payment[]) ?? [] };
+
+  const mappedTenant = mapTenantRow(tenant as TenantRow);
+
+  // Conversation has no tenantId FK — must join on phone after tenant resolves
+  const { data: conv } = await supabase
+    .from('Conversation')
+    .select('botPaused')
+    .eq('chatId', mappedTenant.phone)
+    .maybeSingle();
+
+  return {
+    ...mappedTenant,
+    botPaused: (conv as Pick<Conversation, 'botPaused'> | null)?.botPaused ?? false,
+    payments: (payments as Payment[]) ?? [],
+  };
 }
 
 export async function fetchAllPayments(): Promise<Payment[]> {
