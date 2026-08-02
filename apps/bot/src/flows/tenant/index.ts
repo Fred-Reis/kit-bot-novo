@@ -283,8 +283,16 @@ export async function handleTenantMessage(
 
     // 7. Chat history + question for the agent
     const chatHistory = await loadChatHistory(chatId);
+    // messageText alone doesn't tell the agent a photo came in the same
+    // turn — without this, it has no way to know whether to ask for one
+    // before opening a chamado (see tenant-v2.ts's maintenance instructions).
+    const mediaNote =
+      nonAudioMedia.length > 0
+        ? `\n\n[O inquilino também anexou ${nonAudioMedia.length} arquivo(s) nesta mensagem.]`
+        : '';
     const question =
-      messageText || (audioReceived ? 'O usuario enviou um audio sem texto.' : 'O usuario enviou apenas midia.');
+      (messageText || (audioReceived ? 'O usuario enviou um audio sem texto.' : 'O usuario enviou apenas midia.')) +
+      mediaNote;
 
     // 8. Run the tenant agent
     const tools = buildTenantTools({

@@ -423,5 +423,22 @@ describe('handleTenantMessage', () => {
     );
     expect(agentCalls).toHaveLength(1);
     expect(toolDepsCaptured?.pendingMediaUrls).toEqual(['leads/5511999999999/3.jpg']);
+    // The agent has no other way to know a photo came with this message —
+    // without this, it can't decide whether to still ask for one before
+    // opening a chamado (see tenant-v2.ts's maintenance instructions).
+    expect(agentCalls[0]?.question).toContain('Tá vazando embaixo da pia');
+    expect(agentCalls[0]?.question).toContain('anexou 1 arquivo(s)');
+  });
+
+  it('texto sem mídia → question do agente não menciona anexo nenhum', async () => {
+    await handleTenantMessage(
+      '5511999999999@s.whatsapp.net',
+      'quando vence o aluguel?',
+      noMedia,
+      'owner-1',
+      'tenant-1',
+      'Maria',
+    );
+    expect(agentCalls[0]?.question).toBe('quando vence o aluguel?');
   });
 });
