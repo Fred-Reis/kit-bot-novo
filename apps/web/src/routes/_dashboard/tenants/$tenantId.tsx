@@ -9,8 +9,8 @@ import { DocGrid } from '@/components/doc-grid';
 import { EmptyState } from '@/components/empty-state';
 import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
-import { CustomButton } from '@/components/ui/btn';
 import { Pill } from '@/components/ui/pill';
+import { Toggle } from '@/components/ui/toggle';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { formatPhone } from '@/lib/leads';
 import {
@@ -150,14 +150,13 @@ function TenantDetailPage() {
         ]}
       />
 
-      <div className="flex justify-end">
-        <CustomButton
-          variant="secondary"
-          onClick={() => togglePause.mutate(!tenant.botPaused)}
-          disabled={togglePause.isPending}
-        >
-          {tenant.botPaused ? 'Retomar bot' : 'Pausar bot'}
-        </CustomButton>
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">Bot ativo</span>
+        <Toggle
+          checked={!tenant.botPaused}
+          onChange={(v) => togglePause.mutate(!v)}
+          aria-label={tenant.botPaused ? 'Reativar bot' : 'Pausar bot'}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
