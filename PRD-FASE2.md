@@ -321,6 +321,10 @@ Verificação pós-5ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web
 
 Boleto automático / provedor PIX (Asaas/Efí), timer auto-retomada 24h do bot, kanban de manutenção, página dedicada de reclamações, timeline do tenant, RLS activation (trilha separada), multi-tenancy.
 
+## Próxima iniciativa planejada: página dedicada de chamados (Fase 3)
+
+Decisão do Fred (2026-08-01): a página dedicada de chamados/reclamações (kanban de manutenção, timeline do tenant — itens listados acima como fora de escopo desta fase) **vai virar prioridade de desenvolvimento**, como uma nova fase própria do produto — "Fase 3". **Atenção**: não confundir com "Fase 3 — Dogfooding" do `ROADMAP.md`, que é uma numeração diferente e já tem conteúdo definido (uso próprio real do produto); esta é uma iniciativa nova, ainda sem doc-mestre nem spec própria. Quando essa fase começar, seguir o mesmo pipeline usado aqui (`superpowers:brainstorming` → spec → plan → build → simplify → review), criando um `PRD-FASE3.md` próprio em vez de continuar neste arquivo.
+
 ## Backlog técnico (fora do escopo desta fase, valor real se retomado)
 
 - **Validação de `request.body` nas rotas admin** (achado do CodeRabbit na PR #42, recusado por rota isolada — ver T3 acima): hoje toda rota PATCH/POST admin (`complaints.ts`, `maintenance.ts`, `providers.ts`, etc.) desestrutura `request.body` sem guard, retornando 500 em vez de 400 pra corpo malformado/ausente. Baixo risco real (painel autenticado, sempre manda JSON válido), mas solução de valor se algum dia for feita: um `preValidation` hook Fastify compartilhado (schema por rota) em vez de guard duplicado arquivo por arquivo — corrige tudo de uma vez, não é fix pontual.
