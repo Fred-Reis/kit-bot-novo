@@ -2,6 +2,7 @@ import type {
   ComplaintStatus,
   ContractPreview,
   LeadStage,
+  MaintenanceResponsibility,
   MaintenanceStatus,
   ServiceProviderType,
 } from '@kit-manager/types';
@@ -115,6 +116,8 @@ export const adminApi = {
   ) => botApi.patch(`/admin/providers/${id}`, data),
   updateMaintenanceStatus: (id: string, status: MaintenanceStatus) =>
     botApi.patch(`/admin/maintenance/${id}`, { status }),
+  updateMaintenanceResponsibility: (id: string, responsibility: MaintenanceResponsibility) =>
+    botApi.patch(`/admin/maintenance/${id}`, { responsibility }),
   previewContract: (data: {
     templateId: string;
     tenantId: string;

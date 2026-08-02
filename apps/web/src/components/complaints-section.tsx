@@ -1,7 +1,16 @@
-import type { Complaint, ComplaintStatus, MaintenanceRequest, MaintenanceStatus } from '@kit-manager/types';
+import type {
+  Complaint,
+  ComplaintStatus,
+  MaintenanceRequest,
+  MaintenanceResponsibility,
+  MaintenanceStatus,
+} from '@kit-manager/types';
 import type { ComponentProps } from 'react';
+import { useState } from 'react';
 import { twMerge } from 'tailwind-merge';
+import { type ChamadoDetailItem, ChamadoDetailModal } from '@/components/chamado-detail-modal';
 import { Pill } from '@/components/ui/pill';
+import { isImageUrl } from '@/lib/media';
 import { SERVICE_TYPE_LABEL } from '@/lib/service-type-labels';
 
 const COMPLAINT_STATUS_TONE: Record<ComplaintStatus, 'warn' | 'accent' | 'ok'> = {
@@ -41,19 +50,6 @@ const MAINTENANCE_NEXT_STATUS: Record<MaintenanceStatus, MaintenanceStatus | nul
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 
-const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
-
-// mediaUrls comes from the bot's media pipeline, which accepts any non-audio
-// attachment (photo, video, or document) as chamado evidence — not just
-// photos. Signed URLs carry a query string, so the extension check strips it
-// first; anything that isn't a recognized image extension renders as a file
-// link instead of an <img>, which would otherwise show a broken-image icon.
-function isImageUrl(url: string): boolean {
-  const path = url.split('?')[0] ?? '';
-  const ext = path.split('.').pop()?.toLowerCase();
-  return !!ext && IMAGE_EXTENSIONS.has(ext);
-}
-
 type UnifiedItem =
   | { kind: 'complaint'; createdAt: string; data: Complaint }
   | { kind: 'maintenance'; createdAt: string; data: MaintenanceRequest };
@@ -65,6 +61,8 @@ interface ComplaintsSectionProps extends Omit<ComponentProps<'div'>, 'children'>
   isAdvancing: boolean;
   onAdvanceStatus: (id: string, status: ComplaintStatus) => void;
   onAdvanceMaintenanceStatus: (id: string, status: MaintenanceStatus) => void;
+  onUpdateMaintenanceResponsibility?: (id: string, responsibility: MaintenanceResponsibility) => void;
+  isUpdatingResponsibility?: boolean;
 }
 
 export function ComplaintsSection({
@@ -74,9 +72,13 @@ export function ComplaintsSection({
   isAdvancing,
   onAdvanceStatus,
   onAdvanceMaintenanceStatus,
+  onUpdateMaintenanceResponsibility,
+  isUpdatingResponsibility = false,
   className,
   ...props
 }: ComplaintsSectionProps) {
+  const [detailItem, setDetailItem] = useState<ChamadoDetailItem | null>(null);
+
   if (!isLoading && complaints.length === 0 && maintenanceRequests.length === 0) return null;
 
   const items: UnifiedItem[] = [
@@ -106,6 +108,7 @@ export function ComplaintsSection({
                 complaint={item.data}
                 isAdvancing={isAdvancing}
                 onAdvanceStatus={onAdvanceStatus}
+                onViewDetails={() => setDetailItem({ kind: 'complaint', data: item.data })}
               />
             ) : (
               <MaintenanceRow
@@ -113,11 +116,19 @@ export function ComplaintsSection({
                 request={item.data}
                 isAdvancing={isAdvancing}
                 onAdvanceStatus={onAdvanceMaintenanceStatus}
+                onViewDetails={() => setDetailItem({ kind: 'maintenance', data: item.data })}
               />
             ),
           )}
         </div>
       )}
+
+      <ChamadoDetailModal
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+        onSaveResponsibility={onUpdateMaintenanceResponsibility}
+        isSavingResponsibility={isUpdatingResponsibility}
+      />
     </div>
   );
 }
@@ -126,10 +137,12 @@ function ComplaintRow({
   complaint,
   isAdvancing,
   onAdvanceStatus,
+  onViewDetails,
 }: {
   complaint: Complaint;
   isAdvancing: boolean;
   onAdvanceStatus: (id: string, status: ComplaintStatus) => void;
+  onViewDetails: () => void;
 }) {
   const next = COMPLAINT_NEXT_STATUS[complaint.status];
   return (
@@ -143,16 +156,25 @@ function ComplaintRow({
       <p className="mt-1 text-sm text-muted-foreground">{complaint.content}</p>
       <div className="mt-2 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{dateFmt.format(new Date(complaint.createdAt))}</span>
-        {next && (
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => onAdvanceStatus(complaint.id, next)}
-            disabled={isAdvancing}
-            className="text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+            onClick={onViewDetails}
+            className="text-xs font-medium text-muted-foreground hover:underline"
           >
-            Marcar como {COMPLAINT_STATUS_LABEL[next].toLowerCase()}
+            Ver detalhes
           </button>
-        )}
+          {next && (
+            <button
+              type="button"
+              onClick={() => onAdvanceStatus(complaint.id, next)}
+              disabled={isAdvancing}
+              className="text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+            >
+              Marcar como {COMPLAINT_STATUS_LABEL[next].toLowerCase()}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -162,10 +184,12 @@ function MaintenanceRow({
   request,
   isAdvancing,
   onAdvanceStatus,
+  onViewDetails,
 }: {
   request: MaintenanceRequest;
   isAdvancing: boolean;
   onAdvanceStatus: (id: string, status: MaintenanceStatus) => void;
+  onViewDetails: () => void;
 }) {
   const next = MAINTENANCE_NEXT_STATUS[request.status];
   return (
@@ -207,16 +231,25 @@ function MaintenanceRow({
       )}
       <div className="mt-2 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">{dateFmt.format(new Date(request.createdAt))}</span>
-        {next && (
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => onAdvanceStatus(request.id, next)}
-            disabled={isAdvancing}
-            className="text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+            onClick={onViewDetails}
+            className="text-xs font-medium text-muted-foreground hover:underline"
           >
-            Marcar como {MAINTENANCE_STATUS_LABEL[next].toLowerCase()}
+            Ver detalhes
           </button>
-        )}
+          {next && (
+            <button
+              type="button"
+              onClick={() => onAdvanceStatus(request.id, next)}
+              disabled={isAdvancing}
+              className="text-xs font-medium text-accent-ink hover:underline disabled:opacity-50"
+            >
+              Marcar como {MAINTENANCE_STATUS_LABEL[next].toLowerCase()}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

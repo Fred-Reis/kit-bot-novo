@@ -1,4 +1,4 @@
-import type { ComplaintStatus, MaintenanceStatus } from '@kit-manager/types';
+import type { ComplaintStatus, MaintenanceResponsibility, MaintenanceStatus } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { AlertCircle, ChevronLeft } from 'lucide-react';
@@ -93,6 +93,16 @@ function TenantDetailPage() {
       void qc.invalidateQueries({ queryKey: ['tenant-maintenance', tenantId] });
     },
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
+  });
+
+  const updateMaintenanceResponsibility = useMutation({
+    mutationFn: ({ id, responsibility }: { id: string; responsibility: MaintenanceResponsibility }) =>
+      adminApi.updateMaintenanceResponsibility(id, responsibility),
+    onSuccess: () => {
+      toast.success('Responsabilidade atualizada.');
+      void qc.invalidateQueries({ queryKey: ['tenant-maintenance', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar responsabilidade.')),
   });
 
   const togglePause = useMutation({
@@ -239,6 +249,10 @@ function TenantDetailPage() {
         maintenanceRequests={maintenanceRequests}
         isLoading={complaintsLoading || maintenanceLoading}
         isAdvancing={advanceComplaintStatus.isPending || advanceMaintenanceStatus.isPending}
+        onUpdateMaintenanceResponsibility={(id, responsibility) =>
+          updateMaintenanceResponsibility.mutate({ id, responsibility })
+        }
+        isUpdatingResponsibility={updateMaintenanceResponsibility.isPending}
         onAdvanceStatus={(id, status) => advanceComplaintStatus.mutate({ id, status })}
         onAdvanceMaintenanceStatus={(id, status) => advanceMaintenanceStatus.mutate({ id, status })}
       />

@@ -1,5 +1,5 @@
 import type { Complaint, MaintenanceRequest } from '@kit-manager/types';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
 import { ComplaintsSection } from '@/components/complaints-section';
 
@@ -175,5 +175,42 @@ describe('ComplaintsSection — manutenção', () => {
     );
     fireEvent.click(screen.getByText(/marcar como em andamento/i));
     expect(onAdvanceMaintenanceStatus).toHaveBeenCalledWith('maintenance-1', 'in_progress');
+  });
+
+  test('"Ver detalhes" abre o modal com o conteúdo completo da reclamação', () => {
+    render(
+      <ComplaintsSection
+        complaints={[makeComplaint({ content: 'Relato bem longo e detalhado do inquilino sobre o barulho.' })]}
+        maintenanceRequests={[]}
+        isLoading={false}
+        isAdvancing={false}
+        onAdvanceStatus={vi.fn()}
+        onAdvanceMaintenanceStatus={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByText(/ver detalhes/i)[0]!);
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByText('Relato bem longo e detalhado do inquilino sobre o barulho.'),
+    ).toBeInTheDocument();
+  });
+
+  test('"Ver detalhes" no chamado de manutenção permite corrigir a responsabilidade', () => {
+    const onUpdateMaintenanceResponsibility = vi.fn();
+    render(
+      <ComplaintsSection
+        complaints={[]}
+        maintenanceRequests={[makeMaintenanceRequest({ responsibility: 'unclear' })]}
+        isLoading={false}
+        isAdvancing={false}
+        onAdvanceStatus={vi.fn()}
+        onAdvanceMaintenanceStatus={vi.fn()}
+        onUpdateMaintenanceResponsibility={onUpdateMaintenanceResponsibility}
+      />,
+    );
+    fireEvent.click(screen.getByText(/ver detalhes/i));
+    fireEvent.change(screen.getByLabelText(/responsabilidade/i), { target: { value: 'owner' } });
+    fireEvent.click(screen.getByRole('button', { name: /salvar/i }));
+    expect(onUpdateMaintenanceResponsibility).toHaveBeenCalledWith('maintenance-1', 'owner');
   });
 });
