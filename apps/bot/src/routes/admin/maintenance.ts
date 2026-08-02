@@ -3,8 +3,18 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@/db/client';
 import { verifyAdminJwt } from '@/plugins/admin-auth';
 import { logActivity } from '@/services/activity';
+import { sendText } from '@/services/evolution';
 
 const VALID_STATUSES: readonly MaintenanceStatus[] = MAINTENANCE_STATUSES;
+
+// null = no message for that transition (e.g. reopening to "open" isn't a
+// tenant-facing event worth a WhatsApp text).
+const STATUS_TENANT_MESSAGE: Record<MaintenanceStatus, string | null> = {
+  open: null,
+  acknowledged: 'Seu chamado de manutenção foi reconhecido e está sendo avaliado.',
+  in_progress: 'Seu chamado de manutenção está em andamento.',
+  resolved: 'Seu chamado de manutenção foi concluído. Qualquer coisa, é só chamar 🙂',
+};
 
 export async function maintenanceRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.patch<{ Params: { id: string }; Body: { status: MaintenanceStatus } }>(
@@ -18,7 +28,19 @@ export async function maintenanceRoutes(fastify: FastifyInstance): Promise<void>
       }
       const existing = await prisma.maintenanceRequest.findUnique({ where: { id } });
       if (!existing) return reply.status(404).send({ error: 'Maintenance request not found' });
-      const updated = await prisma.maintenanceRequest.update({ where: { id }, data: { status } });
+      const { tenant, ...updated } = await prisma.maintenanceRequest.update({
+        where: { id },
+        data: { status },
+        include: { tenant: { select: { phone: true } } },
+      });
+
+      const tenantMessage = STATUS_TENANT_MESSAGE[status];
+      if (tenantMessage) {
+        sendText(tenant.phone, tenantMessage).catch((err) =>
+          fastify.log.warn({ err }, 'Failed to notify tenant of maintenance status change'),
+        );
+      }
+
       await logActivity({
         actorType: 'user',
         actorId: request.adminUserId ?? undefined,
