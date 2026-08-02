@@ -247,6 +247,16 @@ Verificação pós-4ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web
 - **Recusado com justificativa:** fixture de teste usando `https://signed.example/foto1.jpg` em vez de formato de URL do Supabase Storage — o próprio CodeRabbit rotulou como "💤 Low value"; a função testada só interpola a string na mensagem, não faz parsing/validação de URL, então um domínio claramente fake é a convenção padrão de teste, não um defeito.
 
 Verificação pós-5ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (134 pass, 0 fail).
+
+**Achados do smoke test manual do Fred na PR #42 (2026-07-31/2026-08-01) — gaps reais que nenhuma rodada de CodeRabbit pegou, por serem comportamento observável e não visível no diff isolado:**
+- **Corrigido:** não existia botão de pausar/reativar bot na página do inquilino (só existia pra lead). Adicionado `PATCH /admin/tenants/:id/pause-bot` espelhando `leads.ts`, com o mesmo componente `Toggle` já padrão do resto do painel (Fred pediu para padronizar depois de notar o botão antigo — texto que trocava de "Pausar"/"Reativar" — destoava do resto; aplicado também em `leads/$leadId.tsx` pra manter os dois iguais).
+- **Corrigido:** mudança de status de reclamação/chamado (reconhecido/em andamento/resolvido) não disparava nenhuma mensagem pro inquilino — Fred testou e não recebeu nada. Adicionado `sendText()` com mensagem por status em `complaints.ts`/`maintenance.ts`.
+- **Corrigido:** o agente abria chamado de manutenção sem pedir detalhes nem foto antes. Prompt do `tenant-v2.ts` agora exige juntar descrição + mídia (uma pergunta) antes de chamar `abrir_chamado`, para qualquer tipo de manutenção — não só responsabilidade `unclear`.
+- **Corrigido:** não havia como ver o conteúdo completo de um chamado (texto longo, fotos) antes do proprietário decidir a responsabilidade manualmente — só um card resumido na lista. Adicionado modal `ChamadoDetailModal` ("Ver detalhes") com texto/fotos completos e correção manual de responsabilidade antes de agir.
+- **Corrigido:** data de registro do chamado aparecia ~3h à frente do horário real. Causa raiz sistêmica (não exclusiva do T3): PostgREST devolve `timestamp without time zone` (tipo usado em toda a schema) sem designador de timezone, e `new Date(...)` no JS interpreta isso como horário local em vez de UTC. Corrigido na raiz — interceptor de `fetch` no client supabase-js (`lib/supabase-timestamp-fix.ts`) que normaliza toda resposta REST, mais `timeZone: 'America/Sao_Paulo'` explícito nos displays de data+hora que ainda não tinham — afeta o painel inteiro, não só T3.
+- **Esclarecido, não é achado:** Fred perguntou se uma página dedicada de reclamações está planejada — não faz parte do escopo do T3; registrado como iniciativa própria de Fase 3 (ver seção abaixo).
+
+Verificação pós-smoke-test: bot `bun run check` limpo; web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (151 pass, 0 fail) + `bun run build` ok.
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
