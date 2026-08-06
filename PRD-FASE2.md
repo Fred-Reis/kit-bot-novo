@@ -257,6 +257,24 @@ Verificação pós-5ª rodada: bot `bun run check` limpo (253 pass, 0 fail); web
 - **Esclarecido, não é achado:** Fred perguntou se uma página dedicada de reclamações está planejada — não faz parte do escopo do T3; registrado como iniciativa própria de Fase 3 (ver seção abaixo).
 
 Verificação pós-smoke-test: bot `bun run check` limpo; web `bunx tsc --noEmit` + `bun run lint` (0 erros) + `bunx vitest run` (151 pass, 0 fail) + `bun run build` ok.
+
+**2ª rodada de smoke test do Fred (2026-08-05/06) — fluxo de LEAD travando antes de dar pra testar tenant. 8 correções, todas no `apps/bot`:**
+
+O padrão que uniu quase todos os achados: **flag de sessão em `LeadContext` disputando com o fato equivalente no banco, e vencendo.** `LeadContext` é persistido inteiro em `Conversation.data`, nunca é podado, e ia cru (`JSON.stringify`) pro extrator — então sobra de sessão virava "fato" realimentado no LLM. A doutrina adotada nesta rodada e que deve valer daqui pra frente: **fato do banco ganha de flag de sessão, sempre**; flag de sessão só existe pro que não tem representação no banco.
+
+- **Data/hora ausente no agente com tools.** `runToolAgent` (compartilhado por lead e tenant) nunca recebia a data atual — só o extrator tinha. O modelo tinha que adivinhar o ano ao montar o ISO de `agendar_visita`, gerando datas erradas que a checagem "precisa ser futuro" corretamente rejeitava. Corrigido na raiz: `agent-runner.ts` injeta `Data e hora atual` (America/Sao_Paulo) em todo turno — cobre os dois fluxos.
+- **Loop de "já visitou".** A guarda monotônica de `visitedProperty` (que existe pra impedir deriva do LLM) também bloqueava a correção determinística explícita "ainda não visitei" — uma vez setada errado, a flag era impossível de corrigir por conversa. `resolveVisitedProperty()` só re-força `true` quando não há correção determinística na mensagem.
+- **Horário de visita não era respeitado.** `agendar_visita` só validava "data futura". Agora recusa fim de semana e fora de 8h–17h (avaliado em America/Sao_Paulo, não no timezone do processo) devolvendo o motivo ao lead, e a descrição da tool avisa o agente antes de tentar.
+- **"Visita já solicitada" pra sempre.** `deriveState` decidia entre agendar e "só confirmar" por `context.visitRequested`, flag que travava em `true` no primeiro pedido e nunca resetava. Passou a usar `Lead.scheduledVisitAt`. **Flag removida.**
+- **"Está confirmada" pra visita no passado.** `hasScheduledVisit` passou a contar só visitas futuras (`isVisitUpcoming`); visita vencida não bloqueia mais o agendamento e o contexto instrui a dizer que *havia* uma visita e oferecer remarcar.
+- **Funil reiniciado a cada sinal ambíguo de visita.** Quatro defeitos encadeados: (a) `renderLeadContext` **escondia o checklist** fora dos estados de análise e mandava "não peça renda/documentos" — no estado de agendamento o agente literalmente não sabia que renda e CNH já estavam no banco, daí reiniciar e negar documento recebido; (b) `deriveState` dava precedência absoluta ao sinal de visita sobre o progresso real; (c) o `LeadContext` inteiro ia cru pro extrator, criando eco da própria classificação antiga; (d) cutucada sem conteúdo ("E aí?") era lida como pedido de visita. Corrigidos: checklist entra em **todo** estado (é fato do banco — esconder viola a regra "toda informação factual vem do banco") e a linha supressora virou restrição de *iniciativa*, não apagamento de fato; progresso da análise é calculado antes do ramo de visita; `buildExtractionView` manda só fatos duráveis e a desambiguação de respostas curtas passou a usar a última mensagem real do bot; regra de cutucada determinística (igualdade com a mensagem inteira) espelhada no prompt.
+- **Morador nunca cadastrado quando o lead mora sozinho.** O prompt do agente não dizia que informar só o total não completa o checklist, nem que no caso solo o próprio lead é o morador (nome já conhecido no contexto). Checklist ficava travado em "0 de 1" pra sempre.
+- **Lead submetido ficava preso.** `context.analysisSubmitted` era catraca de mão única auto-realimentada (`deriveState` retornava `review_submitted` na 1ª linha → chamador setava a flag de novo → ramo de reset inalcançável). Nada destravava: objeção, documento corrigido, checklist regredido, override manual de stage. Trocado pelo fato do banco (`ANALYSIS_SUBMITTED_STAGES` sobre `Lead.stage`) e reposicionado **depois** de objeção e `property_info` — quem já foi pra análise passa a ter a pergunta respondida em vez de ouvir só "seus dados seguiram". **Flag removida.** Decisão deliberada embutida: `review_submitted` entra no conjunto, então marcar "Docs enviados" manualmente no painel faz o bot parar de cobrar documentos.
+- **Moradores apagados silenciosamente (perda de dado).** O fluxo mantinha replace-all da tabela `leadResident` alimentado por `context.residents` (acumulador nunca limpo) rodando a cada turno, inclusive em turno só de áudio. Os dois writers têm semântica oposta: o extrator só vê a mensagem atual (listas **parciais**), a tool `registrar_moradores` tem histórico e contrato de lista **completa** — e a parcial vencia, apagando morador citado em outra mensagem. O fingerprint adicionado em `d89ca3e` por performance mascarou o problema: suprime write no-op, mas o gatilho da reversão é justamente a diferença legítima. Efeito colateral de segurança: com `expectedResidents` também revertido, o checklist marcava moradores como completo e `shouldTransitionToKyc` disparava, mandando pra análise um lead com morador faltando. Corrigido com writer único.
+
+Verificação pós-2ª rodada: bot `bun run check` limpo (301 pass, 0 fail, 0 erros de lint).
+
+**Ainda em aberto nesta trilha (mesma família, sem impacto observado ainda):** `context.dataConfirmed` não tem contrapartida no banco, então rollback de stage pelo painel não o limpa — o lead volta sozinho pra `kyc_pending` e o owner é notificado de novo; `context.wantsPause` é preenchido pelo extrator e lido por ninguém; `lastRequestedMediaType` só é limpo em envio bem-sucedido, então um pedido de mídia inexistente fica grudado e um "manda" posterior o ressuscita.
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
@@ -320,10 +338,10 @@ Verificação pós-smoke-test: bot `bun run check` limpo; web `bunx tsc --noEmit
 
 | Campo | Valor |
 |---|---|
-| Última atualização | 2026-07-30 |
-| Etapa atual | T3 (Manutenção) — brainstorm→spec→plan→build→simplify→review local fechados. PR #42 aberta, aguardando CodeRabbit |
-| Próxima etapa | Loop CodeRabbit → triagem → fix → commit até PR limpa. `docs/lei-inquilinato-resumo.md` precisa de revisão de conteúdo pelo Fred antes do merge |
-| Bloqueios | — |
+| Última atualização | 2026-08-06 |
+| Etapa atual | T3 (Manutenção) fechado (build→simplify→review→5 rodadas CodeRabbit). PR #42 aberta. Smoke test manual em 2 rodadas: a 2ª expôs 8 bugs no fluxo de **lead** (não no T3), todos corrigidos — ver "2ª rodada de smoke test" acima |
+| Próxima etapa | Refazer o smoke test do fluxo de lead com os 8 fixes no ar; só então testar o fluxo de tenant ponta a ponta. `docs/lei-inquilinato-resumo.md` ainda precisa de revisão de conteúdo jurídico pelo Fred antes do merge |
+| Bloqueios | Fluxo de lead vinha travando antes de dar pra exercitar o tenant — motivo dos 8 fixes desta rodada |
 
 ---
 
