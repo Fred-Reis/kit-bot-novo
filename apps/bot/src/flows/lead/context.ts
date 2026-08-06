@@ -63,6 +63,7 @@ export interface LeadSnapshot {
   state: string;
   stateGuidance: string;
   currentProcessStep: string;
+  scheduledVisitAt: Date | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ const STATE_GUIDANCE: Record<string, string> = {
     'Responda a duvida atual sobre o imovel, valor, regras, localizacao ou disponibilidade.',
   'lead.visit_scheduling': 'Conduza apenas o agendamento de visita. Nao peca renda nem documentos.',
   'lead.visit_requested':
-    'Confirme que a visita foi solicitada e mantenha o atendimento aberto para novas duvidas.',
+    'A visita ja esta confirmada (veja a data no contexto do sistema) — confirme isso ao lead. Se o lead pedir para mudar a data/hora, use agendar_visita de novo sem resistencia.',
   'lead.objection_handling':
     'Responda a objecao com clareza antes de qualquer tentativa de avancar etapa.',
   'lead.post_visit_decision':
@@ -147,10 +148,11 @@ export interface DeriveStateInput {
   intent: string;
   propertyInFocus: PropertyData | null;
   checklist: ChecklistStatus;
+  hasScheduledVisit?: boolean;
 }
 
 export function deriveState(input: DeriveStateInput): string {
-  const { context, intent, propertyInFocus, checklist } = input;
+  const { context, intent, propertyInFocus, checklist, hasScheduledVisit } = input;
 
   if (context.analysisSubmitted) return 'lead.review_submitted';
   if (intent === 'objection') return 'lead.objection_handling';
@@ -163,9 +165,12 @@ export function deriveState(input: DeriveStateInput): string {
 
   const visited = context.visitedProperty;
 
-  // Pedido explícito de visita sempre vai para scheduling (a menos que já visitou)
+  // Pedido explícito de visita sempre vai para scheduling (a menos que já visitou).
+  // "Já confirmada" tem que vir do banco (hasScheduledVisit) — context.visitRequested
+  // é só um flag de sessão que fica travado em true e nunca reseta sozinho; usá-lo aqui
+  // fazia o bot parar de tentar agendar mesmo sem nenhuma data de fato confirmada.
   if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
-    return context.visitRequested ? 'lead.visit_requested' : 'lead.visit_scheduling';
+    return hasScheduledVisit ? 'lead.visit_requested' : 'lead.visit_scheduling';
   }
 
   if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
@@ -194,13 +199,20 @@ export function deriveState(input: DeriveStateInput): string {
 export async function buildLeadSnapshot(
   leadId: string,
   context: LeadContext,
+  scheduledVisitAt: Date | null = null,
 ): Promise<LeadSnapshot> {
   const propertyInFocus = await resolvePropertyInFocus(context);
   const availableProperties = await listAvailableProperties();
   const checklist = await getChecklistForLead(leadId);
   const intent = context.currentIntent ?? 'unknown';
 
-  const state = deriveState({ context, intent, propertyInFocus, checklist });
+  const state = deriveState({
+    context,
+    intent,
+    propertyInFocus,
+    checklist,
+    hasScheduledVisit: scheduledVisitAt != null,
+  });
 
   return {
     context,
@@ -213,6 +225,7 @@ export async function buildLeadSnapshot(
     state,
     stateGuidance: STATE_GUIDANCE[state] ?? STATE_GUIDANCE['lead.start'],
     currentProcessStep: currentProcessStep(state),
+    scheduledVisitAt,
   };
 }
 
@@ -235,6 +248,10 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
 
   const propertyInterest = (context.propertyInterest ?? '').trim() || 'nao informado';
 
+  const visitStatus = snapshot.scheduledVisitAt
+    ? `Visita CONFIRMADA para ${snapshot.scheduledVisitAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })} (pra reagendar ou cancelar, use as tools normalmente).`
+    : 'Visita ainda NAO confirmada no banco — nenhuma data registrada.';
+
   const lines = [
     'Fluxo: lead nao inquilino.',
     `Estado atual: ${snapshot.state}.`,
@@ -249,7 +266,7 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
     `Condicoes factuais do imovel em foco:\n${propertyTermsSummary}`,
     `Imovel em foco travado: ${snapshot.propertyLocked === true}.`,
     `Ja visitou o imovel: ${context.visitedProperty != null ? String(context.visitedProperty) : 'nao informado'}.`,
-    `Pedido de visita ja registrado: ${context.visitRequested === true}.`,
+    visitStatus,
     'Imoveis disponiveis no banco:',
     availableSummary,
   ];

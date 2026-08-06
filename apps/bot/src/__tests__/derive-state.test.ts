@@ -68,4 +68,30 @@ describe('deriveState com checklist', () => {
     });
     expect(state).toBe('lead.visit_scheduling');
   });
+
+  it('visita ja confirmada no banco (hasScheduledVisit) → visit_requested', () => {
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: emptyChecklist,
+      hasScheduledVisit: true,
+    });
+    expect(state).toBe('lead.visit_requested');
+  });
+
+  it('context.visitRequested preso em true (turno antigo) mas SEM data confirmada no banco → continua scheduling', () => {
+    // Regressão: visitRequested é um flag de sessão que fica travado em true
+    // depois do primeiro "quero marcar visita" e nunca mais reseta sozinho.
+    // O estado real de "ja esta agendado" tem que vir do banco (scheduledVisitAt),
+    // senão o bot para de tentar agendar mesmo sem nenhuma data confirmada.
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true, visitRequested: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: emptyChecklist,
+      hasScheduledVisit: false,
+    });
+    expect(state).toBe('lead.visit_scheduling');
+  });
 });
