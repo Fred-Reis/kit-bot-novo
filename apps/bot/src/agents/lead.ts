@@ -27,6 +27,7 @@ Regras:
 - Para property_interest: se a mensagem pede informacao, video, foto, visita ou qualquer dado sobre um imovel sem mencionar qual, e houver apenas um imovel na lista de disponiveis, preencha com o externalId desse imovel. Se houver mais de um e nao for possivel inferir, deixe null.
 - Para source: preencha APENAS quando o lead citar explicitamente o portal ou canal pelo qual encontrou o imóvel (exemplos: "vi no OLX", "achei no Zap Imóveis", "vi no Instagram", "me indicaram", "vi no seu site"). Contato direto pelo WhatsApp sem menção de origem → retornar null. "Zap", "mandei um zap", "fiz um zap" são gíria para WhatsApp — não equivalem ao portal Zap Imóveis. Só preencher source = "zap" se o lead disser literalmente "Zap Imóveis" ou "portal Zap".
 - expected_residents: preencher apenas quando o lead disser quantas pessoas vao morar. "So eu" = 1. "Eu e minha esposa" = 2.
+- sexo/idade: quando o lead informar sexo e/ou idade de um morador (proprio ou de outra pessoa), preencha SOMENTE os campos "sexo"/"idade" — NUNCA em "name".
 - wants_human = true APENAS quando a pessoa pedir explicitamente para falar com atendente, pessoa, corretor ou humano (ex: "quero falar com alguem", "tem atendente?", "quero uma pessoa real"). Perguntas sobre o imovel, a visita ou o processo — mesmo que a resposta nao esteja clara no contexto — NAO configuram wants_human.`;
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
@@ -70,6 +71,14 @@ export const LeadExtractionSchema = z.object({
         'Ex: "vamos morar eu e minha esposa" → 2; "só eu" → 1; "somos 4" → 4. ' +
         'Sem informação → null.',
     ),
+  // Extraídos mas NUNCA persistidos (ver abaixo — nada em `updates` lê
+  // raw.sexo/raw.idade). Quem grava sexo/idade de fato é a tool
+  // registrar_moradores. Existem só pra dar ao schema um campo correto onde
+  // "Feminino 42" pousa — sem eles, o único campo de texto livre sobre a
+  // pessoa era `name`, e um lead respondendo "sexo e idade" teve a resposta
+  // classificada como nome (achado real: virou o "nome" salvo do lead).
+  sexo: z.string().nullable().default(null),
+  idade: z.number().int().nullable().default(null),
 });
 
 // ─── Normalizers ──────────────────────────────────────────────────────────────
