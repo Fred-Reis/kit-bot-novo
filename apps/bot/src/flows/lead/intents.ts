@@ -120,3 +120,18 @@ export function getDeterministicLeadUpdates(message: string | null): Record<stri
 
   return updates;
 }
+
+// visitedProperty is monotonic against LLM drift (once true, an ambiguous later
+// turn shouldn't silently un-set it) — but an explicit deterministic correction
+// ("ainda nao visitei") must still be able to fix a wrongly-true flag.
+export function resolveVisitedProperty(
+  previous: boolean | null | undefined,
+  extracted: boolean | null | undefined,
+  message: string | null,
+): boolean | null | undefined {
+  if (previous === true && extracted !== true) {
+    if (getDeterministicLeadUpdates(message).visitedProperty === false) return false;
+    return true;
+  }
+  return extracted;
+}

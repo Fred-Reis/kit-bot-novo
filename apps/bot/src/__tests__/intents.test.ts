@@ -3,6 +3,7 @@ import {
   normalizeIntentText,
   getSimpleGreetingReply,
   getDeterministicLeadUpdates,
+  resolveVisitedProperty,
 } from '@/flows/lead/intents';
 
 // ─── normalizeIntentText ──────────────────────────────────────────────────────
@@ -128,5 +129,30 @@ describe('getDeterministicLeadUpdates', () => {
 
   test('null input → empty object', () => {
     expect(getDeterministicLeadUpdates(null)).toEqual({});
+  });
+});
+
+// ─── resolveVisitedProperty ───────────────────────────────────────────────────
+
+describe('resolveVisitedProperty', () => {
+  test('explicit "ainda nao visitei" corrects a previously-true flag back to false', () => {
+    expect(resolveVisitedProperty(true, false, 'ainda nao visitei, marca uma visita')).toBe(false);
+  });
+
+  test('explicit "nao visitei" corrects a previously-true flag back to false', () => {
+    expect(resolveVisitedProperty(true, null, 'nao visitei ainda')).toBe(false);
+  });
+
+  test('LLM drift without a deterministic correction is reverted back to true', () => {
+    expect(resolveVisitedProperty(true, null, 'quero saber o valor do aluguel')).toBe(true);
+  });
+
+  test('previously true stays true when extraction agrees', () => {
+    expect(resolveVisitedProperty(true, true, 'ja visitei sim')).toBe(true);
+  });
+
+  test('previously not-true is untouched by the guard', () => {
+    expect(resolveVisitedProperty(false, true, 'ja visitei o imovel')).toBe(true);
+    expect(resolveVisitedProperty(null, null, 'oi')).toBe(null);
   });
 });

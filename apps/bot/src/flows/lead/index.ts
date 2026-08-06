@@ -13,6 +13,7 @@ import {
   detectDocContestation,
   getSimpleGreetingReply,
   normalizeIntentText,
+  resolveVisitedProperty,
 } from '@/flows/lead/intents';
 import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
 import {
@@ -194,10 +195,11 @@ export async function handleLeadMessage(
       );
       Object.assign(context, updates);
 
-      // visitedProperty is monotonic: once the lead has visited, it never reverts
-      if (previousVisitedProperty === true && context.visitedProperty !== true) {
-        context.visitedProperty = true;
-      }
+      context.visitedProperty = resolveVisitedProperty(
+        previousVisitedProperty,
+        context.visitedProperty,
+        messageText,
+      );
 
       // Don't overwrite manual source corrections made in the admin panel
       if (shouldUpdateLeadSource(lead.source, extractedSource)) {
