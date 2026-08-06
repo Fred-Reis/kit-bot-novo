@@ -29,3 +29,16 @@ describe('LEAD_AGENT_V2_PROMPT — fato do responsável pela visita', () => {
     expect(prompt).toContain('nunca invente nome ou telefone');
   });
 });
+
+describe('LEAD_AGENT_V2_PROMPT — registro de moradores', () => {
+  const prompt = LEAD_AGENT_V2_PROMPT.toLowerCase();
+
+  test('deixa claro que informar so o total nao completa o cadastro', () => {
+    expect(prompt).toContain('nao basta');
+  });
+
+  test('instrui a usar o nome ja conhecido quando o lead mora sozinho', () => {
+    expect(prompt).toMatch(/somente eu|so eu|sozinho/);
+    expect(prompt).toContain('nome ja conhecido');
+  });
+});
