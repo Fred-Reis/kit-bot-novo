@@ -8,7 +8,13 @@ import { prisma } from '@/db/client';
 import { getChecklistForLead } from '@/flows/lead/checklist';
 import { buildLeadSnapshot, type LeadContext, renderLeadContext } from '@/flows/lead/context';
 import { buildTransparencyReply, handleDocumentIntake } from '@/flows/lead/doc-intake';
-import { detectFrustration, escalateToHuman, isSameReply } from '@/flows/lead/escalation';
+import {
+  detectFrustration,
+  escalateToHuman,
+  isSameReply,
+  nextFrustrationStrikes,
+  shouldEscalateForFrustration,
+} from '@/flows/lead/escalation';
 import {
   detectDocContestation,
   getSimpleGreetingReply,
@@ -235,10 +241,21 @@ export async function handleLeadMessage(
       }
     }
 
-    // Escalação: pedido de humano ou frustração → pausa + notificação
-    if (context.wantsHuman || detectFrustration(messageText)) {
-      const reason = context.wantsHuman ? 'human_request' : 'frustration';
-      await escalateToHuman(chatId, lead.ownerId, lead.name, reason);
+    // Escalação: pedido explícito de humano é sempre imediato. Frustração
+    // (xingar, reclamar do bot) dá UMA chance de o agente resolver o problema de
+    // verdade antes de pausar o bot — desativar e transferir é ultimo recurso,
+    // nao a primeira reação a um xingamento. Só escala na 2ª ocorrência seguida;
+    // qualquer turno sem frustração zera a contagem.
+    if (context.wantsHuman) {
+      await escalateToHuman(chatId, lead.ownerId, lead.name, 'human_request');
+      await persistConversation(chatId, context, messageText || null, null, ownerId);
+      return;
+    }
+
+    const isFrustrated = detectFrustration(messageText);
+    context.frustrationStrikes = nextFrustrationStrikes(context.frustrationStrikes, isFrustrated);
+    if (shouldEscalateForFrustration(context.frustrationStrikes)) {
+      await escalateToHuman(chatId, lead.ownerId, lead.name, 'frustration');
       await persistConversation(chatId, context, messageText || null, null, ownerId);
       return;
     }
@@ -611,6 +628,11 @@ export async function handleLeadMessage(
       question = 'O usuario enviou um audio sem texto.';
     } else {
       question = 'O usuario enviou apenas midia.';
+    }
+
+    if (isFrustrated) {
+      question +=
+        '\n\n[O lead esta frustrado/xingando. Peca desculpas curto e tente resolver o problema concreto agora — corrija o dado errado, esclareca o mal-entendido. So escale pra humano se de fato nao conseguir resolver.]';
     }
 
     // 13. Route and run agent (unless deterministic media bypass)

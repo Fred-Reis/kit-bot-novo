@@ -63,6 +63,23 @@ const NUDGE_MESSAGES = new Set([
   'tudo bom',
 ]);
 
+// Achado real: perguntado "informe seu sexo e idade", o lead respondeu
+// "Feminino 42" e o extrator classificou "Feminino" como name_is_explicit=true,
+// virando o "nome" salvo no Lead (e exibido de volta na confirmação de dados).
+// Guarda determinística — não depende do LLM acertar sempre.
+const NOT_A_NAME_TERMS = new Set([
+  'feminino',
+  'masculino',
+  'homem',
+  'mulher',
+  'nao binario',
+  'prefiro nao dizer',
+]);
+
+export function isPlausibleName(name: string): boolean {
+  return !NOT_A_NAME_TERMS.has(normalizeIntentText(name));
+}
+
 const CONTESTATION_TERMS = [
   'ja enviei',
   'ja mandei',

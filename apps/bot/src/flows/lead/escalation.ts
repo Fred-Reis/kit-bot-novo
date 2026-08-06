@@ -46,6 +46,17 @@ export function detectFrustration(message: string | null): boolean {
   return FRUSTRATION_TERMS.some((t) => normalized.includes(t));
 }
 
+// Frustração dá uma chance de o agente resolver antes de escalar — desativar o
+// bot e transferir é ultimo recurso, nao a primeira reação a um xingamento.
+// Qualquer turno sem frustração zera a contagem (nao pune quem so esfriou).
+export function nextFrustrationStrikes(current: number | undefined, isFrustrated: boolean): number {
+  return isFrustrated ? (current ?? 0) + 1 : 0;
+}
+
+export function shouldEscalateForFrustration(strikes: number): boolean {
+  return strikes >= 2;
+}
+
 export function isSameReply(a: string | null, b: string | null): boolean {
   if (!a || !b) return false;
   return normalizeIntentText(a) === normalizeIntentText(b);

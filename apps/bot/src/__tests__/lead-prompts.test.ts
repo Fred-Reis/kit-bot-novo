@@ -42,3 +42,16 @@ describe('LEAD_AGENT_V2_PROMPT — registro de moradores', () => {
     expect(prompt).toContain('nome ja conhecido');
   });
 });
+
+describe('LEAD_AGENT_V2_PROMPT — escalacao por frustracao e ultimo recurso', () => {
+  const prompt = LEAD_AGENT_V2_PROMPT.toLowerCase();
+
+  test('instrui a tentar resolver antes de escalar por irritacao', () => {
+    expect(prompt).toContain('nao escale de cara');
+    expect(prompt).toContain('tente resolver o problema real primeiro');
+  });
+
+  test('pedido explicito de humano continua escalando direto', () => {
+    expect(prompt).toMatch(/pedir humano explicitamente[\s\S]*chame escalar_humano/);
+  });
+});

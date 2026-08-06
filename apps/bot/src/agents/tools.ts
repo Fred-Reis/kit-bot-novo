@@ -261,7 +261,7 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
     {
       name: 'escalar_humano',
       description:
-        'Pausa o bot e chama um atendente humano. Use quando o lead pedir para falar com pessoa, estiver insatisfeito, ou quando você não conseguir resolver com as outras tools.',
+        'Pausa o bot e chama um atendente humano. Use quando o lead pedir para falar com pessoa, ou quando você já tentou resolver e não conseguiu. Não é a primeira reação a insatisfação — tente resolver antes.',
       schema: z.object({ motivo: z.string() }),
     },
   );

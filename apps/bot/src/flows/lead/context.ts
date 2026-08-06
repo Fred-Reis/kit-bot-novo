@@ -34,6 +34,7 @@ export interface LeadContext {
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;
   docsContestations?: number;
+  frustrationStrikes?: number;
   lastUserMessage?: string;
   lastRoutedAgent?: string;
   lastRequestedMediaType?: string | null;

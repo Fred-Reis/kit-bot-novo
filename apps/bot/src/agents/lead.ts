@@ -6,7 +6,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { config } from '@/config';
 import type { LeadContext } from '@/flows/lead/context';
-import { getDeterministicLeadUpdates } from '@/flows/lead/intents';
+import { getDeterministicLeadUpdates, isPlausibleName } from '@/flows/lead/intents';
 import { logger } from '@/lib/logger';
 
 export const EXTRACTOR_SYSTEM_PROMPT = `Voce extrai apenas dados estruturados explicitamente presentes na mensagem do lead.
@@ -20,7 +20,7 @@ Regras:
 - "Vi uma quitinete alugando", "vi o anuncio", "vi esse numero", "peguei seu numero na OLX" ou equivalente significa que a pessoa viu o anuncio/contato, nao que visitou o imovel.
 - visited_property = true apenas se a pessoa deixar claro que ja visitou o imovel.
 - visited_property = false se a pessoa disser que ainda nao visitou, pedir visita ou negociar horario de visita.
-- name_is_explicit = true quando a pessoa informar o nome claramente, inclusive em resposta direta a um pedido de nome.
+- name_is_explicit = true quando a pessoa informar o nome claramente, inclusive em resposta direta a um pedido de nome. NUNCA confunda resposta a pergunta de sexo, idade ou outro dado pessoal com nome — "Feminino", "Masculino", "32 anos" etc. NAO sao nomes, mesmo em resposta direta a uma pergunta.
 - wants_options = true quando a pessoa pedir opcoes, disponibilidade geral ou disser que ainda nao sabe qual imovel quer.
 - wants_schedule = true quando a pessoa pedir visita, negociar horario ou demonstrar intencao de agendar visita.
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
@@ -159,7 +159,7 @@ export async function extractLeadUpdate(
   const updates: Partial<LeadContext> = { currentIntent: raw.intent };
 
   const name = normalizeText(raw.name);
-  if (raw.name_is_explicit && name) updates.name = name;
+  if (raw.name_is_explicit && name && isPlausibleName(name)) updates.name = name;
 
   const propertyReference = normalizePropertyReference(raw.property_reference);
   if (propertyReference) updates.propertyReference = propertyReference;

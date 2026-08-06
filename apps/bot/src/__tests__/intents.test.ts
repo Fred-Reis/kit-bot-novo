@@ -3,6 +3,7 @@ import {
   normalizeIntentText,
   getSimpleGreetingReply,
   getDeterministicLeadUpdates,
+  isPlausibleName,
   resolveVisitedProperty,
 } from '@/flows/lead/intents';
 
@@ -177,5 +178,24 @@ describe('resolveVisitedProperty', () => {
   test('previously not-true is untouched by the guard', () => {
     expect(resolveVisitedProperty(false, true, 'ja visitei o imovel')).toBe(true);
     expect(resolveVisitedProperty(null, null, 'oi')).toBe(null);
+  });
+});
+
+// ─── isPlausibleName ──────────────────────────────────────────────────────────
+
+describe('isPlausibleName', () => {
+  // Achado real: perguntado "informe seu sexo e idade", o lead respondeu
+  // "Feminino 42" e o extrator classificou "Feminino" como o nome do lead —
+  // que foi devolvido pro lead na confirmação de dados ("Nome: Feminino").
+  test('sexo nao e nome', () => {
+    for (const notName of ['Feminino', 'masculino', 'Homem', 'MULHER', 'Não binário']) {
+      expect(isPlausibleName(notName)).toBe(false);
+    }
+  });
+
+  test('nome de verdade continua aceito', () => {
+    for (const name of ['Aline', 'Frederico', 'Maria da Silva', 'João']) {
+      expect(isPlausibleName(name)).toBe(true);
+    }
   });
 });
