@@ -137,6 +137,10 @@ export async function resolvePropertyInFocus(context: LeadContext): Promise<Prop
   return null;
 }
 
+export function isVisitUpcoming(scheduledVisitAt: Date | null): boolean {
+  return scheduledVisitAt != null && scheduledVisitAt.getTime() > Date.now();
+}
+
 function isPropertyLocked(context: LeadContext): boolean {
   return context.propertyReferenceLocked === true && !!(context.propertyReference ?? '').trim();
 }
@@ -211,7 +215,7 @@ export async function buildLeadSnapshot(
     intent,
     propertyInFocus,
     checklist,
-    hasScheduledVisit: scheduledVisitAt != null,
+    hasScheduledVisit: isVisitUpcoming(scheduledVisitAt),
   });
 
   return {
@@ -248,9 +252,22 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
 
   const propertyInterest = (context.propertyInterest ?? '').trim() || 'nao informado';
 
-  const visitStatus = snapshot.scheduledVisitAt
-    ? `Visita CONFIRMADA para ${snapshot.scheduledVisitAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })} (pra reagendar ou cancelar, use as tools normalmente).`
-    : 'Visita ainda NAO confirmada no banco — nenhuma data registrada.';
+  const visitStatus = (() => {
+    if (!snapshot.scheduledVisitAt) {
+      return 'Visita ainda NAO confirmada no banco — nenhuma data registrada.';
+    }
+    const formatted = snapshot.scheduledVisitAt.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    if (isVisitUpcoming(snapshot.scheduledVisitAt)) {
+      return `Visita CONFIRMADA para ${formatted} (pra reagendar ou cancelar, use as tools normalmente).`;
+    }
+    // A data passou e ninguem reagendou — nao diga que "esta" confirmada,
+    // essa visita nao existe mais. Ofereca remarcar em vez de so informar.
+    return `HAVIA uma visita marcada para ${formatted}, mas essa data ja passou e ninguem reagendou. Avise o lead disso (use "havia", nao "esta confirmada") e ofereca remarcar.`;
+  })();
 
   const lines = [
     'Fluxo: lead nao inquilino.',
