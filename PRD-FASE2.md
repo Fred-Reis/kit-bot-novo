@@ -274,7 +274,12 @@ O padrão que uniu quase todos os achados: **flag de sessão em `LeadContext` di
 
 Verificação pós-2ª rodada: bot `bun run check` limpo (301 pass, 0 fail, 0 erros de lint).
 
-**Ainda em aberto nesta trilha (mesma família, sem impacto observado ainda):** `context.dataConfirmed` não tem contrapartida no banco, então rollback de stage pelo painel não o limpa — o lead volta sozinho pra `kyc_pending` e o owner é notificado de novo; `context.wantsPause` é preenchido pelo extrator e lido por ninguém; `lastRequestedMediaType` só é limpo em envio bem-sucedido, então um pedido de mídia inexistente fica grudado e um "manda" posterior o ressuscita.
+**3ª rodada — os três itens da mesma família fechados (2026-08-06):**
+- **`context.dataConfirmed` sem contrapartida no banco.** Rollback de stage pelo painel (`PATCH /admin/leads/:id/stage`, kyc_pending → collection) escreve só `Lead.stage`; a flag ficava presa em `true` e a próxima mensagem do lead recalculava `shouldTransitionToKyc` como verdadeiro de novo, voltando o stage sozinho e notificando o owner uma 2ª vez. `shouldResetDataConfirmation()` reseta a flag quando o stage está antes da confirmação (os 3 stages editáveis manualmente).
+- **`lastRequestedMediaType` resgatado por engano.** Só era limpo em envio bem-sucedido — um pedido sem match (ex: "tem vídeo?" sem vídeo cadastrado) ficava grudado, e uma confirmação avulsa meses depois ("manda", "pode mandar" sobre qualquer assunto) resgatava o tipo antigo e podia disparar envio determinístico errado. `shouldClearRequestedMediaType()` limpa também na resolução negativa.
+- **`context.wantsPause`, `context.state`, `docsPreference`/`document_choice` removidos.** Confirmados mortos por grep exaustivo (write-only, zero leitores). `wantsPause` é o único caso tratado como decisão de produto, não bug: não tinha regra de prompt definindo o que deveria significar, e ligar um bot-mute automático a partir de campo sem contrato de LLM tem risco real de falso positivo ("pode parar de mandar foto" silenciando a conversa inteira) — removido em vez de "consertado calado"; vira feature de verdade só com spec própria.
+
+Verificação pós-3ª rodada: bot `bun run check` limpo (317 pass, 0 fail, 0 erros de lint).
 - [ ] Merge (Fred)
 
 ### T4 — Financeiro
@@ -339,9 +344,9 @@ Verificação pós-2ª rodada: bot `bun run check` limpo (301 pass, 0 fail, 0 er
 | Campo | Valor |
 |---|---|
 | Última atualização | 2026-08-06 |
-| Etapa atual | T3 (Manutenção) fechado (build→simplify→review→5 rodadas CodeRabbit). PR #42 aberta. Smoke test manual em 2 rodadas: a 2ª expôs 8 bugs no fluxo de **lead** (não no T3), todos corrigidos — ver "2ª rodada de smoke test" acima |
-| Próxima etapa | Refazer o smoke test do fluxo de lead com os 8 fixes no ar; só então testar o fluxo de tenant ponta a ponta. `docs/lei-inquilinato-resumo.md` ainda precisa de revisão de conteúdo jurídico pelo Fred antes do merge |
-| Bloqueios | Fluxo de lead vinha travando antes de dar pra exercitar o tenant — motivo dos 8 fixes desta rodada |
+| Etapa atual | T3 (Manutenção) fechado (build→simplify→review→5 rodadas CodeRabbit). PR #42 aberta. Smoke test manual em 3 rodadas no fluxo de **lead** (não no T3), 11 bugs no total, todos corrigidos — ver "2ª rodada" e "3ª rodada" de smoke test acima |
+| Próxima etapa | Refazer o smoke test do fluxo de lead com os 11 fixes no ar; só então testar o fluxo de tenant ponta a ponta. `docs/lei-inquilinato-resumo.md` ainda precisa de revisão de conteúdo jurídico pelo Fred antes do merge |
+| Bloqueios | Fluxo de lead vinha travando antes de dar pra exercitar o tenant — motivo dos 11 fixes desta rodada |
 
 ---
 
