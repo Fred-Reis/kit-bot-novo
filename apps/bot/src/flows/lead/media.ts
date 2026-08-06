@@ -39,6 +39,17 @@ export function getRequestedMediaType(
   return null;
 }
 
+// Pedido de mídia resolvido negativamente (algo foi pedido, nada desse tipo foi
+// encontrado) não pode deixar a intenção grudada na sessão — senão uma
+// confirmação futura sem relação ("manda", "pode mandar" sobre outro assunto)
+// resgataria por engano o pedido velho.
+export function shouldClearRequestedMediaType(
+  requestedMediaType: string | null,
+  outboundMedia: unknown,
+): boolean {
+  return !!requestedMediaType && !outboundMedia;
+}
+
 export function findPropertyMedia(
   property: PropertyData | null,
   mediaType: string | null,

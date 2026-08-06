@@ -18,21 +18,18 @@ import { ANALYSIS_SUBMITTED_STAGES } from '@/flows/lead/kyc';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface LeadContext {
-  state?: string;
   propertyReference?: string | null;
   propertyTitle?: string | null;
   propertyReferenceLocked?: boolean;
   propertyInterest?: string | null;
   currentIntent?: string | null;
   visitedProperty?: boolean | null;
-  wantsPause?: boolean;
   wantsHuman?: boolean;
   wantsOptions?: boolean;
   wantsSchedule?: boolean;
   wantsApplication?: boolean;
   audioReceived?: boolean;
   name?: string | null;
-  docsPreference?: 'cnh' | 'rg_cpf' | null;
   expectedResidents?: number | null;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;

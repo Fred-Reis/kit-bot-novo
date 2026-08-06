@@ -16,7 +16,6 @@ Regras:
 - Nunca invente informacoes ausentes.
 - Use a ultima mensagem do bot para interpretar respostas curtas como "sim", "quero", "pode ser", "cpf".
 - Cutucadas sem conteudo: quando a mensagem INTEIRA for so "e ai", "oi", "opa", "alo", "e entao", "tudo bem?", "?" ou so emoji, o lead esta apenas chamando atencao. Nesse caso intent = "unknown" e NAO preencha wants_schedule, wants_application, wants_options nem visited_property — nem que os fatos conhecidos sugiram alguma etapa. Isso NAO vale para respostas curtas afirmativas ("sim", "quero", "pode ser"), que continuam sendo interpretadas normalmente.
-- "CPF" ou "RG" como resposta na etapa de escolha documental significa "rg_cpf".
 - Se a pessoa disser "ja visitei", "ja vi", "ja conheco", "eu ja fui" ou equivalente, visited_property = true.
 - "Vi uma quitinete alugando", "vi o anuncio", "vi esse numero", "peguei seu numero na OLX" ou equivalente significa que a pessoa viu o anuncio/contato, nao que visitou o imovel.
 - visited_property = true apenas se a pessoa deixar claro que ja visitou o imovel.
@@ -52,11 +51,9 @@ export const LeadExtractionSchema = z.object({
   property_reference: z.string().nullable().default(null),
   property_interest: z.string().nullable().default(null),
   visited_property: z.boolean().nullable().default(null),
-  document_choice: z.enum(['cnh', 'rg_cpf']).nullable().default(null),
   wants_options: z.boolean().default(false),
   wants_schedule: z.boolean().default(false),
   wants_application: z.boolean().default(false),
-  wants_pause: z.boolean().default(false),
   wants_human: z.boolean().default(false),
   // 'whatsapp' excluded — leads arriving via WhatsApp get that default at creation, LLM detects referral source only
   source: z
@@ -84,13 +81,6 @@ function normalizeText(value: string | null | undefined): string | null {
 function normalizePropertyReference(value: string | null | undefined): string | null {
   const n = normalizeText(value);
   return n ? n.toUpperCase() : null;
-}
-
-function normalizeDocumentChoice(value: string | null | undefined): 'cnh' | 'rg_cpf' | null {
-  const n = (normalizeText(value) ?? '').toLowerCase();
-  if (['cnh', 'carteira'].includes(n)) return 'cnh';
-  if (['rg_cpf', 'rg + cpf', 'rg+cpf', 'rg', 'cpf'].includes(n)) return 'rg_cpf';
-  return null;
 }
 
 // ─── Extractor ────────────────────────────────────────────────────────────────
@@ -179,9 +169,6 @@ export async function extractLeadUpdate(
 
   if (typeof raw.visited_property === 'boolean') updates.visitedProperty = raw.visited_property;
 
-  const docChoice = normalizeDocumentChoice(raw.document_choice);
-  if (docChoice) updates.docsPreference = docChoice;
-
   if (raw.wants_options) updates.wantsOptions = true;
   if (raw.wants_schedule) updates.wantsSchedule = true;
   if (raw.wants_application) updates.wantsApplication = true;
@@ -195,7 +182,6 @@ export async function extractLeadUpdate(
     updates.expectedResidents = raw.expected_residents;
   }
 
-  if (raw.wants_pause) updates.wantsPause = true;
   if (raw.wants_human) updates.wantsHuman = true;
 
   // Deterministic overrides always win over LLM extraction

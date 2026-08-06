@@ -24,6 +24,7 @@ import {
   findPropertyMedia,
   getRequestedMediaType,
   mediaCaption,
+  shouldClearRequestedMediaType,
   shouldSendMediaDeterministically,
 } from '@/flows/lead/media';
 import { fsmStateToLeadStage } from '@/flows/lead/stage-map';
@@ -177,7 +178,6 @@ export async function handleLeadMessage(
     }
 
     // 2. Reset per-turn transient flags
-    context.wantsPause = false;
     context.wantsHuman = false;
     context.wantsOptions = false;
     context.wantsSchedule = false;
@@ -378,7 +378,6 @@ export async function handleLeadMessage(
 
         const docs = await loadLeadDocuments(lead.id);
         const cpf = extractCpfFromDocs(docs);
-        context.state = 'lead.data_confirmation';
         context.lastRoutedAgent = 'deterministic_data_confirmation';
 
         const confirmMsg = cpf
@@ -532,7 +531,6 @@ export async function handleLeadMessage(
     // Data confirmation gate — deterministic flow, always returns early
     if (snapshot.state === 'lead.data_confirmation') {
       const replyDC = async (msg: string): Promise<void> => {
-        context.state = 'lead.data_confirmation';
         context.lastUserMessage = messageText;
         context.lastRoutedAgent = 'deterministic_data_confirmation';
         await persistConversation(chatId, context, messageText || null, msg, ownerId);
@@ -593,6 +591,10 @@ export async function handleLeadMessage(
     const outboundMedia = findPropertyMedia(propertyInFocus, requestedMediaType);
     bypassAgentReply = shouldSendMediaDeterministically(requestedMediaType, outboundMedia);
 
+    if (shouldClearRequestedMediaType(requestedMediaType, outboundMedia)) {
+      context.lastRequestedMediaType = null;
+    }
+
     // Listing links (OLX, etc.) can't be sent via sendMedia — send as text link instead
     const isListingLink = outboundMedia?.type === 'listing' && !!outboundMedia.url;
     if (isListingLink && requestedMediaType === 'listing') {
@@ -645,7 +647,6 @@ export async function handleLeadMessage(
         await escalateToHuman(chatId, lead.ownerId, lead.name, 'loop');
         context.lastUserMessage = messageText;
         context.lastRoutedAgent = targetAgent;
-        context.state = snapshot.state;
         await persistConversation(chatId, context, messageText || null, null, ownerId);
         return;
       }
@@ -654,7 +655,6 @@ export async function handleLeadMessage(
     // 15. Persist conversation state + events
     context.lastUserMessage = messageText;
     context.lastRoutedAgent = targetAgent;
-    context.state = snapshot.state;
 
     await persistConversation(chatId, context, messageText || null, replyText, ownerId);
 
