@@ -26,6 +26,7 @@ const incidentContext = {
   propertyInterest: 'KIT-06',
   visitedProperty: false,
   expectedResidents: 1,
+  residents: [{ name: 'Aline', sex: 'feminino', age: 30 }],
 } as unknown as LeadContext;
 
 describe('buildExtractionView', () => {
@@ -55,6 +56,9 @@ describe('buildExtractionView', () => {
       'docsPreference',
       'residentsComplete',
       'docsContestations',
+      // moradores são gravados só pela tool registrar_moradores; realimentar a
+      // lista aqui faria o extrator "confirmar" uma lista parcial como completa
+      'residents',
       'wantsSchedule',
       'wantsHuman',
       'audioReceived',

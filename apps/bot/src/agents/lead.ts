@@ -5,7 +5,7 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
 import { config } from '@/config';
-import type { LeadContext, LeadResident } from '@/flows/lead/context';
+import type { LeadContext } from '@/flows/lead/context';
 import { getDeterministicLeadUpdates } from '@/flows/lead/intents';
 import { logger } from '@/lib/logger';
 
@@ -25,19 +25,12 @@ Regras:
 - wants_options = true quando a pessoa pedir opcoes, disponibilidade geral ou disser que ainda nao sabe qual imovel quer.
 - wants_schedule = true quando a pessoa pedir visita, negociar horario ou demonstrar intencao de agendar visita.
 - wants_application = true quando a pessoa indicar que quer seguir com a locacao ou com a analise.
-- Residents so devem ser preenchidos quando a pessoa informar nome, sexo e idade dos moradores.
 - Para property_interest: se a mensagem pede informacao, video, foto, visita ou qualquer dado sobre um imovel sem mencionar qual, e houver apenas um imovel na lista de disponiveis, preencha com o externalId desse imovel. Se houver mais de um e nao for possivel inferir, deixe null.
 - Para source: preencha APENAS quando o lead citar explicitamente o portal ou canal pelo qual encontrou o imóvel (exemplos: "vi no OLX", "achei no Zap Imóveis", "vi no Instagram", "me indicaram", "vi no seu site"). Contato direto pelo WhatsApp sem menção de origem → retornar null. "Zap", "mandei um zap", "fiz um zap" são gíria para WhatsApp — não equivalem ao portal Zap Imóveis. Só preencher source = "zap" se o lead disser literalmente "Zap Imóveis" ou "portal Zap".
 - expected_residents: preencher apenas quando o lead disser quantas pessoas vao morar. "So eu" = 1. "Eu e minha esposa" = 2.
 - wants_human = true APENAS quando a pessoa pedir explicitamente para falar com atendente, pessoa, corretor ou humano (ex: "quero falar com alguem", "tem atendente?", "quero uma pessoa real"). Perguntas sobre o imovel, a visita ou o processo — mesmo que a resposta nao esteja clara no contexto — NAO configuram wants_human.`;
 
 // ─── Zod schemas ──────────────────────────────────────────────────────────────
-
-const ResidentSchema = z.object({
-  name: z.string(),
-  sex: z.string(),
-  age: z.number().int(),
-});
 
 export const LeadExtractionSchema = z.object({
   intent: z
@@ -63,8 +56,6 @@ export const LeadExtractionSchema = z.object({
   wants_options: z.boolean().default(false),
   wants_schedule: z.boolean().default(false),
   wants_application: z.boolean().default(false),
-  residents: z.array(ResidentSchema).default([]),
-  residents_complete: z.boolean().nullable().default(null),
   wants_pause: z.boolean().default(false),
   wants_human: z.boolean().default(false),
   // 'whatsapp' excluded — leads arriving via WhatsApp get that default at creation, LLM detects referral source only
@@ -100,14 +91,6 @@ function normalizeDocumentChoice(value: string | null | undefined): 'cnh' | 'rg_
   if (['cnh', 'carteira'].includes(n)) return 'cnh';
   if (['rg_cpf', 'rg + cpf', 'rg+cpf', 'rg', 'cpf'].includes(n)) return 'rg_cpf';
   return null;
-}
-
-function normalizeResidents(
-  raw: Array<{ name: string; sex: string; age: number }>,
-): LeadResident[] {
-  return raw
-    .filter((r) => r.name?.trim() && r.sex?.trim() && typeof r.age === 'number')
-    .map((r) => ({ name: r.name.trim(), sex: r.sex.trim().toLowerCase(), age: r.age }));
 }
 
 // ─── Extractor ────────────────────────────────────────────────────────────────
@@ -203,11 +186,10 @@ export async function extractLeadUpdate(
   if (raw.wants_schedule) updates.wantsSchedule = true;
   if (raw.wants_application) updates.wantsApplication = true;
 
-  const residents = normalizeResidents(raw.residents);
-  if (residents.length > 0) updates.residents = residents;
-
-  if (typeof raw.residents_complete === 'boolean')
-    updates.residentsComplete = raw.residents_complete;
+  // A lista de moradores não é persistida a partir daqui: o extrator só enxerga
+  // a mensagem atual, então produziria listas parciais. Quem grava é a tool
+  // registrar_moradores, que tem o histórico e o contrato de mandar a lista
+  // completa. Ver flows/lead/index.ts.
 
   if (typeof raw.expected_residents === 'number' && raw.expected_residents > 0) {
     updates.expectedResidents = raw.expected_residents;

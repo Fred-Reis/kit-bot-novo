@@ -17,12 +17,6 @@ import { ANALYSIS_SUBMITTED_STAGES } from '@/flows/lead/kyc';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface LeadResident {
-  name: string;
-  sex: string;
-  age: number;
-}
-
 export interface LeadContext {
   state?: string;
   propertyReference?: string | null;
@@ -39,8 +33,6 @@ export interface LeadContext {
   audioReceived?: boolean;
   name?: string | null;
   docsPreference?: 'cnh' | 'rg_cpf' | null;
-  residents?: LeadResident[];
-  residentsComplete?: boolean | null;
   expectedResidents?: number | null;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const leadUpdates: Array<Record<string, unknown>> = [];
+const residentCreates: Array<Array<Record<string, unknown>>> = [];
 let fakeLead: Record<string, unknown> = {};
 
 mock.module('@/db/client', () => ({
@@ -16,7 +17,10 @@ mock.module('@/db/client', () => ({
     leadResident: {
       count: async () => 0,
       deleteMany: async () => ({}),
-      createMany: async () => ({}),
+      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        residentCreates.push(data);
+        return {};
+      },
     },
     $transaction: async (ops: unknown[]) => ops,
     conversation: { upsert: async () => ({}) },
@@ -66,6 +70,39 @@ describe('registrar_renda', () => {
     const out = (await getTool('registrar_renda').invoke({ valorMensal: -5 })) as string;
     expect(leadUpdates.length).toBe(0);
     expect(out).toContain('Erro');
+  });
+});
+
+describe('registrar_moradores — writer unico da tabela leadResident', () => {
+  beforeEach(() => {
+    leadUpdates.length = 0;
+    residentCreates.length = 0;
+    fakeLead = { name: 'Frederico', expectedResidents: null };
+  });
+
+  it('grava a lista COMPLETA recebida (replace-all) e o total', async () => {
+    // O fluxo (flows/lead/index.ts) nao escreve mais nesta tabela: o extrator so
+    // enxerga a mensagem atual e produzia listas parciais que apagavam moradores.
+    // Esta tool e o unico writer — se alguem reintroduzir o sync la, este teste
+    // continua passando, mas o de lead-extraction-view quebra.
+    await getTool('registrar_moradores').invoke({
+      total: 2,
+      moradores: [
+        { name: 'Frederico', sex: 'masculino', age: 35 },
+        { name: 'Maria', sex: 'feminino', age: 31 },
+      ],
+    });
+
+    expect(leadUpdates[0]).toEqual({ expectedResidents: 2 });
+    expect(residentCreates[0]).toHaveLength(2);
+    expect(residentCreates[0].map((r) => r.name)).toEqual(['Frederico', 'Maria']);
+  });
+
+  it('total sem lista → grava so o total, sem tocar nos moradores ja cadastrados', async () => {
+    await getTool('registrar_moradores').invoke({ total: 1, moradores: [] });
+
+    expect(leadUpdates[0]).toEqual({ expectedResidents: 1 });
+    expect(residentCreates).toHaveLength(0);
   });
 });
 

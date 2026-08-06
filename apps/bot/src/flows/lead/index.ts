@@ -157,6 +157,12 @@ export async function handleLeadMessage(
     const context = await loadOrCreateConversation(chatId);
     const chatHistory = await loadChatHistory(chatId);
 
+    // O banco manda no total de moradores: a tool registrar_moradores e o painel
+    // escrevem lá, não no contexto. Sem este seed (incondicional, inclusive
+    // null), um valor velho preso na sessão voltava a alimentar o extrator e a
+    // ser regravado por cima do valor correto.
+    context.expectedResidents = lead.expectedResidents ?? null;
+
     // 2. Reset per-turn transient flags
     context.wantsPause = false;
     context.wantsHuman = false;
@@ -184,6 +190,11 @@ export async function handleLeadMessage(
     // 5. LLM extraction → merge into context (pass available properties so extractor can infer)
     const leadPatch: Record<string, unknown> = {};
 
+    // O que o lead informou NESTE turno. Fica undefined quando a extração não
+    // rodou (turno só de mídia/áudio) ou falhou — nesses casos o banco não é
+    // tocado, em vez de reescrito com um valor antigo do contexto.
+    let extractedExpectedResidents: number | null | undefined;
+
     if (messageText) {
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
@@ -196,6 +207,7 @@ export async function handleLeadMessage(
         availableSummary,
         lastAssistantMessage,
       );
+      extractedExpectedResidents = updates.expectedResidents;
       Object.assign(context, updates);
 
       context.visitedProperty = resolveVisitedProperty(
@@ -457,41 +469,24 @@ export async function handleLeadMessage(
       leadPatch.name = context.name;
     }
 
-    // Persistir quantidade esperada de moradores
-    if (context.expectedResidents != null && context.expectedResidents !== lead.expectedResidents) {
-      leadPatch.expectedResidents = context.expectedResidents;
+    // Quantidade esperada de moradores: só grava o que o lead informou NESTE
+    // turno. Usar context.expectedResidents (acumulador que nunca era limpo)
+    // revertia no turno seguinte o total que a tool registrar_moradores tinha
+    // acabado de gravar.
+    if (
+      extractedExpectedResidents != null &&
+      extractedExpectedResidents !== lead.expectedResidents
+    ) {
+      leadPatch.expectedResidents = extractedExpectedResidents;
     }
 
-    // Sincronizar moradores coletados com a tabela (replace-all, somente se houver mudança)
-    const incomingResidents = context.residents ?? [];
-    if (incomingResidents.length > 0) {
-      const existingResidents = await prisma.leadResident.findMany({
-        where: { leadId: lead.id },
-        select: { name: true, sex: true, age: true },
-      });
-      const fingerprint = (
-        arr: Array<{ name: string; sex?: string | null; age?: number | null }>,
-      ) =>
-        JSON.stringify(
-          [...arr]
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((r) => `${r.name}|${r.sex ?? ''}|${r.age ?? ''}`),
-        );
-      if (fingerprint(existingResidents) !== fingerprint(incomingResidents)) {
-        await prisma.$transaction([
-          prisma.leadResident.deleteMany({ where: { leadId: lead.id } }),
-          prisma.leadResident.createMany({
-            data: incomingResidents.map((r) => ({
-              leadId: lead.id,
-              ownerId,
-              name: r.name,
-              sex: r.sex || null,
-              age: r.age ?? null,
-            })),
-          }),
-        ]);
-      }
-    }
+    // A tabela leadResident tem um único writer: a tool registrar_moradores.
+    // Existia aqui um replace-all alimentado por context.residents — um
+    // acumulador de sessão que nunca era limpo — rodando a cada turno. Como o
+    // extrator só enxerga a mensagem atual, ele produz listas PARCIAIS, enquanto
+    // a tool tem o histórico e o contrato de mandar a lista completa. O
+    // replace-all fazia a lista parcial vencer: um morador citado em outra
+    // mensagem era apagado do banco no turno seguinte, silenciosamente.
 
     // Sincronizar Lead.stage com o estado da conversa
     const mappedStage = fsmStateToLeadStage(snapshot.state, lead.stage);
