@@ -75,9 +75,11 @@ describe('agendar_visita', () => {
     fakeLead = { name: 'Frederico', scheduledVisitAt: null };
   });
 
-  it('data futura → persiste e confirma com data formatada', async () => {
-    const future = new Date(Date.now() + 86400000).toISOString();
-    const out = (await getTool('agendar_visita').invoke({ dataHoraIso: future })) as string;
+  it('data futura, dia útil e dentro do horário → persiste e confirma com data formatada', async () => {
+    // 2030-01-07 é uma segunda-feira (America/Sao_Paulo).
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T14:00:00-03:00',
+    })) as string;
     expect(leadUpdates[0]?.scheduledVisitAt).toBeInstanceOf(Date);
     expect(out).toContain('✅ Visita confirmada');
   });
@@ -88,6 +90,41 @@ describe('agendar_visita', () => {
     })) as string;
     expect(leadUpdates.length).toBe(0);
     expect(out).toContain('Erro');
+  });
+
+  it('fim de semana → erro explicando que só há visita de segunda a sexta', async () => {
+    // 2030-01-12 é um sábado.
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-12T10:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+    expect(out).toContain('segunda a sexta');
+  });
+
+  it('antes das 8h num dia útil → erro explicando o horário disponível', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T07:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+    expect(out).toContain('8h');
+    expect(out).toContain('17h');
+  });
+
+  it('às 17h ou depois num dia útil → erro explicando o horário disponível', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T17:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+  });
+
+  it('às 16h59 num dia útil → dentro do horário, permite agendar', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T16:59:00-03:00',
+    })) as string;
+    expect(out).toContain('✅ Visita confirmada');
   });
 });
 
