@@ -342,7 +342,12 @@ export async function handleLeadMessage(
       context.lastRoutedAgent = 'deterministic_doc_intake';
 
       // Check if checklist just completed → proactively send data confirmation
-      const postIntakeSnapshot = await buildLeadSnapshot(lead.id, context, lead.scheduledVisitAt);
+      const postIntakeSnapshot = await buildLeadSnapshot(
+        lead.id,
+        context,
+        lead.scheduledVisitAt,
+        lead.stage,
+      );
       if (postIntakeSnapshot.state === 'lead.data_confirmation' && !context.dataConfirmationSent) {
         await persistConversation(chatId, context, null, intake.reply, ownerId);
 
@@ -436,14 +441,12 @@ export async function handleLeadMessage(
     }
 
     // 10. Build snapshot → derive state
-    let snapshot = await buildLeadSnapshot(lead.id, context, lead.scheduledVisitAt);
-
-    if (snapshot.state === 'lead.review_submitted') {
-      context.analysisSubmitted = true;
-      snapshot = await buildLeadSnapshot(lead.id, context, lead.scheduledVisitAt);
-    } else {
-      context.analysisSubmitted = false;
-    }
+    const snapshot = await buildLeadSnapshot(
+      lead.id,
+      context,
+      lead.scheduledVisitAt,
+      lead.stage,
+    );
 
     if (snapshot.propertyInFocus?.id && snapshot.propertyInFocus.id !== lead.propertyId) {
       leadPatch.propertyId = snapshot.propertyInFocus.id;

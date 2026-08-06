@@ -9,7 +9,19 @@ export const KYC_BLOCKER_STAGES = new Set([
 
 // TERMINAL_STAGES includes data_confirmation to prevent FSM stage regression.
 // KYC_BLOCKER_STAGES excludes data_confirmation so KYC transition can fire once dataConfirmed=true.
-export const TERMINAL_STAGES = new Set([...KYC_BLOCKER_STAGES, 'data_confirmation']);
+// review_submitted is terminal too: a submitted lead may derive property_info or
+// objection_handling to get a question answered, and that must not demote the stage.
+export const TERMINAL_STAGES = new Set([
+  ...KYC_BLOCKER_STAGES,
+  'data_confirmation',
+  'review_submitted',
+]);
+
+// "A análise já foi submetida" é fato do banco (Lead.stage), não flag de sessão.
+// Inclui review_submitted porque o proprietário pode marcar "Docs enviados"
+// manualmente no painel; exclui data_confirmation de propósito — lá a confirmação
+// ainda precisa acontecer, e tratá-la como submetida travaria o lead pra sempre.
+export const ANALYSIS_SUBMITTED_STAGES = new Set([...KYC_BLOCKER_STAGES, 'review_submitted']);
 
 export function shouldTransitionToKyc(
   checklistComplete: boolean,

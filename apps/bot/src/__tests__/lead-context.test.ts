@@ -32,6 +32,7 @@ const baseSnapshot: LeadSnapshot = {
   stateGuidance: 'x',
   currentProcessStep: 'visita',
   scheduledVisitAt: null,
+  analysisSubmitted: false,
 };
 
 describe('isVisitUpcoming', () => {
@@ -105,6 +106,17 @@ describe('renderLeadContext — checklist sempre visivel (fato do banco)', () =>
     });
     expect(out).toContain('por iniciativa propria');
     expect(out).not.toContain('Nao peca renda, documentos ou moradores nesta etapa.');
+  });
+
+  it('analise submetida respondendo duvida do imovel → fato "submetida" continua no contexto', () => {
+    // É isto que permite deixar property_info/objection ganharem do estado
+    // review_submitted: o agente perde o ESTADO, mas nunca o FATO.
+    const out = renderLeadContext({
+      ...baseSnapshot,
+      state: 'lead.property_info',
+      analysisSubmitted: true,
+    });
+    expect(out).toContain('Analise submetida: true');
   });
 
   it('estado de coleta → checklist presente (comportamento preexistente preservado)', () => {

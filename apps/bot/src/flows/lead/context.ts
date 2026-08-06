@@ -13,6 +13,7 @@ import {
   getChecklistForLead,
   renderChecklistContext,
 } from '@/flows/lead/checklist';
+import { ANALYSIS_SUBMITTED_STAGES } from '@/flows/lead/kyc';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,6 @@ export interface LeadContext {
   residents?: LeadResident[];
   residentsComplete?: boolean | null;
   expectedResidents?: number | null;
-  analysisSubmitted?: boolean;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;
   docsContestations?: number;
@@ -62,6 +62,7 @@ export interface LeadSnapshot {
   stateGuidance: string;
   currentProcessStep: string;
   scheduledVisitAt: Date | null;
+  analysisSubmitted: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -152,15 +153,19 @@ export interface DeriveStateInput {
   propertyInFocus: PropertyData | null;
   checklist: ChecklistStatus;
   hasScheduledVisit?: boolean;
+  analysisSubmitted?: boolean;
 }
 
 export function deriveState(input: DeriveStateInput): string {
-  const { context, intent, propertyInFocus, checklist, hasScheduledVisit } = input;
+  const { context, intent, propertyInFocus, checklist, hasScheduledVisit, analysisSubmitted } =
+    input;
 
-  if (context.analysisSubmitted) return 'lead.review_submitted';
   if (intent === 'objection') return 'lead.objection_handling';
 
-  if (!propertyInFocus) {
+  // Um lead já submetido não volta pro início quando perde o imóvel do foco —
+  // o imóvel vira "rented" justamente depois da conversão, e sem esta guarda
+  // isso reiniciava o funil inteiro em lead.start.
+  if (!propertyInFocus && !analysisSubmitted) {
     if (context.wantsOptions || intent === 'availability' || intent === 'options')
       return 'lead.offer_options';
     return 'lead.start';
@@ -190,7 +195,19 @@ export function deriveState(input: DeriveStateInput): string {
     if (!hasApplicationProgress) return 'lead.visit_scheduling';
   }
 
-  if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
+  // `&& propertyInFocus` preserva a invariante "property_info sempre tem imóvel
+  // em foco", agora que um lead submetido pode chegar aqui com foco nulo.
+  if (PROPERTY_INFO_INTENTS.has(intent) && propertyInFocus) return 'lead.property_info';
+
+  // Fato do banco (Lead.stage), nunca flag de sessão: o antigo
+  // context.analysisSubmitted era uma catraca que se auto-realimentava — uma vez
+  // true, deriveState retornava review_submitted logo na primeira linha, o que
+  // fazia o chamador setá-la true de novo, e nada (objeção, documento corrigido,
+  // checklist regredido, override do painel) conseguia mais destravar o lead.
+  // Fica depois de objeção e property_info de propósito: quem já foi pra análise
+  // continua tendo a pergunta atual respondida em vez de ouvir só "seus dados
+  // seguiram para análise".
+  if (analysisSubmitted) return 'lead.review_submitted';
 
   if (!hasApplicationProgress) {
     if (visited === true) return 'lead.post_visit_decision';
@@ -209,11 +226,13 @@ export async function buildLeadSnapshot(
   leadId: string,
   context: LeadContext,
   scheduledVisitAt: Date | null = null,
+  leadStage = '',
 ): Promise<LeadSnapshot> {
   const propertyInFocus = await resolvePropertyInFocus(context);
   const availableProperties = await listAvailableProperties();
   const checklist = await getChecklistForLead(leadId);
   const intent = context.currentIntent ?? 'unknown';
+  const analysisSubmitted = ANALYSIS_SUBMITTED_STAGES.has(leadStage);
 
   const state = deriveState({
     context,
@@ -221,6 +240,7 @@ export async function buildLeadSnapshot(
     propertyInFocus,
     checklist,
     hasScheduledVisit: isVisitUpcoming(scheduledVisitAt),
+    analysisSubmitted,
   });
 
   return {
@@ -235,6 +255,7 @@ export async function buildLeadSnapshot(
     stateGuidance: STATE_GUIDANCE[state] ?? STATE_GUIDANCE['lead.start'],
     currentProcessStep: currentProcessStep(state),
     scheduledVisitAt,
+    analysisSubmitted,
   };
 }
 
@@ -300,7 +321,7 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
   // reiniciar o processo do zero (ou negar documentos já recebidos) sempre que
   // um turno derivasse pra agendamento de visita.
   lines.push(renderChecklistContext(snapshot.checklist));
-  lines.push(`Analise submetida: ${snapshot.context.analysisSubmitted === true}.`);
+  lines.push(`Analise submetida: ${snapshot.analysisSubmitted}.`);
 
   const applicationStates = [
     'lead.collect_application',
