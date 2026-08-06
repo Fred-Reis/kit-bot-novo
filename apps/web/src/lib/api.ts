@@ -1,4 +1,11 @@
-import type { ComplaintStatus, ContractPreview, LeadStage } from '@kit-manager/types';
+import type {
+  ComplaintStatus,
+  ContractPreview,
+  LeadStage,
+  MaintenanceResponsibility,
+  MaintenanceStatus,
+  ServiceProviderType,
+} from '@kit-manager/types';
 import axios from 'axios';
 import { supabase } from './supabase';
 
@@ -101,6 +108,16 @@ export const adminApi = {
     botApi.post(`/admin/coordinators/${id}/properties/bulk-link`, data),
   updateComplaintStatus: (id: string, status: ComplaintStatus) =>
     botApi.patch(`/admin/complaints/${id}`, { status }),
+  createProvider: (data: { name: string; phone: string; type: ServiceProviderType }) =>
+    botApi.post('/admin/providers', data),
+  updateProvider: (
+    id: string,
+    data: Partial<{ name: string; phone: string; type: ServiceProviderType; active: boolean }>,
+  ) => botApi.patch(`/admin/providers/${id}`, data),
+  updateMaintenanceStatus: (id: string, status: MaintenanceStatus) =>
+    botApi.patch(`/admin/maintenance/${id}`, { status }),
+  updateMaintenanceResponsibility: (id: string, responsibility: MaintenanceResponsibility) =>
+    botApi.patch(`/admin/maintenance/${id}`, { responsibility }),
   previewContract: (data: {
     templateId: string;
     tenantId: string;
@@ -138,6 +155,8 @@ export const adminApi = {
   deleteContractTemplate: (id: string) => botApi.delete(`/admin/contract-templates/${id}`),
   pauseLead: (leadId: string, paused: boolean) =>
     botApi.patch(`/admin/leads/${leadId}/pause-bot`, { paused }),
+  pauseTenant: (tenantId: string, paused: boolean) =>
+    botApi.patch(`/admin/tenants/${tenantId}/pause-bot`, { paused }),
   archiveLead: (leadId: string, archived: boolean) =>
     botApi.patch(`/admin/leads/${leadId}/archive`, { archived }),
   updateLeadSource: (leadId: string, source: string) =>

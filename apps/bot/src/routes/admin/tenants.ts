@@ -137,4 +137,44 @@ export async function tenantsRoutes(fastify: FastifyInstance): Promise<void> {
 
     return reply.status(201).send({ success: true, id: tenant.id, tenant });
   });
+
+  // ─── pause / resume bot ───────────────────────────────────────────────────
+  fastify.patch<{ Params: { id: string }; Body: { paused: boolean } }>(
+    '/admin/tenants/:id/pause-bot',
+    { preHandler: verifyAdminJwt },
+    async (request, reply) => {
+      const { id } = request.params;
+      const { paused } = request.body;
+
+      if (typeof paused !== 'boolean') {
+        return reply.status(400).send({ error: 'paused must be a boolean' });
+      }
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id },
+        select: { phone: true, name: true, ownerId: true },
+      });
+      if (!tenant) return reply.status(404).send({ error: 'Tenant not found' });
+
+      await prisma.conversation.upsert({
+        where: { chatId: tenant.phone },
+        update: { botPaused: paused },
+        create: { chatId: tenant.phone, data: {}, botPaused: paused, ownerId: tenant.ownerId },
+      });
+
+      const action = paused ? 'bot_paused' : 'bot_resumed';
+      logActivityHelper({
+        actorType: 'user',
+        actorId: request.adminUserId ?? undefined,
+        actorLabel: request.adminUserId ?? 'admin',
+        ownerId: tenant.ownerId,
+        action,
+        subject: tenant.name ?? tenant.phone,
+        subjectId: id,
+        subjectType: 'tenant',
+      }).catch(fastify.log.warn.bind(fastify.log));
+
+      return reply.send({ paused });
+    },
+  );
 }

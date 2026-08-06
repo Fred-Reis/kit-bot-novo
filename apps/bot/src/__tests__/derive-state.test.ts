@@ -68,4 +68,114 @@ describe('deriveState com checklist', () => {
     });
     expect(state).toBe('lead.visit_scheduling');
   });
+
+  it('visita ja confirmada no banco (hasScheduledVisit) → visit_requested', () => {
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: emptyChecklist,
+      hasScheduledVisit: true,
+    });
+    expect(state).toBe('lead.visit_requested');
+  });
+
+  it('sinal de visita com analise ja em andamento → collect_application, nao volta pro agendamento', () => {
+    // Incidente real: lead ja tinha renda + CNH no banco e faltava so o morador.
+    // Uma cutucada ("E aí?") foi lida como intencao de visita pelo extrator e
+    // jogou o funil inteiro de volta pro agendamento.
+    const state = deriveState({
+      context: { visitedProperty: false },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: partialChecklist,
+      hasScheduledVisit: false,
+    });
+    expect(state).toBe('lead.collect_application');
+  });
+
+  it('sinal de visita COM visita confirmada no banco → visit_requested mesmo com analise em andamento', () => {
+    // A trava acima nao pode engolir quem tem visita marcada e pergunta sobre ela.
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: partialChecklist,
+      hasScheduledVisit: true,
+    });
+    expect(state).toBe('lead.visit_requested');
+  });
+
+  it('analise ja submetida (fato do banco) → review_submitted sem depender de dataConfirmed', () => {
+    const state = deriveState({
+      context: {},
+      intent: 'unknown',
+      propertyInFocus: property,
+      checklist: completeChecklist,
+      analysisSubmitted: true,
+    });
+    expect(state).toBe('lead.review_submitted');
+  });
+
+  it('analise submetida + objecao → objection_handling (nao engole a objecao)', () => {
+    const state = deriveState({
+      context: {},
+      intent: 'objection',
+      propertyInFocus: property,
+      checklist: completeChecklist,
+      analysisSubmitted: true,
+    });
+    expect(state).toBe('lead.objection_handling');
+  });
+
+  it('analise submetida + duvida sobre o imovel → property_info (responde a pergunta)', () => {
+    const state = deriveState({
+      context: {},
+      intent: 'price_and_terms',
+      propertyInFocus: property,
+      checklist: completeChecklist,
+      analysisSubmitted: true,
+    });
+    expect(state).toBe('lead.property_info');
+  });
+
+  it('analise submetida SEM imovel em foco → review_submitted, nunca reinicia em lead.start', () => {
+    // O imóvel some do foco quando vira "rented" (o que acontece justamente
+    // depois da conversão) — sem esta guarda o lead voltava pro começo do funil.
+    const state = deriveState({
+      context: {},
+      intent: 'unknown',
+      propertyInFocus: null,
+      checklist: completeChecklist,
+      analysisSubmitted: true,
+    });
+    expect(state).toBe('lead.review_submitted');
+  });
+
+  it('analise submetida + visita futura confirmada → visit_requested (visita marcada tem prioridade)', () => {
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: completeChecklist,
+      analysisSubmitted: true,
+      hasScheduledVisit: true,
+    });
+    expect(state).toBe('lead.visit_requested');
+  });
+
+  it('sem data confirmada no banco → continua scheduling (nunca "ja solicitada")', () => {
+    // Regressão: o estado "ja agendado" tem que vir do banco (scheduledVisitAt).
+    // O flag de sessão visitRequested, que travava em true e fazia o bot parar de
+    // tentar agendar, foi removido — este teste garante que a decisão continua
+    // vindo só do banco.
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: emptyChecklist,
+      hasScheduledVisit: false,
+    });
+    expect(state).toBe('lead.visit_scheduling');
+  });
 });

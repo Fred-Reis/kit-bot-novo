@@ -69,6 +69,8 @@ Cache Redis `tenant:{phone}`, TTL 30 min, invalidado em writes do admin que toqu
 - Caso `tenant` simples → dica DIY + oferta de profissional cadastrado. O bot **nunca** decide caso ambíguo sozinho.
 - Reusa: `notifyOwner`, `logActivity`, escalation do lead v2, buffer/dedupe Redis, `catalog.ts`.
 
+**Nota T3 (brainstorm 2026-07-29, achado explorando o código):** o texto acima ("upload Storage `tenants/{tenantId}/...`") descreve a intenção, não a implementação real — `buffer.ts` já sobe toda mídia não-áudio pro bucket `leads` (`uploadLeadDocument`) antes do router saber se o remetente é lead ou tenant. T3 reusa esse storage path já gerado (bucket `leads`) em `MaintenanceRequest.mediaUrls`, sem bucket novo. Além disso, "chamado aberto OU conversa em contexto de manutenção" foi restrito a: chamado `open`/`acknowledged` real no banco (mais recente, se houver mais de um) OU mídia sem texto acompanhando; com texto presente e sem chamado aberto, os `mediaUrls` pendentes ficam disponíveis pra tool `abrir_chamado` anexar na criação — a heurística de "contexto de conversa" sem chamado real foi cortada (YAGNI).
+
 ## 4. Modelo de dados — 3 models novos
 
 Padrão do schema atual: `ownerId` + FK (`onDelete: Restrict` pro Owner) + `@@index`, status como `String` (consistente com `Payment.status`, `Lead.stage`), RLS policies **inertes** na mesma migration (padrão `20260726020000_coordinator_rls_inert`), tipos compartilhados em `packages/types`.

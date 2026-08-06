@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const leadUpdates: Array<Record<string, unknown>> = [];
+const residentCreates: Array<Array<Record<string, unknown>>> = [];
 let fakeLead: Record<string, unknown> = {};
 
 mock.module('@/db/client', () => ({
@@ -16,7 +17,10 @@ mock.module('@/db/client', () => ({
     leadResident: {
       count: async () => 0,
       deleteMany: async () => ({}),
-      createMany: async () => ({}),
+      createMany: async ({ data }: { data: Array<Record<string, unknown>> }) => {
+        residentCreates.push(data);
+        return {};
+      },
     },
     $transaction: async (ops: unknown[]) => ops,
     conversation: { upsert: async () => ({}) },
@@ -69,15 +73,50 @@ describe('registrar_renda', () => {
   });
 });
 
+describe('registrar_moradores — writer unico da tabela leadResident', () => {
+  beforeEach(() => {
+    leadUpdates.length = 0;
+    residentCreates.length = 0;
+    fakeLead = { name: 'Frederico', expectedResidents: null };
+  });
+
+  it('grava a lista COMPLETA recebida (replace-all) e o total', async () => {
+    // O fluxo (flows/lead/index.ts) nao escreve mais nesta tabela: o extrator so
+    // enxerga a mensagem atual e produzia listas parciais que apagavam moradores.
+    // Esta tool e o unico writer — se alguem reintroduzir o sync la, este teste
+    // continua passando, mas o de lead-extraction-view quebra.
+    await getTool('registrar_moradores').invoke({
+      total: 2,
+      moradores: [
+        { name: 'Frederico', sex: 'masculino', age: 35 },
+        { name: 'Maria', sex: 'feminino', age: 31 },
+      ],
+    });
+
+    expect(leadUpdates[0]).toEqual({ expectedResidents: 2 });
+    expect(residentCreates[0]).toHaveLength(2);
+    expect(residentCreates[0].map((r) => r.name)).toEqual(['Frederico', 'Maria']);
+  });
+
+  it('total sem lista → grava so o total, sem tocar nos moradores ja cadastrados', async () => {
+    await getTool('registrar_moradores').invoke({ total: 1, moradores: [] });
+
+    expect(leadUpdates[0]).toEqual({ expectedResidents: 1 });
+    expect(residentCreates).toHaveLength(0);
+  });
+});
+
 describe('agendar_visita', () => {
   beforeEach(() => {
     leadUpdates.length = 0;
     fakeLead = { name: 'Frederico', scheduledVisitAt: null };
   });
 
-  it('data futura → persiste e confirma com data formatada', async () => {
-    const future = new Date(Date.now() + 86400000).toISOString();
-    const out = (await getTool('agendar_visita').invoke({ dataHoraIso: future })) as string;
+  it('data futura, dia útil e dentro do horário → persiste e confirma com data formatada', async () => {
+    // 2030-01-07 é uma segunda-feira (America/Sao_Paulo).
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T14:00:00-03:00',
+    })) as string;
     expect(leadUpdates[0]?.scheduledVisitAt).toBeInstanceOf(Date);
     expect(out).toContain('✅ Visita confirmada');
   });
@@ -88,6 +127,41 @@ describe('agendar_visita', () => {
     })) as string;
     expect(leadUpdates.length).toBe(0);
     expect(out).toContain('Erro');
+  });
+
+  it('fim de semana → erro explicando que só há visita de segunda a sexta', async () => {
+    // 2030-01-12 é um sábado.
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-12T10:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+    expect(out).toContain('segunda a sexta');
+  });
+
+  it('antes das 8h num dia útil → erro explicando o horário disponível', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T07:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+    expect(out).toContain('8h');
+    expect(out).toContain('17h');
+  });
+
+  it('às 17h ou depois num dia útil → erro explicando o horário disponível', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T17:00:00-03:00',
+    })) as string;
+    expect(leadUpdates.length).toBe(0);
+    expect(out).toContain('Erro');
+  });
+
+  it('às 16h59 num dia útil → dentro do horário, permite agendar', async () => {
+    const out = (await getTool('agendar_visita').invoke({
+      dataHoraIso: '2030-01-07T16:59:00-03:00',
+    })) as string;
+    expect(out).toContain('✅ Visita confirmada');
   });
 });
 

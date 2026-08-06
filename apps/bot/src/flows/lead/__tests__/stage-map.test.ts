@@ -36,3 +36,13 @@ describe('fsmStateToLeadStage', () => {
     expect(fsmStateToLeadStage('lead.unknown_state', 'interest')).toBeNull();
   });
 });
+
+describe('fsmStateToLeadStage — lead com analise ja submetida', () => {
+  it('nao regride o stage quando o lead submetido faz pergunta sobre o imovel', () => {
+    // Depois do fix do flag analysisSubmitted, um lead submetido pode derivar
+    // property_info/objection para ter a pergunta respondida — isso nao pode
+    // rebaixar Lead.stage de review_submitted de volta pra interest.
+    expect(fsmStateToLeadStage('lead.property_info', 'review_submitted')).toBeNull();
+    expect(fsmStateToLeadStage('lead.objection_handling', 'review_submitted')).toBeNull();
+  });
+});

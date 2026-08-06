@@ -10,12 +10,14 @@ import type {
   Lead,
   LeadDocument,
   LeadStage,
+  MaintenanceRequest,
   Payment,
   Property,
   PropertyCoordinatorLink,
   PropertyMedia,
   RuleSetDetail,
   RuleSetSummary,
+  ServiceProvider,
   Tenant,
   TenantDocument,
 } from '@kit-manager/types';
@@ -215,7 +217,9 @@ export async function fetchTenantIdByPhone(phone: string): Promise<string | null
   return (data as { id: string } | null)?.id ?? null;
 }
 
-export async function fetchTenant(id: string): Promise<Tenant & { payments: Payment[] }> {
+export async function fetchTenant(
+  id: string,
+): Promise<Tenant & { botPaused: boolean; payments: Payment[] }> {
   const [{ data: tenant, error: tenantErr }, { data: payments, error: paymentsErr }] =
     await Promise.all([
       supabase.from('Tenant').select('*, property:Property(name)').eq('id', id).single(),
@@ -223,7 +227,21 @@ export async function fetchTenant(id: string): Promise<Tenant & { payments: Paym
     ]);
   if (tenantErr) throw tenantErr;
   if (paymentsErr) throw paymentsErr;
-  return { ...mapTenantRow(tenant as TenantRow), payments: (payments as Payment[]) ?? [] };
+
+  const mappedTenant = mapTenantRow(tenant as TenantRow);
+
+  // Conversation has no tenantId FK — must join on phone after tenant resolves
+  const { data: conv } = await supabase
+    .from('Conversation')
+    .select('botPaused')
+    .eq('chatId', mappedTenant.phone)
+    .maybeSingle();
+
+  return {
+    ...mappedTenant,
+    botPaused: (conv as Pick<Conversation, 'botPaused'> | null)?.botPaused ?? false,
+    payments: (payments as Payment[]) ?? [],
+  };
 }
 
 export async function fetchAllPayments(): Promise<Payment[]> {
@@ -490,6 +508,54 @@ export async function fetchTenantComplaints(tenantId: string): Promise<Complaint
     .order('createdAt', { ascending: false });
   if (error) throw error;
   return (data ?? []) as Complaint[];
+}
+
+export async function fetchServiceProviders(): Promise<ServiceProvider[]> {
+  const { data, error } = await supabase
+    .from('ServiceProvider')
+    .select('*')
+    .order('createdAt', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ServiceProvider[];
+}
+
+export async function fetchTenantMaintenanceRequests(tenantId: string): Promise<MaintenanceRequest[]> {
+  const { data, error } = await supabase
+    .from('MaintenanceRequest')
+    .select('*')
+    .eq('tenantId', tenantId)
+    .order('createdAt', { ascending: false });
+  if (error) throw error;
+
+  const rawRequests = (data ?? []) as MaintenanceRequest[];
+  const allPaths = rawRequests.flatMap((req) => req.mediaUrls);
+  if (allPaths.length === 0) return rawRequests;
+
+  const { data: signedList, error: signErr } = await supabase.storage
+    .from('leads')
+    .createSignedUrls(allPaths, 3600);
+  if (signErr) {
+    console.error('[fetchTenantMaintenanceRequests] Failed to batch-sign media URLs:', signErr);
+    return rawRequests;
+  }
+
+  const signedByPath = new Map<string, string>();
+  for (const entry of signedList) {
+    if (entry.path && !entry.error && entry.signedUrl) {
+      signedByPath.set(entry.path, entry.signedUrl);
+    } else {
+      console.error(`[fetchTenantMaintenanceRequests] Failed to sign URL for ${entry.path}:`, entry.error);
+    }
+  }
+
+  // A path with no signed URL is dropped, not left as the raw storage path —
+  // the raw value (e.g. "leads/551199.../163....jpg") is a Storage object
+  // path, not a fetchable URL, so leaving it in would just render another
+  // broken image/link in the gallery instead of a clear one-item gap.
+  return rawRequests.map((req) => ({
+    ...req,
+    mediaUrls: req.mediaUrls.map((path) => signedByPath.get(path)).filter((u): u is string => Boolean(u)),
+  }));
 }
 
 export async function fetchTenantDocuments(tenantId: string): Promise<TenantDocument[]> {

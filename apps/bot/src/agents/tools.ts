@@ -20,9 +20,32 @@ export interface ToolDeps {
 }
 
 const VISIT_TZ = 'America/Sao_Paulo';
+const VISIT_START_HOUR = 8;
+const VISIT_END_HOUR = 17;
+const VISIT_WEEKDAYS = new Set(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
 
 function fail(msg: string): string {
   return `Erro: ${msg}`;
+}
+
+// Retorna o motivo (pra devolver ao lead) quando a data cai fora do horário
+// de visitas, ou null quando está dentro. Dia/hora avaliados em VISIT_TZ,
+// nao no timezone do processo — evita reprovar visitas corretas por causa de
+// onde o servidor está rodando.
+function visitHoursViolation(date: Date): string | null {
+  const weekday = date.toLocaleDateString('en-US', { timeZone: VISIT_TZ, weekday: 'long' });
+  if (!VISIT_WEEKDAYS.has(weekday)) {
+    return 'só agendamos visitas de segunda a sexta.';
+  }
+
+  const hour = Number(
+    date.toLocaleTimeString('en-US', { timeZone: VISIT_TZ, hourCycle: 'h23', hour: '2-digit' }),
+  );
+  if (hour < VISIT_START_HOUR || hour >= VISIT_END_HOUR) {
+    return `o horário de visitas é de segunda a sexta, das ${VISIT_START_HOUR}h às ${VISIT_END_HOUR}h.`;
+  }
+
+  return null;
 }
 
 async function checklistText(leadId: string): Promise<string> {
@@ -148,6 +171,8 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
       const date = new Date(dataHoraIso);
       if (isNaN(date.getTime())) return fail('data/hora inválida.');
       if (date <= new Date()) return fail('a data da visita precisa ser no futuro.');
+      const hoursViolation = visitHoursViolation(date);
+      if (hoursViolation) return fail(hoursViolation);
 
       let visitDateChanged: boolean;
       try {
@@ -197,7 +222,7 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
     {
       name: 'agendar_visita',
       description:
-        'Agenda ou reagenda a visita quando o lead confirmar DATA e HORA específicas. Formato ISO com offset -03:00, ex: 2026-07-05T14:00:00-03:00. Visita é OPCIONAL — nunca insista.',
+        'Agenda ou reagenda a visita quando o lead confirmar DATA e HORA específicas. Formato ISO com offset -03:00, ex: 2026-07-05T14:00:00-03:00. Visitas só de segunda a sexta, das 8h às 17h — se o lead sugerir um horário fora disso, avise antes de chamar a tool. Visita é OPCIONAL — nunca insista.',
       schema: z.object({ dataHoraIso: z.string() }),
     },
   );
@@ -236,7 +261,7 @@ export function buildLeadTools(deps: ToolDeps): StructuredToolInterface[] {
     {
       name: 'escalar_humano',
       description:
-        'Pausa o bot e chama um atendente humano. Use quando o lead pedir para falar com pessoa, estiver insatisfeito, ou quando você não conseguir resolver com as outras tools.',
+        'Pausa o bot e chama um atendente humano. Use quando o lead pedir para falar com pessoa, ou quando você já tentou resolver e não conseguiu. Não é a primeira reação a insatisfação — tente resolver antes.',
       schema: z.object({ motivo: z.string() }),
     },
   );

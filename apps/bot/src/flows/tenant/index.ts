@@ -15,13 +15,46 @@ import { logger } from '@/lib/logger';
 import { logActivity } from '@/services/activity';
 import { sendText } from '@/services/evolution';
 import { notifyOwner } from '@/services/notify';
+import { createLeadDocumentUrl } from '@/services/storage';
 
 const CHAT_HISTORY_LIMIT = 10;
 const EMERGENCY_SNAPSHOT_TIMEOUT_MS = 2000;
 const EMERGENCY_UNKNOWN_PROPERTY = 'imóvel não identificado';
+const MEDIA_FORWARDED_REPLY = 'Recebi, encaminhei ao proprietário.';
+const MEDIA_ATTACHED_REPLY = 'Recebi o arquivo, anexei ao chamado ✅';
 
 function isAudioMedia(item: MediaItem): boolean {
   return (item.mime ?? '').startsWith('audio/') || (item.type ?? '').startsWith('audio');
+}
+
+function extractMediaUrls(items: MediaItem[]): string[] {
+  return items.map((m) => m.url).filter((u): u is string => Boolean(u));
+}
+
+// Shared by the media pipeline and the frustration branch — both need to
+// enrich an already-open chamado with incoming photos. Never throws: any
+// failure (lookup, race with a concurrent resolve, infra) just means "did
+// not attach", leaving the caller free to fall back (forward to owner) or,
+// for frustration, to escalate regardless since a human is taking over anyway.
+async function attachMediaToOpenChamado(tenantId: string, mediaUrls: string[]): Promise<boolean> {
+  if (mediaUrls.length === 0) return false;
+  try {
+    const openRequest = await prisma.maintenanceRequest.findFirst({
+      where: { tenantId, status: { in: ['open', 'acknowledged'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!openRequest) return false;
+    // updateMany + status filter (not a plain `update`) closes the race
+    // where the chamado gets resolved between the lookup and this write.
+    const { count } = await prisma.maintenanceRequest.updateMany({
+      where: { id: openRequest.id, status: { in: ['open', 'acknowledged'] } },
+      data: { mediaUrls: { push: mediaUrls } },
+    });
+    return count > 0;
+  } catch (err) {
+    logger.error({ err, tenantId }, '[tenant.flow] falha ao tentar anexar mídia a chamado aberto');
+    return false;
+  }
 }
 
 async function loadChatHistory(
@@ -132,7 +165,72 @@ export async function handleTenantMessage(
       return;
     }
 
-    // 2. Greeting — hardcoded, zero LLM (only for pure text, no media)
+    // 2. Non-audio media — deterministic pipeline (design §3, nota T3).
+    // Zero LLM: attaches to an already-open chamado, or forwards to the
+    // owner when there's nothing to attach to and no text accompanies it.
+    // With text present, falls through to the agent (see step 7) with
+    // pendingMediaUrls available for abrir_chamado to attach on creation.
+    const nonAudioMedia = mediaItems.filter((item) => !isAudioMedia(item));
+    if (nonAudioMedia.length > 0 && !messageText) {
+      const displayName = tenantName ?? chatId;
+      const mediaUrls = extractMediaUrls(nonAudioMedia);
+
+      // Shared by both the "no open chamado" case and the "attach failed
+      // unexpectedly" case below — the owner still needs the signed links
+      // (not the raw storage paths, which aren't reachable without auth),
+      // and the tenant must always get a reply, even if notify/log fail.
+      const forwardMediaToOwner = async (): Promise<void> => {
+        const signedMediaUrls = await Promise.all(
+          mediaUrls.map((path) =>
+            createLeadDocumentUrl(path).catch((err) => {
+              logger.error({ err, path }, '[tenant.flow] falha ao assinar URL de mídia pro forward ao owner');
+              return null;
+            }),
+          ),
+        );
+        await Promise.allSettled([
+          notifyOwner(ownerId, 'tenant_media_forwarded', {
+            tenantName: displayName,
+            tenantPhone: chatId,
+            mediaUrls: signedMediaUrls.filter((u): u is string => Boolean(u)),
+          }).catch((err) => logger.error({ err }, '[tenant.flow] notifyOwner tenant_media_forwarded failed')),
+          logActivity({
+            ownerId,
+            actorType: 'bot',
+            actorLabel: 'Bot',
+            action: 'tenant_media_forwarded',
+            subjectType: 'tenant',
+            subjectId: tenantId,
+            subject: displayName,
+          }).catch((err) => logger.error({ err }, '[tenant.flow] logActivity tenant_media_forwarded failed')),
+          persistTurn(chatId, ownerId, null, MEDIA_FORWARDED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou no forward de mídia'),
+          ),
+          sendText(chatId, MEDIA_FORWARDED_REPLY).catch((err) =>
+            logger.error({ err, chatId }, '[tenant.flow] sendText falhou no forward de mídia'),
+          ),
+        ]);
+      };
+
+      if (await attachMediaToOpenChamado(tenantId, mediaUrls)) {
+        // Isolated (not one shared try/catch): the attach itself already
+        // succeeded, so a failure in either of these must not stop the
+        // other, and must never bubble up to fall through to
+        // forwardMediaToOwner (which would mislabel already-attached media).
+        await persistTurn(chatId, ownerId, null, MEDIA_ATTACHED_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] persistTurn falhou após anexar mídia'),
+        );
+        await sendText(chatId, MEDIA_ATTACHED_REPLY).catch((err) =>
+          logger.error({ err, chatId }, '[tenant.flow] sendText falhou após anexar mídia'),
+        );
+        return;
+      }
+
+      await forwardMediaToOwner();
+      return;
+    }
+
+    // 3. Greeting — hardcoded, zero LLM (only for pure text, no media)
     if (mediaItems.length === 0) {
       const greeting = getTenantGreetingReply(messageText, tenantName);
       if (greeting) {
@@ -142,7 +240,7 @@ export async function handleTenantMessage(
       }
     }
 
-    // 3. Audio — hardcoded fallback until T7 (transcription)
+    // 4. Audio — hardcoded fallback until T7 (transcription)
     const audioReceived = mediaItems.some(isAudioMedia);
     if (audioReceived && !messageText) {
       await persistTurn(chatId, ownerId, null, AUDIO_FALLBACK_REPLY);
@@ -150,14 +248,24 @@ export async function handleTenantMessage(
       return;
     }
 
-    // 4. Frustration → escalate before spending an LLM call
+    // 5. Frustration → escalate before spending an LLM call
     if (detectFrustration(messageText)) {
+      // A photo attached to a frustrated message (e.g. "isso aqui é um
+      // lixo" + another photo of the same problem) must not vanish —
+      // silently enrich an already-open chamado if there is one. No
+      // separate owner notification here: escalateTenantToOwner already
+      // notifies the owner that a human needs to step in, and a photo with
+      // no open chamado to attach to just stays in Storage for the human to
+      // ask for again — not worth a second, confusing notification.
+      if (nonAudioMedia.length > 0) {
+        await attachMediaToOpenChamado(tenantId, extractMediaUrls(nonAudioMedia));
+      }
       await escalateTenantToOwner(chatId, ownerId, tenantId, tenantName, 'frustration');
       await persistTurn(chatId, ownerId, messageText || null, null);
       return;
     }
 
-    // 5. Snapshot — factual context for the agent
+    // 6. Snapshot — factual context for the agent
     const snapshot = await buildTenantSnapshot(chatId);
     if (!snapshot) {
       logger.error({ chatId }, '[tenant.flow] Snapshot ausente — notificando owner');
@@ -173,13 +281,28 @@ export async function handleTenantMessage(
     }
     const tenantContext = renderTenantContext(snapshot);
 
-    // 6. Chat history + question for the agent
+    // 7. Chat history + question for the agent
     const chatHistory = await loadChatHistory(chatId);
+    // messageText alone doesn't tell the agent a photo came in the same
+    // turn — without this, it has no way to know whether to ask for one
+    // before opening a chamado (see tenant-v2.ts's maintenance instructions).
+    const mediaNote =
+      nonAudioMedia.length > 0
+        ? `\n\n[O inquilino também anexou ${nonAudioMedia.length} arquivo(s) nesta mensagem.]`
+        : '';
     const question =
-      messageText || (audioReceived ? 'O usuario enviou um audio sem texto.' : 'O usuario enviou apenas midia.');
+      (messageText || (audioReceived ? 'O usuario enviou um audio sem texto.' : 'O usuario enviou apenas midia.')) +
+      mediaNote;
 
-    // 7. Run the tenant agent
-    const tools = buildTenantTools({ chatId, tenantId, ownerId, tenantName });
+    // 8. Run the tenant agent
+    const tools = buildTenantTools({
+      chatId,
+      tenantId,
+      ownerId,
+      tenantName,
+      propertyId: snapshot.property.id,
+      pendingMediaUrls: extractMediaUrls(nonAudioMedia),
+    });
     let replyText: string;
     try {
       replyText = await runTenantAgentV2(question, tenantContext, chatHistory, tools);

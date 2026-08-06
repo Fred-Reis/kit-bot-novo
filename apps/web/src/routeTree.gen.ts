@@ -23,6 +23,7 @@ import { Route as DashboardLeadsIndexRouteImport } from './routes/_dashboard/lea
 import { Route as DashboardLeadsLeadIdRouteImport } from './routes/_dashboard/leads/$leadId'
 import { Route as DashboardPropertiesIndexRouteImport } from './routes/_dashboard/properties/index'
 import { Route as DashboardPropertiesNewRouteImport } from './routes/_dashboard/properties/new'
+import { Route as DashboardProvidersIndexRouteImport } from './routes/_dashboard/providers/index'
 import { Route as DashboardRulesIndexRouteImport } from './routes/_dashboard/rules/index'
 import { Route as DashboardTemplatesIndexRouteImport } from './routes/_dashboard/templates/index'
 import { Route as DashboardTenantsIndexRouteImport } from './routes/_dashboard/tenants/index'
@@ -103,6 +104,11 @@ const DashboardPropertiesNewRoute = DashboardPropertiesNewRouteImport.update({
   path: '/properties/new',
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardProvidersIndexRoute = DashboardProvidersIndexRouteImport.update({
+  id: '/providers/',
+  path: '/providers/',
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardRulesIndexRoute = DashboardRulesIndexRouteImport.update({
   id: '/rules/',
   path: '/rules/',
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/finance/': typeof DashboardFinanceIndexRoute
   '/leads/': typeof DashboardLeadsIndexRoute
   '/properties/': typeof DashboardPropertiesIndexRoute
+  '/providers/': typeof DashboardProvidersIndexRoute
   '/rules/': typeof DashboardRulesIndexRoute
   '/templates/': typeof DashboardTemplatesIndexRoute
   '/tenants/': typeof DashboardTenantsIndexRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByTo {
   '/finance': typeof DashboardFinanceIndexRoute
   '/leads': typeof DashboardLeadsIndexRoute
   '/properties': typeof DashboardPropertiesIndexRoute
+  '/providers': typeof DashboardProvidersIndexRoute
   '/rules': typeof DashboardRulesIndexRoute
   '/templates': typeof DashboardTemplatesIndexRoute
   '/tenants': typeof DashboardTenantsIndexRoute
@@ -209,6 +217,7 @@ export interface FileRoutesById {
   '/_dashboard/finance/': typeof DashboardFinanceIndexRoute
   '/_dashboard/leads/': typeof DashboardLeadsIndexRoute
   '/_dashboard/properties/': typeof DashboardPropertiesIndexRoute
+  '/_dashboard/providers/': typeof DashboardProvidersIndexRoute
   '/_dashboard/rules/': typeof DashboardRulesIndexRoute
   '/_dashboard/templates/': typeof DashboardTemplatesIndexRoute
   '/_dashboard/tenants/': typeof DashboardTenantsIndexRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | '/finance/'
     | '/leads/'
     | '/properties/'
+    | '/providers/'
     | '/rules/'
     | '/templates/'
     | '/tenants/'
@@ -255,6 +265,7 @@ export interface FileRouteTypes {
     | '/finance'
     | '/leads'
     | '/properties'
+    | '/providers'
     | '/rules'
     | '/templates'
     | '/tenants'
@@ -279,6 +290,7 @@ export interface FileRouteTypes {
     | '/_dashboard/finance/'
     | '/_dashboard/leads/'
     | '/_dashboard/properties/'
+    | '/_dashboard/providers/'
     | '/_dashboard/rules/'
     | '/_dashboard/templates/'
     | '/_dashboard/tenants/'
@@ -393,6 +405,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardPropertiesNewRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/_dashboard/providers/': {
+      id: '/_dashboard/providers/'
+      path: '/providers'
+      fullPath: '/providers/'
+      preLoaderRoute: typeof DashboardProvidersIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/_dashboard/rules/': {
       id: '/_dashboard/rules/'
       path: '/rules'
@@ -475,6 +494,7 @@ interface DashboardRouteChildren {
   DashboardFinanceIndexRoute: typeof DashboardFinanceIndexRoute
   DashboardLeadsIndexRoute: typeof DashboardLeadsIndexRoute
   DashboardPropertiesIndexRoute: typeof DashboardPropertiesIndexRoute
+  DashboardProvidersIndexRoute: typeof DashboardProvidersIndexRoute
   DashboardRulesIndexRoute: typeof DashboardRulesIndexRoute
   DashboardTemplatesIndexRoute: typeof DashboardTemplatesIndexRoute
   DashboardTenantsIndexRoute: typeof DashboardTenantsIndexRoute
@@ -496,6 +516,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardFinanceIndexRoute: DashboardFinanceIndexRoute,
   DashboardLeadsIndexRoute: DashboardLeadsIndexRoute,
   DashboardPropertiesIndexRoute: DashboardPropertiesIndexRoute,
+  DashboardProvidersIndexRoute: DashboardProvidersIndexRoute,
   DashboardRulesIndexRoute: DashboardRulesIndexRoute,
   DashboardTemplatesIndexRoute: DashboardTemplatesIndexRoute,
   DashboardTenantsIndexRoute: DashboardTenantsIndexRoute,

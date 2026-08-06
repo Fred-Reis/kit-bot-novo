@@ -13,40 +13,28 @@ import {
   getChecklistForLead,
   renderChecklistContext,
 } from '@/flows/lead/checklist';
+import { ANALYSIS_SUBMITTED_STAGES } from '@/flows/lead/kyc';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface LeadResident {
-  name: string;
-  sex: string;
-  age: number;
-}
-
 export interface LeadContext {
-  state?: string;
   propertyReference?: string | null;
   propertyTitle?: string | null;
   propertyReferenceLocked?: boolean;
   propertyInterest?: string | null;
   currentIntent?: string | null;
   visitedProperty?: boolean | null;
-  visitRequested?: boolean;
-  wantsPause?: boolean;
   wantsHuman?: boolean;
   wantsOptions?: boolean;
   wantsSchedule?: boolean;
   wantsApplication?: boolean;
   audioReceived?: boolean;
   name?: string | null;
-  docsPreference?: 'cnh' | 'rg_cpf' | null;
-  residents?: LeadResident[];
-  residentsComplete?: boolean | null;
   expectedResidents?: number | null;
-  analysisSubmitted?: boolean;
-  visitConfirmationSent?: boolean;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;
   docsContestations?: number;
+  frustrationStrikes?: number;
   lastUserMessage?: string;
   lastRoutedAgent?: string;
   lastRequestedMediaType?: string | null;
@@ -63,6 +51,8 @@ export interface LeadSnapshot {
   state: string;
   stateGuidance: string;
   currentProcessStep: string;
+  scheduledVisitAt: Date | null;
+  analysisSubmitted: boolean;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -84,12 +74,13 @@ const STATE_GUIDANCE: Record<string, string> = {
     'Responda a duvida atual sobre o imovel, valor, regras, localizacao ou disponibilidade.',
   'lead.visit_scheduling': 'Conduza apenas o agendamento de visita. Nao peca renda nem documentos.',
   'lead.visit_requested':
-    'Confirme que a visita foi solicitada e mantenha o atendimento aberto para novas duvidas.',
+    'A visita ja esta confirmada (veja a data no contexto do sistema) — confirme isso ao lead. Se o lead pedir para mudar a data/hora, use agendar_visita de novo sem resistencia.',
   'lead.objection_handling':
     'Responda a objecao com clareza antes de qualquer tentativa de avancar etapa.',
   'lead.post_visit_decision':
     'Confirme se o lead quer seguir com a locacao agora que ja visitou o imovel.',
-  'lead.collect_application': 'Colete apenas o proximo item pendente para a analise.',
+  'lead.collect_application':
+    'Colete apenas o proximo item pendente para a analise. Se o lead pedir para visitar (ou remarcar/cancelar), atenda na hora com as tools — visita continua permitida em qualquer etapa.',
   'lead.data_confirmation':
     'Confirme com o lead o nome e CPF extraídos dos documentos antes de enviar para análise.',
   'lead.review_submitted':
@@ -136,6 +127,10 @@ export async function resolvePropertyInFocus(context: LeadContext): Promise<Prop
   return null;
 }
 
+export function isVisitUpcoming(scheduledVisitAt: Date | null): boolean {
+  return scheduledVisitAt != null && scheduledVisitAt.getTime() > Date.now();
+}
+
 function isPropertyLocked(context: LeadContext): boolean {
   return context.propertyReferenceLocked === true && !!(context.propertyReference ?? '').trim();
 }
@@ -147,15 +142,20 @@ export interface DeriveStateInput {
   intent: string;
   propertyInFocus: PropertyData | null;
   checklist: ChecklistStatus;
+  hasScheduledVisit?: boolean;
+  analysisSubmitted?: boolean;
 }
 
 export function deriveState(input: DeriveStateInput): string {
-  const { context, intent, propertyInFocus, checklist } = input;
+  const { context, intent, propertyInFocus, checklist, hasScheduledVisit, analysisSubmitted } =
+    input;
 
-  if (context.analysisSubmitted) return 'lead.review_submitted';
   if (intent === 'objection') return 'lead.objection_handling';
 
-  if (!propertyInFocus) {
+  // Um lead já submetido não volta pro início quando perde o imóvel do foco —
+  // o imóvel vira "rented" justamente depois da conversão, e sem esta guarda
+  // isso reiniciava o funil inteiro em lead.start.
+  if (!propertyInFocus && !analysisSubmitted) {
     if (context.wantsOptions || intent === 'availability' || intent === 'options')
       return 'lead.offer_options';
     return 'lead.start';
@@ -163,20 +163,41 @@ export function deriveState(input: DeriveStateInput): string {
 
   const visited = context.visitedProperty;
 
-  // Pedido explícito de visita sempre vai para scheduling (a menos que já visitou)
-  if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
-    return context.visitRequested ? 'lead.visit_requested' : 'lead.visit_scheduling';
-  }
-
-  if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
-
-  // Visita é opcional — progresso no checklist avança a coleta
+  // Visita é opcional — progresso no checklist avança a coleta. Calculado antes
+  // do ramo de visita porque o sinal de visita não pode rebobinar o funil.
   const hasApplicationProgress =
     context.wantsApplication ||
     checklist.income ||
     checklist.identity.have.length > 0 ||
     checklist.residents.collected > 0 ||
     checklist.residents.expected != null;
+
+  if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
+    // Visita já confirmada no banco (hasScheduledVisit, nunca o flag de sessão
+    // visitRequested) sempre ganha: quem pergunta sobre a própria visita marcada
+    // precisa ser atendido, mesmo no meio da análise.
+    if (hasScheduledVisit) return 'lead.visit_requested';
+    // Sem visita marcada, o sinal de visita só reabre o agendamento enquanto não
+    // há análise em andamento. Com renda/documentos já no banco, um sinal ambíguo
+    // (o extrator classifica cutucadas como intenção de visita) jogava o lead de
+    // volta pro início do funil. Agendar continua possível a qualquer momento pela
+    // tool agendar_visita, sem precisar trocar de estado.
+    if (!hasApplicationProgress) return 'lead.visit_scheduling';
+  }
+
+  // `&& propertyInFocus` preserva a invariante "property_info sempre tem imóvel
+  // em foco", agora que um lead submetido pode chegar aqui com foco nulo.
+  if (PROPERTY_INFO_INTENTS.has(intent) && propertyInFocus) return 'lead.property_info';
+
+  // Fato do banco (Lead.stage), nunca flag de sessão: o antigo
+  // context.analysisSubmitted era uma catraca que se auto-realimentava — uma vez
+  // true, deriveState retornava review_submitted logo na primeira linha, o que
+  // fazia o chamador setá-la true de novo, e nada (objeção, documento corrigido,
+  // checklist regredido, override do painel) conseguia mais destravar o lead.
+  // Fica depois de objeção e property_info de propósito: quem já foi pra análise
+  // continua tendo a pergunta atual respondida em vez de ouvir só "seus dados
+  // seguiram para análise".
+  if (analysisSubmitted) return 'lead.review_submitted';
 
   if (!hasApplicationProgress) {
     if (visited === true) return 'lead.post_visit_decision';
@@ -194,13 +215,23 @@ export function deriveState(input: DeriveStateInput): string {
 export async function buildLeadSnapshot(
   leadId: string,
   context: LeadContext,
+  scheduledVisitAt: Date | null = null,
+  leadStage = '',
 ): Promise<LeadSnapshot> {
   const propertyInFocus = await resolvePropertyInFocus(context);
   const availableProperties = await listAvailableProperties();
   const checklist = await getChecklistForLead(leadId);
   const intent = context.currentIntent ?? 'unknown';
+  const analysisSubmitted = ANALYSIS_SUBMITTED_STAGES.has(leadStage);
 
-  const state = deriveState({ context, intent, propertyInFocus, checklist });
+  const state = deriveState({
+    context,
+    intent,
+    propertyInFocus,
+    checklist,
+    hasScheduledVisit: isVisitUpcoming(scheduledVisitAt),
+    analysisSubmitted,
+  });
 
   return {
     context,
@@ -213,6 +244,8 @@ export async function buildLeadSnapshot(
     state,
     stateGuidance: STATE_GUIDANCE[state] ?? STATE_GUIDANCE['lead.start'],
     currentProcessStep: currentProcessStep(state),
+    scheduledVisitAt,
+    analysisSubmitted,
   };
 }
 
@@ -235,6 +268,25 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
 
   const propertyInterest = (context.propertyInterest ?? '').trim() || 'nao informado';
 
+  const visitStatus = (() => {
+    if (!snapshot.scheduledVisitAt) {
+      // Sem "ainda": enquadrar a ausência de visita como pendência empurrava o
+      // agente a oferecer agendamento mesmo pra quem acabou de cancelar.
+      return 'Nenhuma visita agendada no banco. A visita e OPCIONAL no processo: nao ofereca nem cobre agendamento por iniciativa propria, a menos que o lead peca.';
+    }
+    const formatted = snapshot.scheduledVisitAt.toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    if (isVisitUpcoming(snapshot.scheduledVisitAt)) {
+      return `Visita CONFIRMADA para ${formatted} (pra reagendar ou cancelar, use as tools normalmente).`;
+    }
+    // A data passou e ninguem reagendou — nao diga que "esta" confirmada,
+    // essa visita nao existe mais. Ofereca remarcar em vez de so informar.
+    return `HAVIA uma visita marcada para ${formatted}, mas essa data ja passou e ninguem reagendou. Avise o lead disso (use "havia", nao "esta confirmada") e ofereca remarcar.`;
+  })();
+
   const lines = [
     'Fluxo: lead nao inquilino.',
     `Estado atual: ${snapshot.state}.`,
@@ -249,10 +301,17 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
     `Condicoes factuais do imovel em foco:\n${propertyTermsSummary}`,
     `Imovel em foco travado: ${snapshot.propertyLocked === true}.`,
     `Ja visitou o imovel: ${context.visitedProperty != null ? String(context.visitedProperty) : 'nao informado'}.`,
-    `Pedido de visita ja registrado: ${context.visitRequested === true}.`,
+    visitStatus,
     'Imoveis disponiveis no banco:',
     availableSummary,
   ];
+
+  // O checklist é fato do banco e entra em TODO estado. Escondê-lo fora dos
+  // estados de análise fazia o agente perder de vista onde o funil parou e
+  // reiniciar o processo do zero (ou negar documentos já recebidos) sempre que
+  // um turno derivasse pra agendamento de visita.
+  lines.push(renderChecklistContext(snapshot.checklist));
+  lines.push(`Analise submetida: ${snapshot.analysisSubmitted}.`);
 
   const applicationStates = [
     'lead.collect_application',
@@ -260,11 +319,10 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
     'lead.review_submitted',
     'lead.data_confirmation',
   ];
-  if (applicationStates.includes(snapshot.state)) {
-    lines.push(renderChecklistContext(snapshot.checklist));
-    lines.push(`Analise submetida: ${snapshot.context.analysisSubmitted === true}.`);
-  } else {
-    lines.push('Nao peca renda, documentos ou moradores nesta etapa.');
+  if (!applicationStates.includes(snapshot.state)) {
+    lines.push(
+      'Nesta etapa nao cobre renda, documentos ou moradores por iniciativa propria — o checklist acima serve so para voce nao contradizer o que ja foi recebido nem repetir pedidos ja atendidos.',
+    );
   }
 
   return lines.join('\n');

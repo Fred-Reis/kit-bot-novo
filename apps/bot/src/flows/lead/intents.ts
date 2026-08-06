@@ -41,6 +41,45 @@ const DETAILS_TERMS = new Set([
   'condicoes',
 ]);
 
+// Mensagens que só chamam atenção, sem pedir nada. O extrator LLM tende a
+// "completar" a intenção delas a partir do contexto e devolvia intenção de
+// visita pra uma cutucada, rebobinando o funil de quem já estava na análise.
+// Comparado com a mensagem INTEIRA (igualdade, não includes) — "e ai, quero
+// visitar" continua indo pro extrator normalmente.
+// Já normalizadas: normalizeIntentText remove acento e pontuação, então "E aí?"
+// entra aqui como "e ai" e mensagens só de pontuação viram string vazia (tratadas
+// à parte, em getDeterministicLeadUpdates).
+const NUDGE_MESSAGES = new Set([
+  'e ai',
+  'eai',
+  'e entao',
+  'entao',
+  'alo',
+  'oi',
+  'ola',
+  'opa',
+  'oie',
+  'tudo bem',
+  'tudo bom',
+]);
+
+// Achado real: perguntado "informe seu sexo e idade", o lead respondeu
+// "Feminino 42" e o extrator classificou "Feminino" como name_is_explicit=true,
+// virando o "nome" salvo no Lead (e exibido de volta na confirmação de dados).
+// Guarda determinística — não depende do LLM acertar sempre.
+const NOT_A_NAME_TERMS = new Set([
+  'feminino',
+  'masculino',
+  'homem',
+  'mulher',
+  'nao binario',
+  'prefiro nao dizer',
+]);
+
+export function isPlausibleName(name: string): boolean {
+  return !NOT_A_NAME_TERMS.has(normalizeIntentText(name));
+}
+
 const CONTESTATION_TERMS = [
   'ja enviei',
   'ja mandei',
@@ -92,9 +131,25 @@ export function getSimpleGreetingReply(message: string | null): string | null {
 
 export function getDeterministicLeadUpdates(message: string | null): Record<string, unknown> {
   const normalized = normalizeIntentText(message ?? '');
-  if (!normalized) return {};
+  // Espelha a regra de cutucada do EXTRACTOR_SYSTEM_PROMPT: nenhuma etapa é
+  // inferida a partir de uma mensagem sem conteúdo. visitedProperty fica de fora
+  // de propósito — é fato durável, não intenção do turno.
+  const nudgeUpdates = {
+    currentIntent: 'unknown',
+    wantsSchedule: false,
+    wantsApplication: false,
+    wantsOptions: false,
+  };
+
+  if (!normalized) {
+    // Mensagem só de pontuação ("?", "!!") some na normalização, mas foi enviada
+    // de propósito: é cutucada, não turno vazio.
+    return (message ?? '').trim() ? nudgeUpdates : {};
+  }
 
   const updates: Record<string, unknown> = {};
+
+  if (NUDGE_MESSAGES.has(normalized)) return nudgeUpdates;
 
   if ([...SAW_AD_TERMS, ...NOT_VISITED_TERMS].some((t) => normalized.includes(t))) {
     updates['visitedProperty'] = false;
@@ -119,4 +174,19 @@ export function getDeterministicLeadUpdates(message: string | null): Record<stri
   }
 
   return updates;
+}
+
+// visitedProperty is monotonic against LLM drift (once true, an ambiguous later
+// turn shouldn't silently un-set it) — but an explicit deterministic correction
+// ("ainda nao visitei") must still be able to fix a wrongly-true flag.
+export function resolveVisitedProperty(
+  previous: boolean | null | undefined,
+  extracted: boolean | null | undefined,
+  message: string | null,
+): boolean | null | undefined {
+  if (previous === true && extracted !== true) {
+    if (getDeterministicLeadUpdates(message).visitedProperty === false) return false;
+    return true;
+  }
+  return extracted;
 }

@@ -1,7 +1,7 @@
-import type { ComplaintStatus } from '@kit-manager/types';
+import type { ComplaintStatus, MaintenanceResponsibility, MaintenanceStatus } from '@kit-manager/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { ChevronLeft } from 'lucide-react';
+import { AlertCircle, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { ComplaintsSection } from '@/components/complaints-section';
 import { ContractsSection } from '@/components/contracts-section';
@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/empty-state';
 import { SpecBar } from '@/components/spec-bar';
 import { Avatar } from '@/components/ui/avatar';
 import { Pill } from '@/components/ui/pill';
+import { Toggle } from '@/components/ui/toggle';
 import { adminApi, apiErrorMessage } from '@/lib/api';
 import { formatPhone } from '@/lib/leads';
 import {
@@ -17,6 +18,7 @@ import {
   fetchTenantComplaints,
   fetchTenantContracts,
   fetchTenantDocuments,
+  fetchTenantMaintenanceRequests,
 } from '@/lib/queries';
 import { formatCurrency } from '@/lib/utils';
 
@@ -77,6 +79,41 @@ function TenantDetailPage() {
     onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
   });
 
+  const { data: maintenanceRequests = [], isLoading: maintenanceLoading } = useQuery({
+    queryKey: ['tenant-maintenance', tenantId],
+    queryFn: () => fetchTenantMaintenanceRequests(tenantId),
+    enabled: !!data,
+  });
+
+  const advanceMaintenanceStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: MaintenanceStatus }) =>
+      adminApi.updateMaintenanceStatus(id, status),
+    onSuccess: () => {
+      toast.success('Status atualizado.');
+      void qc.invalidateQueries({ queryKey: ['tenant-maintenance', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar status.')),
+  });
+
+  const updateMaintenanceResponsibility = useMutation({
+    mutationFn: ({ id, responsibility }: { id: string; responsibility: MaintenanceResponsibility }) =>
+      adminApi.updateMaintenanceResponsibility(id, responsibility),
+    onSuccess: () => {
+      toast.success('Responsabilidade atualizada.');
+      void qc.invalidateQueries({ queryKey: ['tenant-maintenance', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao atualizar responsabilidade.')),
+  });
+
+  const togglePause = useMutation({
+    mutationFn: (next: boolean) => adminApi.pauseTenant(tenantId, next),
+    onSuccess: (_data, next) => {
+      toast.success(next ? 'Bot pausado.' : 'Bot retomado.');
+      void qc.invalidateQueries({ queryKey: ['tenant', tenantId] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, 'Erro ao alternar bot.')),
+  });
+
   if (isLoading) return <div className="h-96 animate-pulse rounded-[10px] bg-muted" />;
   if (!data) return <p className="text-sm text-muted-foreground">Inquilino não encontrado.</p>;
 
@@ -104,6 +141,16 @@ function TenantDetailPage() {
         </div>
       </div>
 
+      {tenant.botPaused && (
+        <div
+          data-slot="bot-paused-badge"
+          className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5 text-sm font-medium text-warning"
+        >
+          <AlertCircle className="size-4 shrink-0" />
+          Bot pausado — você assume
+        </div>
+      )}
+
       <SpecBar
         cells={[
           { label: 'Pontuação', value: score },
@@ -112,6 +159,15 @@ function TenantDetailPage() {
           { label: 'Imóvel', value: tenant.propertyName ?? '—' },
         ]}
       />
+
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-sm text-muted-foreground">Bot ativo</span>
+        <Toggle
+          checked={!tenant.botPaused}
+          onChange={(v) => togglePause.mutate(!v)}
+          aria-label={tenant.botPaused ? 'Reativar bot' : 'Pausar bot'}
+        />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
         <div
@@ -190,9 +246,15 @@ function TenantDetailPage() {
 
       <ComplaintsSection
         complaints={complaints}
-        isLoading={complaintsLoading}
-        isAdvancing={advanceComplaintStatus.isPending}
+        maintenanceRequests={maintenanceRequests}
+        isLoading={complaintsLoading || maintenanceLoading}
+        isAdvancing={advanceComplaintStatus.isPending || advanceMaintenanceStatus.isPending}
+        onUpdateMaintenanceResponsibility={(id, responsibility) =>
+          updateMaintenanceResponsibility.mutate({ id, responsibility })
+        }
+        isUpdatingResponsibility={updateMaintenanceResponsibility.isPending}
         onAdvanceStatus={(id, status) => advanceComplaintStatus.mutate({ id, status })}
+        onAdvanceMaintenanceStatus={(id, status) => advanceMaintenanceStatus.mutate({ id, status })}
       />
 
       <div

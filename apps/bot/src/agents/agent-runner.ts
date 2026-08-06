@@ -40,12 +40,20 @@ export async function runToolAgent(
   const bound = llm ?? makeDefaultLLM(tools);
   const toolsByName = new Map(tools.map((t) => [t.name, t]));
 
+  const hoje = new Date().toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'full',
+    timeStyle: 'short',
+  });
+
   const messages: BaseMessage[] = [
     new SystemMessage(systemPrompt),
     ...chatHistory.map((m) =>
       m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content),
     ),
-    new HumanMessage(`Contexto do sistema:\n${contextStr}\n\nMensagem do usuario:\n${question}`),
+    new HumanMessage(
+      `Data e hora atual (use como referencia para "hoje", "amanha", datas relativas e para checar se uma data e/hora e futura ou passada): ${hoje}\n\nContexto do sistema:\n${contextStr}\n\nMensagem do usuario:\n${question}`,
+    ),
   ];
 
   try {

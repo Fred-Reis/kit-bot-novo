@@ -3,6 +3,8 @@ import {
   normalizeIntentText,
   getSimpleGreetingReply,
   getDeterministicLeadUpdates,
+  isPlausibleName,
+  resolveVisitedProperty,
 } from '@/flows/lead/intents';
 
 // ─── normalizeIntentText ──────────────────────────────────────────────────────
@@ -128,5 +130,72 @@ describe('getDeterministicLeadUpdates', () => {
 
   test('null input → empty object', () => {
     expect(getDeterministicLeadUpdates(null)).toEqual({});
+  });
+
+  // Incidente real: "E aí?" (cutucada sem conteúdo, depois de retomar o bot)
+  // foi classificada como intenção de visita e rebobinou o funil inteiro.
+  test('cutucada sem conteudo → nenhuma etapa e inferida', () => {
+    for (const nudge of ['E aí?', 'e ai', 'eai', 'e então?', 'alô', 'oi?', '?', '!!']) {
+      expect(getDeterministicLeadUpdates(nudge)).toMatchObject({
+        currentIntent: 'unknown',
+        wantsSchedule: false,
+        wantsApplication: false,
+        wantsOptions: false,
+      });
+    }
+  });
+
+  test('cutucada COM conteudo nao e neutralizada (match e da mensagem inteira)', () => {
+    const result = getDeterministicLeadUpdates('e ai, quero marcar uma visita');
+    expect(result.currentIntent).toBeUndefined();
+  });
+
+  test('resposta curta afirmativa nao e confundida com cutucada', () => {
+    expect(getDeterministicLeadUpdates('sim')).toEqual({});
+    expect(getDeterministicLeadUpdates('quero')).toEqual({});
+  });
+});
+
+// ─── resolveVisitedProperty ───────────────────────────────────────────────────
+
+describe('resolveVisitedProperty', () => {
+  test('explicit "ainda nao visitei" corrects a previously-true flag back to false', () => {
+    expect(resolveVisitedProperty(true, false, 'ainda nao visitei, marca uma visita')).toBe(false);
+  });
+
+  test('explicit "nao visitei" corrects a previously-true flag back to false', () => {
+    expect(resolveVisitedProperty(true, null, 'nao visitei ainda')).toBe(false);
+  });
+
+  test('LLM drift without a deterministic correction is reverted back to true', () => {
+    expect(resolveVisitedProperty(true, null, 'quero saber o valor do aluguel')).toBe(true);
+  });
+
+  test('previously true stays true when extraction agrees', () => {
+    expect(resolveVisitedProperty(true, true, 'ja visitei sim')).toBe(true);
+  });
+
+  test('previously not-true is untouched by the guard', () => {
+    expect(resolveVisitedProperty(false, true, 'ja visitei o imovel')).toBe(true);
+    expect(resolveVisitedProperty(null, null, 'oi')).toBe(null);
+  });
+});
+
+// ─── isPlausibleName ──────────────────────────────────────────────────────────
+
+describe('isPlausibleName', () => {
+  // Achado real: perguntado "informe seu sexo e idade", o lead respondeu
+  // "Feminino 42" e o extrator classificou "Feminino" como o nome do lead —
+  // que foi devolvido pro lead na confirmação de dados ("Nome: Feminino").
+  test('sexo nao e nome', () => {
+    for (const notName of ['Feminino', 'masculino', 'Homem', 'MULHER', 'Não binário']) {
+      expect(isPlausibleName(notName)).toBe(false);
+    }
+  });
+
+  test('nome de verdade continua aceito', () => {
+    for (const name of ['Aline', 'Frederico', 'Maria da Silva', 'João']) {
+      expect(isPlausibleName(name)).toBe(true);
+    }
   });
 });

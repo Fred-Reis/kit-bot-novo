@@ -47,3 +47,23 @@ describe('expected_residents', () => {
     expect(parsed.expected_residents).toBeNull();
   });
 });
+
+describe('sexo/idade — campo dedicado pra resposta de sexo/idade nao virar "name"', () => {
+  // Achado real: sem um campo proprio no schema, "Feminino 42" (resposta a
+  // "informe seu sexo e idade") foi classificado como name_is_explicit=true —
+  // o unico campo de texto livre sobre a pessoa que sobrou no schema era
+  // `name`. sexo/idade existem pra dar ao modelo um lugar correto, mas
+  // extractLeadUpdate nunca le raw.sexo/raw.idade pra dentro de `updates` —
+  // quem grava de fato e' a tool registrar_moradores.
+  test('aceita sexo e idade', () => {
+    const parsed = LeadExtractionSchema.parse({ sexo: 'feminino', idade: 42 });
+    expect(parsed.sexo).toBe('feminino');
+    expect(parsed.idade).toBe(42);
+  });
+
+  test('default null quando ausentes', () => {
+    const parsed = LeadExtractionSchema.parse({});
+    expect(parsed.sexo).toBeNull();
+    expect(parsed.idade).toBeNull();
+  });
+});
