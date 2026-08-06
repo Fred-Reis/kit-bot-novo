@@ -15,7 +15,11 @@ import {
   normalizeIntentText,
   resolveVisitedProperty,
 } from '@/flows/lead/intents';
-import { shouldTransitionToKyc, shouldUpdateLeadSource } from '@/flows/lead/kyc';
+import {
+  shouldResetDataConfirmation,
+  shouldTransitionToKyc,
+  shouldUpdateLeadSource,
+} from '@/flows/lead/kyc';
 import {
   findPropertyMedia,
   getRequestedMediaType,
@@ -162,6 +166,15 @@ export async function handleLeadMessage(
     // null), um valor velho preso na sessão voltava a alimentar o extrator e a
     // ser regravado por cima do valor correto.
     context.expectedResidents = lead.expectedResidents ?? null;
+
+    // Mesma doutrina pro flag de confirmação de dados: rollback manual de stage
+    // pelo painel (kyc_pending -> collection, por exemplo) não limpa
+    // Conversation.data, então sem isto a próxima mensagem do lead recalculava
+    // shouldTransitionToKyc como true de novo e voltava o stage sozinho.
+    if (shouldResetDataConfirmation(lead.stage)) {
+      context.dataConfirmed = false;
+      context.dataConfirmationSent = false;
+    }
 
     // 2. Reset per-turn transient flags
     context.wantsPause = false;

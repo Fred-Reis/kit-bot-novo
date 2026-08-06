@@ -23,6 +23,16 @@ export const TERMINAL_STAGES = new Set([
 // ainda precisa acontecer, e tratá-la como submetida travaria o lead pra sempre.
 export const ANALYSIS_SUBMITTED_STAGES = new Set([...KYC_BLOCKER_STAGES, 'review_submitted']);
 
+// context.dataConfirmed vive só na sessão (Conversation.data), sem contrapartida
+// no banco. PATCH /admin/leads/:id/stage escreve só Lead.stage — um owner que
+// rebaixa o lead (kyc_pending -> collection, por exemplo) não limpa a flag, e a
+// próxima mensagem do lead recalcula shouldTransitionToKyc como true de novo,
+// voltando o stage sozinho e notificando o owner uma segunda vez. NAO reseta em
+// data_confirmation: ali a confirmação pode estar genuinamente em andamento.
+export function shouldResetDataConfirmation(leadStage: string): boolean {
+  return leadStage !== 'data_confirmation' && !ANALYSIS_SUBMITTED_STAGES.has(leadStage);
+}
+
 export function shouldTransitionToKyc(
   checklistComplete: boolean,
   leadStage: string,

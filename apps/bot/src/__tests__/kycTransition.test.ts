@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  ANALYSIS_SUBMITTED_STAGES,
   KYC_BLOCKER_STAGES,
+  shouldResetDataConfirmation,
   shouldTransitionToKyc,
   shouldUpdateLeadSource,
   TERMINAL_STAGES,
@@ -80,4 +82,28 @@ describe('shouldUpdateLeadSource', () => {
 
 test('TERMINAL_STAGES includes data_confirmation', () => {
   expect(TERMINAL_STAGES.has('data_confirmation')).toBe(true);
+});
+
+describe('shouldResetDataConfirmation', () => {
+  // Bug real: PATCH /admin/leads/:id/stage escreve só Lead.stage, nunca
+  // Conversation.data. Um owner que rebaixa um lead de kyc_pending pra
+  // 'collection' via painel via de context.dataConfirmed continuar true na
+  // sessão — a próxima mensagem do lead recalcula shouldTransitionToKyc como
+  // true de novo e o stage volta sozinho pra kyc_pending, com notifyOwner
+  // disparando uma segunda vez.
+  for (const stage of ['interest', 'visiting', 'collection']) {
+    test(`reseta quando o stage manual e ${stage} (o unico jeito de "voltar" hoje)`, () => {
+      expect(shouldResetDataConfirmation(stage)).toBe(true);
+    });
+  }
+
+  test('NAO reseta em data_confirmation — a confirmacao pode estar em andamento', () => {
+    expect(shouldResetDataConfirmation('data_confirmation')).toBe(false);
+  });
+
+  for (const stage of ANALYSIS_SUBMITTED_STAGES) {
+    test(`NAO reseta quando o stage ja avancou (${stage})`, () => {
+      expect(shouldResetDataConfirmation(stage)).toBe(false);
+    });
+  }
 });
