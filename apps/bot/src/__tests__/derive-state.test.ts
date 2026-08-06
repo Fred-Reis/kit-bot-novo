@@ -80,13 +80,39 @@ describe('deriveState com checklist', () => {
     expect(state).toBe('lead.visit_requested');
   });
 
-  it('context.visitRequested preso em true (turno antigo) mas SEM data confirmada no banco → continua scheduling', () => {
-    // Regressão: visitRequested é um flag de sessão que fica travado em true
-    // depois do primeiro "quero marcar visita" e nunca mais reseta sozinho.
-    // O estado real de "ja esta agendado" tem que vir do banco (scheduledVisitAt),
-    // senão o bot para de tentar agendar mesmo sem nenhuma data confirmada.
+  it('sinal de visita com analise ja em andamento → collect_application, nao volta pro agendamento', () => {
+    // Incidente real: lead ja tinha renda + CNH no banco e faltava so o morador.
+    // Uma cutucada ("E aí?") foi lida como intencao de visita pelo extrator e
+    // jogou o funil inteiro de volta pro agendamento.
     const state = deriveState({
-      context: { visitedProperty: false, wantsSchedule: true, visitRequested: true },
+      context: { visitedProperty: false },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: partialChecklist,
+      hasScheduledVisit: false,
+    });
+    expect(state).toBe('lead.collect_application');
+  });
+
+  it('sinal de visita COM visita confirmada no banco → visit_requested mesmo com analise em andamento', () => {
+    // A trava acima nao pode engolir quem tem visita marcada e pergunta sobre ela.
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
+      intent: 'visit',
+      propertyInFocus: property,
+      checklist: partialChecklist,
+      hasScheduledVisit: true,
+    });
+    expect(state).toBe('lead.visit_requested');
+  });
+
+  it('sem data confirmada no banco → continua scheduling (nunca "ja solicitada")', () => {
+    // Regressão: o estado "ja agendado" tem que vir do banco (scheduledVisitAt).
+    // O flag de sessão visitRequested, que travava em true e fazia o bot parar de
+    // tentar agendar, foi removido — este teste garante que a decisão continua
+    // vindo só do banco.
+    const state = deriveState({
+      context: { visitedProperty: false, wantsSchedule: true },
       intent: 'visit',
       propertyInFocus: property,
       checklist: emptyChecklist,

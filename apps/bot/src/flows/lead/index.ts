@@ -188,10 +188,13 @@ export async function handleLeadMessage(
       const availableProps = await listAvailableProperties();
       const availableSummary = availableProps.map((p) => summarizeProperty(p)).join('\n');
       const previousVisitedProperty = context.visitedProperty;
+      const lastAssistantMessage =
+        [...chatHistory].reverse().find((m) => m.role === 'assistant')?.content ?? null;
       const { extractedSource, ...updates } = await extractLeadUpdate(
         messageText,
         context,
         availableSummary,
+        lastAssistantMessage,
       );
       Object.assign(context, updates);
 
@@ -426,13 +429,6 @@ export async function handleLeadMessage(
         context.propertyTitle = matched.name;
         context.propertyReferenceLocked = true;
       }
-    }
-
-    // 9. Derive visit_requested flag
-    if (context.visitedProperty === false && context.wantsSchedule) {
-      context.visitRequested = true;
-    } else if (context.visitedProperty !== false) {
-      context.visitRequested = false;
     }
 
     if (context.visitedProperty === true) {

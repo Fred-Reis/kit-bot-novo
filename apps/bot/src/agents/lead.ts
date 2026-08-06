@@ -14,7 +14,8 @@ export const EXTRACTOR_SYSTEM_PROMPT = `Voce extrai apenas dados estruturados ex
 Regras:
 - Identifique a intencao principal atual do lead.
 - Nunca invente informacoes ausentes.
-- Use o contexto atual para interpretar respostas curtas como "sim", "quero", "pode ser", "cpf".
+- Use a ultima mensagem do bot para interpretar respostas curtas como "sim", "quero", "pode ser", "cpf".
+- Cutucadas sem conteudo: quando a mensagem INTEIRA for so "e ai", "oi", "opa", "alo", "e entao", "tudo bem?", "?" ou so emoji, o lead esta apenas chamando atencao. Nesse caso intent = "unknown" e NAO preencha wants_schedule, wants_application, wants_options nem visited_property — nem que os fatos conhecidos sugiram alguma etapa. Isso NAO vale para respostas curtas afirmativas ("sim", "quero", "pode ser"), que continuam sendo interpretadas normalmente.
 - "CPF" ou "RG" como resposta na etapa de escolha documental significa "rg_cpf".
 - Se a pessoa disser "ja visitei", "ja vi", "ja conheco", "eu ja fui" ou equivalente, visited_property = true.
 - "Vi uma quitinete alugando", "vi o anuncio", "vi esse numero", "peguei seu numero na OLX" ou equivalente significa que a pessoa viu o anuncio/contato, nao que visitou o imovel.
@@ -120,10 +121,35 @@ function makeLLM(maxTokens = 400) {
   });
 }
 
+// Só estes campos vão pro extrator. O LeadContext inteiro é persistido em
+// Conversation.data e cresce com sobras de sessão (estado derivado, intenção do
+// turno anterior, telemetria, flags de features removidas) — despejá-lo cru
+// criava um eco: o extrator relia a própria classificação antiga como se fosse
+// fato e a reconfirmava, inclusive em mensagens sem conteúdo. Whitelist também
+// descarta chaves legadas que sobraram no banco de builds antigos.
+const EXTRACTION_VIEW_KEYS = [
+  'name',
+  'propertyReference',
+  'propertyTitle',
+  'propertyInterest',
+  'visitedProperty',
+  'expectedResidents',
+] as const satisfies ReadonlyArray<keyof LeadContext>;
+
+export function buildExtractionView(context: LeadContext): Partial<LeadContext> {
+  const view: Record<string, unknown> = {};
+  for (const key of EXTRACTION_VIEW_KEYS) {
+    const value = context[key];
+    if (value !== undefined && value !== null) view[key] = value;
+  }
+  return view as Partial<LeadContext>;
+}
+
 export async function extractLeadUpdate(
   message: string,
   context: LeadContext,
   availablePropertiesSummary?: string,
+  lastAssistantMessage?: string | null,
 ): Promise<Partial<LeadContext> & { extractedSource: string | null }> {
   const extractor = makeLLM(400).withStructuredOutput(LeadExtractionSchema);
 
@@ -131,7 +157,7 @@ export async function extractLeadUpdate(
     ['system', EXTRACTOR_SYSTEM_PROMPT],
     [
       'human',
-      'Data e hora atual (use como referencia para datas relativas como "amanha", "terca", "semana que vem"): {hoje}\n\nContexto atual (JSON):\n{context}\n\nImoveis disponiveis no sistema:\n{available}\n\nMensagem do usuario:\n{message}',
+      'Data e hora atual (use como referencia para datas relativas como "amanha", "terca", "semana que vem"): {hoje}\n\nFatos ja conhecidos do lead (JSON):\n{context}\n\nUltima mensagem enviada pelo bot (use para interpretar respostas curtas como "sim", "quero", "pode ser"):\n{lastAssistant}\n\nImoveis disponiveis no sistema:\n{available}\n\nMensagem do usuario:\n{message}',
     ],
   ]);
 
@@ -147,7 +173,8 @@ export async function extractLeadUpdate(
   try {
     raw = (await chain.invoke({
       message,
-      context: JSON.stringify(context),
+      context: JSON.stringify(buildExtractionView(context)),
+      lastAssistant: lastAssistantMessage?.trim() || 'nenhuma',
       available: availablePropertiesSummary ?? 'nao informado',
       hoje,
     })) as z.infer<typeof LeadExtractionSchema>;

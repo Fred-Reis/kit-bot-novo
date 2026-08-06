@@ -130,6 +130,29 @@ describe('getDeterministicLeadUpdates', () => {
   test('null input → empty object', () => {
     expect(getDeterministicLeadUpdates(null)).toEqual({});
   });
+
+  // Incidente real: "E aí?" (cutucada sem conteúdo, depois de retomar o bot)
+  // foi classificada como intenção de visita e rebobinou o funil inteiro.
+  test('cutucada sem conteudo → nenhuma etapa e inferida', () => {
+    for (const nudge of ['E aí?', 'e ai', 'eai', 'e então?', 'alô', 'oi?', '?', '!!']) {
+      expect(getDeterministicLeadUpdates(nudge)).toMatchObject({
+        currentIntent: 'unknown',
+        wantsSchedule: false,
+        wantsApplication: false,
+        wantsOptions: false,
+      });
+    }
+  });
+
+  test('cutucada COM conteudo nao e neutralizada (match e da mensagem inteira)', () => {
+    const result = getDeterministicLeadUpdates('e ai, quero marcar uma visita');
+    expect(result.currentIntent).toBeUndefined();
+  });
+
+  test('resposta curta afirmativa nao e confundida com cutucada', () => {
+    expect(getDeterministicLeadUpdates('sim')).toEqual({});
+    expect(getDeterministicLeadUpdates('quero')).toEqual({});
+  });
 });
 
 // ─── resolveVisitedProperty ───────────────────────────────────────────────────

@@ -30,7 +30,6 @@ export interface LeadContext {
   propertyInterest?: string | null;
   currentIntent?: string | null;
   visitedProperty?: boolean | null;
-  visitRequested?: boolean;
   wantsPause?: boolean;
   wantsHuman?: boolean;
   wantsOptions?: boolean;
@@ -43,7 +42,6 @@ export interface LeadContext {
   residentsComplete?: boolean | null;
   expectedResidents?: number | null;
   analysisSubmitted?: boolean;
-  visitConfirmationSent?: boolean;
   dataConfirmed?: boolean;
   dataConfirmationSent?: boolean;
   docsContestations?: number;
@@ -90,7 +88,8 @@ const STATE_GUIDANCE: Record<string, string> = {
     'Responda a objecao com clareza antes de qualquer tentativa de avancar etapa.',
   'lead.post_visit_decision':
     'Confirme se o lead quer seguir com a locacao agora que ja visitou o imovel.',
-  'lead.collect_application': 'Colete apenas o proximo item pendente para a analise.',
+  'lead.collect_application':
+    'Colete apenas o proximo item pendente para a analise. Se o lead pedir para visitar (ou remarcar/cancelar), atenda na hora com as tools — visita continua permitida em qualquer etapa.',
   'lead.data_confirmation':
     'Confirme com o lead o nome e CPF extraídos dos documentos antes de enviar para análise.',
   'lead.review_submitted':
@@ -169,23 +168,29 @@ export function deriveState(input: DeriveStateInput): string {
 
   const visited = context.visitedProperty;
 
-  // Pedido explícito de visita sempre vai para scheduling (a menos que já visitou).
-  // "Já confirmada" tem que vir do banco (hasScheduledVisit) — context.visitRequested
-  // é só um flag de sessão que fica travado em true e nunca reseta sozinho; usá-lo aqui
-  // fazia o bot parar de tentar agendar mesmo sem nenhuma data de fato confirmada.
-  if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
-    return hasScheduledVisit ? 'lead.visit_requested' : 'lead.visit_scheduling';
-  }
-
-  if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
-
-  // Visita é opcional — progresso no checklist avança a coleta
+  // Visita é opcional — progresso no checklist avança a coleta. Calculado antes
+  // do ramo de visita porque o sinal de visita não pode rebobinar o funil.
   const hasApplicationProgress =
     context.wantsApplication ||
     checklist.income ||
     checklist.identity.have.length > 0 ||
     checklist.residents.collected > 0 ||
     checklist.residents.expected != null;
+
+  if ((context.wantsSchedule || intent === 'visit') && visited !== true) {
+    // Visita já confirmada no banco (hasScheduledVisit, nunca o flag de sessão
+    // visitRequested) sempre ganha: quem pergunta sobre a própria visita marcada
+    // precisa ser atendido, mesmo no meio da análise.
+    if (hasScheduledVisit) return 'lead.visit_requested';
+    // Sem visita marcada, o sinal de visita só reabre o agendamento enquanto não
+    // há análise em andamento. Com renda/documentos já no banco, um sinal ambíguo
+    // (o extrator classifica cutucadas como intenção de visita) jogava o lead de
+    // volta pro início do funil. Agendar continua possível a qualquer momento pela
+    // tool agendar_visita, sem precisar trocar de estado.
+    if (!hasApplicationProgress) return 'lead.visit_scheduling';
+  }
+
+  if (PROPERTY_INFO_INTENTS.has(intent)) return 'lead.property_info';
 
   if (!hasApplicationProgress) {
     if (visited === true) return 'lead.post_visit_decision';
@@ -254,7 +259,9 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
 
   const visitStatus = (() => {
     if (!snapshot.scheduledVisitAt) {
-      return 'Visita ainda NAO confirmada no banco — nenhuma data registrada.';
+      // Sem "ainda": enquadrar a ausência de visita como pendência empurrava o
+      // agente a oferecer agendamento mesmo pra quem acabou de cancelar.
+      return 'Nenhuma visita agendada no banco. A visita e OPCIONAL no processo: nao ofereca nem cobre agendamento por iniciativa propria, a menos que o lead peca.';
     }
     const formatted = snapshot.scheduledVisitAt.toLocaleString('pt-BR', {
       timeZone: 'America/Sao_Paulo',
@@ -288,17 +295,23 @@ export function renderLeadContext(snapshot: LeadSnapshot): string {
     availableSummary,
   ];
 
+  // O checklist é fato do banco e entra em TODO estado. Escondê-lo fora dos
+  // estados de análise fazia o agente perder de vista onde o funil parou e
+  // reiniciar o processo do zero (ou negar documentos já recebidos) sempre que
+  // um turno derivasse pra agendamento de visita.
+  lines.push(renderChecklistContext(snapshot.checklist));
+  lines.push(`Analise submetida: ${snapshot.context.analysisSubmitted === true}.`);
+
   const applicationStates = [
     'lead.collect_application',
     'lead.post_visit_decision',
     'lead.review_submitted',
     'lead.data_confirmation',
   ];
-  if (applicationStates.includes(snapshot.state)) {
-    lines.push(renderChecklistContext(snapshot.checklist));
-    lines.push(`Analise submetida: ${snapshot.context.analysisSubmitted === true}.`);
-  } else {
-    lines.push('Nao peca renda, documentos ou moradores nesta etapa.');
+  if (!applicationStates.includes(snapshot.state)) {
+    lines.push(
+      'Nesta etapa nao cobre renda, documentos ou moradores por iniciativa propria — o checklist acima serve so para voce nao contradizer o que ja foi recebido nem repetir pedidos ja atendidos.',
+    );
   }
 
   return lines.join('\n');
